@@ -134,11 +134,362 @@ function fetchFromCMC(): array {
             'market_cap' => $coin['quote']['USD']['market_cap'],
             'volume' => $coin['quote']['USD']['volume_24h'],
             'volume_24h' => $coin['quote']['USD']['volume_24h'], // Add both keys for compatibility
-            'date_added' => $coin['date_added'] ?? null // Add date_added field
+            'date_added' => $coin['date_added'] ?? null, // Add date_added field
+            'source' => 'CoinMarketCap' // Add source field
         ];
     }
     
     return $formattedData;
+}
+
+/**
+ * Fetch cryptocurrency data from CoinGecko
+ * 
+ * @return array Formatted cryptocurrency data
+ */
+function fetchFromCoinGecko() {
+    $url = "https://api.coingecko.com/api/v3/coins/markets";
+    $params = [
+        'vs_currency' => 'usd',
+        'order' => 'market_cap_desc',
+        'per_page' => 100,
+        'page' => 1,
+        'sparkline' => 'false',
+        'price_change_percentage' => '24h'
+    ];
+    
+    // Add API key if defined
+    if (defined('COINGECKO_API_KEY') && COINGECKO_API_KEY) {
+        $params['x_cg_pro_api_key'] = COINGECKO_API_KEY;
+    }
+    
+    $queryString = http_build_query($params);
+    $fullUrl = $url . '?' . $queryString;
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $fullUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    
+    $response = curl_exec($ch);
+    
+    if (curl_errno($ch)) {
+        logEvent("CoinGecko API error: " . curl_error($ch), 'error');
+        curl_close($ch);
+        return [];
+    }
+    
+    curl_close($ch);
+    $data = json_decode($response, true);
+    
+    if (!$data || !is_array($data)) {
+        logEvent("Invalid response from CoinGecko", 'error');
+        return [];
+    }
+    
+    $formattedData = [];
+    foreach ($data as $coin) {
+        if (!isset($coin['symbol'])) continue;
+        
+        // Format the data
+        $formattedData[strtoupper($coin['symbol'])] = [
+            'name' => $coin['name'],
+            'price' => $coin['current_price'],
+            'change' => $coin['price_change_percentage_24h'],
+            'market_cap' => $coin['market_cap'],
+            'volume' => $coin['total_volume'],
+            'volume_24h' => $coin['total_volume'],
+            'date_added' => $coin['genesis_date'] ?? null,
+            'source' => 'CoinGecko'
+        ];
+    }
+    
+    return $formattedData;
+}
+
+/**
+ * Fetch cryptocurrency data from Jupiter (Solana)
+ * 
+ * @return array Formatted cryptocurrency data
+ */
+function fetchFromJupiter() {
+    $url = "https://quote-api.jup.ag/v4/price";
+    $params = ["ids" => "SOL,BTC,ETH,USDC,USDT"];
+    
+    $queryString = http_build_query($params);
+    $fullUrl = $url . '?' . $queryString;
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $fullUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    
+    $response = curl_exec($ch);
+    
+    if (curl_errno($ch)) {
+        logEvent("Jupiter API error: " . curl_error($ch), 'error');
+        curl_close($ch);
+        return [];
+    }
+    
+    curl_close($ch);
+    $data = json_decode($response, true);
+    
+    if (!$data || !isset($data['data']) || !is_array($data['data'])) {
+        logEvent("Invalid response from Jupiter", 'error');
+        return [];
+    }
+    
+    $formattedData = [];
+    foreach ($data['data'] as $tokenId => $tokenData) {
+        $formattedData[strtoupper($tokenId)] = [
+            'name' => $tokenId, // Jupiter doesn't provide full names
+            'price' => $tokenData['price'],
+            'change' => 0, // Jupiter doesn't provide change data
+            'market_cap' => 0, // Jupiter doesn't provide market cap
+            'volume' => 0, // Jupiter doesn't provide volume data
+            'volume_24h' => 0,
+            'date_added' => null,
+            'source' => 'Jupiter'
+        ];
+    }
+    
+    return $formattedData;
+}
+
+/**
+ * Fetch cryptocurrency data from Bitvavo
+ * 
+ * @return array Formatted cryptocurrency data
+ */
+function fetchFromBitvavo() {
+    // First get markets
+    $marketsUrl = "https://api.bitvavo.com/v2/markets";
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $marketsUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    
+    $marketsResponse = curl_exec($ch);
+    
+    if (curl_errno($ch)) {
+        logEvent("Bitvavo Markets API error: " . curl_error($ch), 'error');
+        curl_close($ch);
+        return [];
+    }
+    
+    curl_close($ch);
+    $markets = json_decode($marketsResponse, true);
+    
+    if (!$markets || !is_array($markets)) {
+        logEvent("Invalid response from Bitvavo Markets API", 'error');
+        return [];
+    }
+    
+    // Then get ticker data
+    $tickerUrl = "https://api.bitvavo.com/v2/ticker/24h";
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $tickerUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    
+    $tickerResponse = curl_exec($ch);
+    
+    if (curl_errno($ch)) {
+        logEvent("Bitvavo Ticker API error: " . curl_error($ch), 'error');
+        curl_close($ch);
+        return [];
+    }
+    
+    curl_close($ch);
+    $tickers = json_decode($tickerResponse, true);
+    
+    if (!$tickers || !is_array($tickers)) {
+        logEvent("Invalid response from Bitvavo Ticker API", 'error');
+        return [];
+    }
+    
+    $formattedData = [];
+    foreach ($markets as $market) {
+        $symbol = $market['base'];
+        
+        // Find matching ticker
+        $ticker = null;
+        foreach ($tickers as $t) {
+            if ($t['market'] === ($market['symbol'] ?? '')) {
+                $ticker = $t;
+                break;
+            }
+        }
+        
+        if ($ticker) {
+            $formattedData[strtoupper($symbol)] = [
+                'name' => $market['base'],
+                'price' => floatval($ticker['last'] ?? 0),
+                'change' => floatval($ticker['changePercentage'] ?? 0),
+                'market_cap' => 0, // Bitvavo doesn't provide market cap
+                'volume' => floatval($ticker['volume'] ?? 0),
+                'volume_24h' => floatval($ticker['volume'] ?? 0),
+                'date_added' => null,
+                'source' => 'Bitvavo'
+            ];
+        }
+    }
+    
+    return $formattedData;
+}
+
+/**
+ * Fetch cryptocurrency data from multiple sources and merge them
+ * 
+ * @return array Merged cryptocurrency data from all sources
+ */
+function fetchFromAllSources() {
+    $allData = [];
+    $debugOutput = true; // Set to true to see debug output
+    
+    // Fetch from CoinMarketCap
+    try {
+        $cmcData = fetchFromCMC('/cryptocurrency/listings/latest', [
+            'start' => 1,
+            'limit' => 100,
+            'convert' => 'USD'
+        ]);
+        
+        if ($cmcData && isset($cmcData['data'])) {
+            $formattedCmcData = [];
+            foreach ($cmcData['data'] as $coin) {
+                // Make sure symbol exists
+                if (!isset($coin['symbol']) || empty($coin['symbol'])) {
+                    continue;
+                }
+                
+                $symbol = $coin['symbol'];
+                $formattedCmcData["{$symbol}_CMC"] = [
+                    'name' => $coin['name'] ?? 'Unknown',
+                    'symbol' => $symbol,
+                    'price' => $coin['quote']['USD']['price'] ?? 0,
+                    'change' => $coin['quote']['USD']['percent_change_24h'] ?? 0,
+                    'market_cap' => $coin['quote']['USD']['market_cap'] ?? 0,
+                    'volume' => $coin['quote']['USD']['volume_24h'] ?? 0,
+                    'volume_24h' => $coin['quote']['USD']['volume_24h'] ?? 0,
+                    'date_added' => $coin['date_added'] ?? null,
+                    'source' => 'CoinMarketCap'
+                ];
+                
+                if ($debugOutput) {
+                    echo "Added {$symbol} from CoinMarketCap\n";
+                }
+            }
+            $allData = array_merge($allData, $formattedCmcData);
+            if ($debugOutput) {
+                echo "Added " . count($formattedCmcData) . " coins from CoinMarketCap\n";
+            }
+        }
+    } catch (Exception $e) {
+        logEvent("Error fetching from CoinMarketCap: " . $e->getMessage(), 'error');
+    }
+    
+    // Fetch from CoinGecko
+    try {
+        $geckoData = fetchFromCoinGecko();
+        if (!empty($geckoData)) {
+            // Rename keys to avoid collisions
+            $formattedGeckoData = [];
+            foreach ($geckoData as $symbol => $coin) {
+                $formattedGeckoData["{$symbol}_Gecko"] = $coin;
+                if ($debugOutput) {
+                    echo "Added {$symbol} from CoinGecko\n";
+                }
+            }
+            $allData = array_merge($allData, $formattedGeckoData);
+            if ($debugOutput) {
+                echo "Added " . count($formattedGeckoData) . " coins from CoinGecko\n";
+            }
+        }
+    } catch (Exception $e) {
+        logEvent("Error fetching from CoinGecko: " . $e->getMessage(), 'error');
+    }
+    
+    // Fetch from Jupiter
+    try {
+        $jupiterData = fetchFromJupiter();
+        if (!empty($jupiterData)) {
+            // Rename keys to avoid collisions
+            $formattedJupiterData = [];
+            foreach ($jupiterData as $symbol => $coin) {
+                $formattedJupiterData["{$symbol}_Jupiter"] = $coin;
+                if ($debugOutput) {
+                    echo "Added {$symbol} from Jupiter\n";
+                }
+            }
+            $allData = array_merge($allData, $formattedJupiterData);
+            if ($debugOutput) {
+                echo "Added " . count($formattedJupiterData) . " coins from Jupiter\n";
+            }
+        }
+    } catch (Exception $e) {
+        logEvent("Error fetching from Jupiter: " . $e->getMessage(), 'error');
+    }
+    
+    // Fetch from Bitvavo
+    try {
+        $bitvavoData = fetchFromBitvavo();
+        if (!empty($bitvavoData)) {
+            // Rename keys to avoid collisions
+            $formattedBitvavoData = [];
+            foreach ($bitvavoData as $symbol => $coin) {
+                $formattedBitvavoData["{$symbol}_Bitvavo"] = $coin;
+                if ($debugOutput) {
+                    echo "Added {$symbol} from Bitvavo\n";
+                }
+            }
+            $allData = array_merge($allData, $formattedBitvavoData);
+            if ($debugOutput) {
+                echo "Added " . count($formattedBitvavoData) . " coins from Bitvavo\n";
+            }
+        }
+    } catch (Exception $e) {
+        logEvent("Error fetching from Bitvavo: " . $e->getMessage(), 'error');
+    }
+    
+    if ($debugOutput) {
+        echo "Total coins after merging: " . count($allData) . "\n";
+    }
+    
+    // If we have no data from any source, use the CoinMarketCap data directly
+    if (empty($allData) && isset($cmcData) && isset($cmcData['data'])) {
+        foreach ($cmcData['data'] as $coin) {
+            if (!isset($coin['symbol']) || empty($coin['symbol'])) {
+                continue;
+            }
+            
+            $symbol = $coin['symbol'];
+            $allData[$symbol] = [
+                'name' => $coin['name'] ?? 'Unknown',
+                'symbol' => $symbol,
+                'price' => $coin['quote']['USD']['price'] ?? 0,
+                'change' => $coin['quote']['USD']['percent_change_24h'] ?? 0,
+                'market_cap' => $coin['quote']['USD']['market_cap'] ?? 0,
+                'volume' => $coin['quote']['USD']['volume_24h'] ?? 0,
+                'volume_24h' => $coin['quote']['USD']['volume_24h'] ?? 0,
+                'date_added' => $coin['date_added'] ?? null,
+                'source' => 'CoinMarketCap'
+            ];
+            
+            if ($debugOutput) {
+                echo "Added {$symbol} directly from CoinMarketCap\n";
+            }
+        }
+        
+        if ($debugOutput) {
+            echo "Total coins after direct addition: " . count($allData) . "\n";
+        }
+    }
+    
+    return $allData;
 }
 
 
