@@ -1,0 +1,134 @@
+<?php
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/auth.php';
+require_once __DIR__ . '/includes/database.php';
+
+//echo '<div class="container mt-3">';
+//echo '<h3>Debug Info</h3>';
+
+// Test database connection
+//try {
+//    $db = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+//    echo '<p class="text-success">✓ Database connection successful</p>';
+    
+    // Test query
+//    $result = $db->query("SELECT COUNT(*) AS count FROM cryptocurrencies");
+//    $row = $result->fetch_assoc();
+//    echo '<p>Found '.$row['count'].' coins in database</p>';
+    
+    // Show sample data
+//    $sample = $db->query("SELECT name, symbol FROM cryptocurrencies LIMIT 3");
+//    echo '<pre>Sample data: '.print_r($sample->fetch_all(MYSQLI_ASSOC), true).'</pre>';
+    
+//} catch(Exception $e) {
+//    echo '<p class="text-danger">✗ Database error: '.$e->getMessage().'</p>';
+//}
+//echo '</div>';
+// die(); 
+// uncomment this to stop further execution
+
+//echo "<pre>";
+//print_r(getNewCryptocurrencies());
+//echo "</pre>";
+//die();
+
+$title = "All Cryptocurrencies";
+require_once __DIR__ . '/includes/header.php';
+//echo "<h2>Debug Info</h2>";
+//echo "DB User: ".DB_USER."<br>";
+//$test = getNewCryptocurrencies();
+//echo "Fetched ".count($test)." coins<br>";
+//echo "<pre>";
+//print_r($test);
+//echo "</pre>";
+//die();
+
+$coins = getNewCryptocurrencies();
+?>
+<style>
+#coins-table {
+    width: 100%;
+    margin: 20px 0;
+}
+#coins-table th {
+    background: #343a40;
+    color: white;
+    padding: 12px;
+}
+#coins-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #dee2e6;
+}
+</style>
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h1 class="mt-4">
+                <i class="fas fa-coins"></i> All Cryptocurrencies
+                <small class="text-muted">Tracked by Night Stalker</small>
+            </h1>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0">Coin List</h3>
+                        <span class="badge bg-light text-dark"><?php echo count($coins); ?> coins</span>
+                    </div>
+                </div>
+<div class="table-responsive">
+<table class="table table-striped" id="coins-table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Symbol</th>
+            <th>Price</th>
+            <th>24h Change</th>
+            <th>Volume</th>
+            <th>Market Cap</th>
+            <th>Age</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php foreach ($coins as $coin): ?>
+        <tr>
+            <td><?= htmlspecialchars($coin['name']) ?></td>
+            <td><?= strtoupper($coin['symbol']) ?></td>
+            <td>$<?= number_format($coin['price'], 2) ?></td>
+            <td class="<?= $coin['price_change_24h'] >= 0 ? 'text-success' : 'text-danger' ?>">
+                <?= number_format($coin['price_change_24h'], 2) ?>%
+            </td>
+            <td>$<?= number_format($coin['volume']) ?></td>
+            <td>$<?= number_format($coin['market_cap']) ?></td>
+            <td><?= $coin['age_hours'] ?>h</td>
+            <td>
+                <?php if ($coin['is_trending']): ?>
+                    <span class="badge bg-warning text-dark">Trending</span>
+                <?php elseif ($coin['volume_spike']): ?>
+                    <span class="badge bg-info text-white">Volume Spike</span>
+                <?php else: ?>
+                    <span class="badge bg-secondary">Monitoring</span>
+                <?php endif; ?>
+            </td>
+        </tr>
+        <?php endforeach; ?>
+    </tbody>
+</table>
+</div>
+
+<script>
+// Basic sorting without AJAX
+$(document).ready(function() {
+    $('#coins-table').DataTable({
+        order: [[4, 'desc']], // Sort by Volume by default
+        pageLength: 25
+    });
+});
+</script>
+
+<?php require_once __DIR__ . '/includes/footer.php'; ?>

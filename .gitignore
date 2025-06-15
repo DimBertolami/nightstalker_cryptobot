@@ -1,0 +1,36 @@
+# Composer dependencies
+/vendor/
+
+# Environment variables
+.env
+
+# Logs
+/logs/*
+!/logs/.gitkeep
+
+# User-specific configuration
+/config/exchanges.json
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# IDE files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Composer local installation
+composer.phar

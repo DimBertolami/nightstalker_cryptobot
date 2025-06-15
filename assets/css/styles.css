@@ -1,0 +1,90 @@
+/* Night Stalker Custom Styles */
+body {
+    background-color: #f8f9fa;
+    padding-top: 56px;
+}
+
+.coin-card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.coin-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    font-weight: bold;
+}
+
+.text-success {
+    color: #28a745 !important;
+}
+
+.text-danger {
+    color: #dc3545 !important;
+}
+
+#trending-coins .coin-card {
+    border-left: 4px solid #ffc107;
+}
+
+#all-new-coins .coin-card {
+    border-left: 4px solid #17a2b8;
+}
+
+.alert-info {
+    background-color: #343a40;
+    color: white;
+    border-color: #454d55;
+}
+
+.footer {
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+}
+
+.login-container {
+    max-width: 400px;
+    margin: 0 auto;
+    padding-top: 50px;
+}
+
+/* DataTables customization */
+.dataTables_wrapper .dataTables_filter input {
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 5px 10px;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+    padding: 5px 10px;
+    margin-left: 2px;
+    border: 1px solid transparent;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+    background: #0d6efd;
+    color: white !important;
+    border: 1px solid #0d6efd;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
