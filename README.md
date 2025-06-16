@@ -268,6 +268,29 @@ The system uses cron jobs for automated operations:
    * * * * * php /opt/lampp/htdocs/NS/cron/update_prices.php
    ```
 
+## Recent Fixes
+
+### Exchange Configuration Issues (June 2025)
+
+The following issues were identified and fixed in the exchange configuration system:
+
+1. **JavaScript Fixes in `assets/js/exchange-config.js`**:
+   - Fixed incomplete code with missing closing brackets
+   - Changed `BASE_URL` declaration from `const` to `var` to avoid duplicate declaration errors
+   - Added console debug logging for AJAX calls
+   - Enabled page reload after successful exchange addition
+
+2. **PHP API Endpoint Fixes**:
+   - Added missing `api_url` parameter in `api/test-exchange.php` credentials array
+   - Fixed permission issues with the config directory
+   - Improved error handling in exchange connection testing
+
+3. **Frontend Fixes in `dashboard/settings.php`**:
+   - Removed duplicate inclusion of exchange-config.js script
+   - Added `showAlert` JavaScript function for better user feedback
+
+These fixes resolved issues preventing successful addition of cryptocurrency exchanges like Kraken to the platform.
+
 ## Troubleshooting
 
 - **API Connection Issues**:
@@ -289,6 +312,9 @@ The system uses cron jobs for automated operations:
   - Test exchange connection through the Settings page
   - Check CCXT library is installed: `composer show ccxt/ccxt`
   - Verify exchange API status on their official status page
+  - Ensure config directory has proper write permissions: `chmod -R 777 /opt/lampp/htdocs/NS/config`
+  - Check browser console for JavaScript errors when adding exchanges
+  - Verify `api_url` parameter is included in exchange credentials
 
 ## Security Considerations
 

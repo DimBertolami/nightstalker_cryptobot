@@ -313,4 +313,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <?php
+// Add important notes about exchange configuration
+if ($step == 5): // Only show on final step
+?>
+<div class="container mt-4">
+    <div class="alert alert-info">
+        <h5><i class="fas fa-info-circle"></i> Important Notes for Exchange Configuration</h5>
+        <p>When adding cryptocurrency exchanges to Night Stalker, please ensure:</p>
+        <ul>
+            <li>The <code>config</code> directory has proper write permissions (777)</li>
+            <li>API keys have proper permissions on the exchange platform</li>
+            <li>API URL is correctly specified for each exchange</li>
+            <li>Check browser console for any JavaScript errors if exchanges cannot be added</li>
+        </ul>
+        <p>For detailed troubleshooting, refer to the <a href="/NS/README.md">README documentation</a>.</p>
+    </div>
+</div>
+<?php
+endif;
+
 require_once __DIR__ . '/../../includes/footer.php';
