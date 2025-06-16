@@ -5,7 +5,7 @@
 
 # Set variables
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
-BACKUP_DIR="./backups/backup_$TIMESTAMP"
+BACKUP_DIR="$(pwd)/backup_$TIMESTAMP"
 DB_NAME="night_stalker"
 DB_USER="root"
 DB_PASS=""  # Set your database password here if needed
@@ -90,10 +90,11 @@ EOL
 
 # Create a compressed archive
 echo -e "${YELLOW}Creating compressed archive...${NC}"
-tar -czf "night_stalker_backup_$TIMESTAMP.tar.gz" "$BACKUP_DIR"
+BACKUP_FILENAME="night_stalker_backup_$TIMESTAMP.tar.gz"
+tar -czf "$BACKUP_FILENAME" -C "$(dirname "$BACKUP_DIR")" "$(basename "$BACKUP_DIR")"
 
 if [ $? -eq 0 ]; then
-    echo -e "${GREEN}Backup archive created: night_stalker_backup_$TIMESTAMP.tar.gz${NC}"
+    echo -e "${GREEN}Backup archive created: $BACKUP_FILENAME${NC}"
     echo -e "${YELLOW}Cleaning up temporary files...${NC}"
     rm -rf "$BACKUP_DIR"
     echo -e "${GREEN}Backup completed successfully!${NC}"
@@ -104,6 +105,6 @@ fi
 
 echo -e "\n${GREEN}=== Night Stalker Backup Summary ===${NC}"
 echo -e "Timestamp: $TIMESTAMP"
-echo -e "Archive: night_stalker_backup_$TIMESTAMP.tar.gz"
+echo -e "Archive: $BACKUP_FILENAME"
 echo -e "\nTo restore this backup, extract the archive and follow the instructions in README.txt"
 echo -e "${YELLOW}IMPORTANT: Keep this backup secure as it contains sensitive information!${NC}"
