@@ -36,6 +36,7 @@ if (!isset($data['exchange_id']) || !isset($data['api_key']) || !isset($data['ap
 $credentials = [
     'api_key' => $data['api_key'],
     'api_secret' => $data['api_secret'],
+    'api_url' => !empty($data['api_url']) ? $data['api_url'] : '',
     'test_mode' => !empty($data['test_mode']),
     'additional_params' => !empty($data['additional_params']) ? $data['additional_params'] : []
 ];

@@ -3,6 +3,12 @@
  * Handles CCXT integration and exchange management
  */
 
+// Define BASE_URL based on the current location
+var BASE_URL = window.location.protocol + '//' + window.location.host + '/NS';
+
+// Debug logging
+console.log('BASE_URL set to:', BASE_URL);
+
 $(document).ready(function() {
     // Load exchange data when editing
     $(document).on('click', '.edit-exchange', function() {
@@ -163,6 +169,9 @@ $(document).ready(function() {
         const endpoint = isEditMode ? 'edit-exchange.php' : 'add-exchange.php';
         
         // Send data to server
+        console.log('Sending exchange data to:', `${BASE_URL}/api/${endpoint}`);
+        console.log('Exchange data:', exchangeData);
+        
         $.ajax({
             url: `${BASE_URL}/api/${endpoint}`,
             method: 'POST',
@@ -177,7 +186,7 @@ $(document).ready(function() {
                     
                     // Reload the page to show updated exchanges
                     setTimeout(function() {
-                        // location.reload();
+                        location.reload();
                     }, 1000);
                 } else {
                     showAlert('Error: ' + response.message, 'danger');
@@ -200,5 +209,53 @@ $(document).ready(function() {
         const exchangeId = $('#exchangeSelect').val();
         const apiKey = $('#apiKey').val();
         const apiSecret = $('#apiSecret').val();
+        const apiUrl = $('#apiUrl').val();
         const additionalParams = $('#additionalParams').val();
         const testMode = $('#testMode').is(':checked');
+        
+        if (!exchangeId || !apiKey || !apiSecret) {
+            showAlert('Please fill in all required fields', 'danger');
+            return;
+        }
+        
+        // Show loading indicator
+        const originalButtonText = $(this).html();
+        $(this).html('<i class="fas fa-spinner fa-spin"></i> Testing...');
+        $(this).prop('disabled', true);
+        
+        // Prepare data for test
+        const testData = {
+            exchange_id: exchangeId,
+            api_key: apiKey,
+            api_secret: apiSecret,
+            api_url: apiUrl,
+            test_mode: testMode,
+            additional_params: additionalParams
+        };
+        
+        // Send test request
+        $.ajax({
+            url: `${BASE_URL}/api/test-exchange.php`,
+            method: 'POST',
+            data: JSON.stringify(testData),
+            contentType: 'application/json',
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    showAlert('Connection successful!', 'success');
+                } else {
+                    showAlert('Connection failed: ' + response.message, 'danger');
+                }
+            },
+            error: function(xhr, status, error) {
+                showAlert('Error testing connection', 'danger');
+                console.error('AJAX error:', error);
+            },
+            complete: function() {
+                // Reset button
+                $('#testExchange').html(originalButtonText);
+                $('#testExchange').prop('disabled', false);
+            }
+        });
+    });
+});

@@ -574,7 +574,7 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
                 
                 <div class="mb-3">
                     <label for="apiSecret" class="form-label">API Secret</label>
-                    <input type="password" class="form-control" id="apiSecret" placeholder="Enter API Secret" required>
+                    <input type="password" class="form-control" id="apiSecret" placeholder="Enter API Secret">
                 </div>
                 
                 <div class="mb-3">
@@ -609,8 +609,25 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
 <!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-<script src="../assets/js/exchange-config.js"></script>
 <script>
+    // Alert function for displaying messages
+    function showAlert(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.role = 'alert';
+        alertDiv.innerHTML = message + 
+            '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
+        
+        const container = document.querySelector('.container');
+        container.insertBefore(alertDiv, container.firstChild);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            const bsAlert = new bootstrap.Alert(alertDiv);
+            bsAlert.close();
+        }, 5000);
+    }
+    
     document.addEventListener('DOMContentLoaded', function() {
         // Reset stats button
         const resetStatsBtn = document.getElementById('resetStatsBtn');
