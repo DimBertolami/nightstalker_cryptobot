@@ -2,9 +2,23 @@
 require_once __DIR__ . '/config.php';
 
 function logEvent($message) {
-    file_put_contents('/opt/lampp/htdocs/NS/logs/events.log', 
+    $logFile = '/opt/lampp/htdocs/NS/logs/events.log';
+    
+    // Check if directory exists, if not try to create it
+    $logDir = dirname($logFile);
+    if (!is_dir($logDir)) {
+        @mkdir($logDir, 0755, true);
+    }
+    
+    // Try to write to log file, but don't fail if we can't
+    @file_put_contents($logFile, 
         date('Y-m-d H:i:s') . ' - ' . $message . PHP_EOL, 
         FILE_APPEND);
+    
+    // If in debug mode, also output to PHP error log
+    if (defined('DEBUG_MODE') && DEBUG_MODE) {
+        error_log($message);
+    }
 }
 
 /**
@@ -57,6 +71,9 @@ function getTradingStats(): array {
             $stats['total_volume'] = (float)$result->fetch_assoc()['volume'] ?? 0;
         }
 
+        // Sync with TradingLogger if it exists
+        syncTradesWithLogger();
+
         return $stats;
 
     } catch (Exception $e) {
@@ -67,6 +84,113 @@ function getTradingStats(): array {
             'total_profit' => 0,
             'total_volume' => 0
         ];
+    }
+}
+
+/**
+ * Sync trades data with the TradingLogger system
+ * This ensures that the dashboard displays the correct trade data
+ */
+function syncTradesWithLogger() {
+    try {
+        // Check if TradingLogger class exists
+        if (!class_exists('TradingLogger')) {
+            return false;
+        }
+        
+        $db = getDBConnection();
+        if (!$db) {
+            throw new Exception("Database connection failed");
+        }
+        
+        // Get all trades
+        $query = "SELECT t.*, c.symbol, c.name 
+                 FROM trades t 
+                 LEFT JOIN cryptocurrencies c ON t.coin_id = c.id 
+                 ORDER BY t.trade_time DESC";
+        
+        $result = $db->query($query);
+        if (!$result) {
+            throw new Exception("Failed to fetch trades: " . $db->error);
+        }
+        
+        // Initialize TradingLogger
+        $logger = new TradingLogger();
+        
+        // Get existing events to avoid duplicates
+        $existingEvents = $logger->getRecentEvents('main_strategy', 1000);
+        $existingTradeIds = [];
+        
+        foreach ($existingEvents as $event) {
+            $eventData = json_decode($event['event_data'], true);
+            if (isset($eventData['trade_id'])) {
+                $existingTradeIds[] = $eventData['trade_id'];
+            }
+        }
+        
+        // Process each trade and log it
+        $stats = [
+            'trades_executed' => 0,
+            'successful_trades' => 0,
+            'failed_trades' => 0,
+            'total_profit' => 0,
+            'win_rate' => 0,
+            'avg_profit_percentage' => 0
+        ];
+        
+        $totalTrades = 0;
+        $successfulTrades = 0;
+        $totalProfit = 0;
+        
+        while ($trade = $result->fetch_assoc()) {
+            // Skip if already logged
+            if (in_array($trade['id'], $existingTradeIds)) {
+                continue;
+            }
+            
+            $eventType = $trade['trade_type']; // 'buy' or 'sell'
+            $symbol = $trade['symbol'] ?? 'UNKNOWN';
+            
+            $eventData = [
+                'trade_id' => $trade['id'],
+                'symbol' => $symbol,
+                'amount' => (float)$trade['amount'],
+                'price' => (float)$trade['price'],
+                'total_value' => (float)$trade['total_value'],
+                'timestamp' => strtotime($trade['trade_time'])
+            ];
+            
+            if ($trade['profit_loss'] !== null) {
+                $eventData['profit_loss'] = (float)$trade['profit_loss'];
+                
+                // Update stats
+                $totalTrades++;
+                if ($trade['profit_loss'] > 0) {
+                    $successfulTrades++;
+                }
+                $totalProfit += (float)$trade['profit_loss'];
+            }
+            
+            // Log the event
+            $logger->logEvent('main_strategy', $eventType, $eventData);
+        }
+        
+        // Update statistics
+        if ($totalTrades > 0) {
+            $stats['trades_executed'] = $totalTrades;
+            $stats['successful_trades'] = $successfulTrades;
+            $stats['failed_trades'] = $totalTrades - $successfulTrades;
+            $stats['total_profit'] = $totalProfit;
+            $stats['win_rate'] = ($successfulTrades / $totalTrades) * 100;
+            $stats['avg_profit_percentage'] = $totalProfit / $totalTrades;
+            
+            $logger->updateStats('main_strategy', $stats);
+        }
+        
+        return true;
+    } catch (Exception $e) {
+        error_log("[syncTradesWithLogger] Error: " . $e->getMessage());
+        return false;
     }
 }
 
