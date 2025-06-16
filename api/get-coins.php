@@ -1,10 +1,15 @@
 <?php
-// Start session if not already started
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
+// Set JSON content type header
 header('Content-Type: application/json');
+
+// Suppress all errors
+error_reporting(0);
+ini_set('display_errors', 0);
+
+// Start output buffering to catch any unexpected output
+ob_start();
+
+// Include required files
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/database.php';
@@ -14,7 +19,7 @@ try {
     $marketData = fetchFromAllSources();
     
     // Get data from database
-    $db = db_connect();
+    $db = getDBConnection();
     
     // Check if we have the new cryptocurrencies table
     $hasNewTable = false;
@@ -77,14 +82,24 @@ try {
     // Merge live data with database data
     $coins = array_map(function($coin) use ($marketData, $userBalances) {
         $symbol = $coin['symbol'];
-        $liveData = $marketData[$symbol] ?? [];
+        
+        // Try to find the coin data with suffixes (_CMC, _Gecko)
+        $liveData = [];
+        if (isset($marketData["{$symbol}_CMC"])) {
+            $liveData = $marketData["{$symbol}_CMC"];
+        } elseif (isset($marketData["{$symbol}_Gecko"])) {
+            $liveData = $marketData["{$symbol}_Gecko"];
+        } elseif (isset($marketData[$symbol])) {
+            $liveData = $marketData[$symbol];
+        }
+        
         $coinId = $coin['id'];
         
         return [
             'id' => $coinId,
             'name' => $coin['name'],
             'symbol' => $symbol,
-            'price' => (float)($liveData['price'] ?? $coin['current_price'] ?? 0),
+            'price' => (float)($liveData['price'] ?? $coin['price'] ?? 0),
             'price_change_24h' => (float)($liveData['change'] ?? $coin['price_change_24h'] ?? 0),
             'volume' => (float)($liveData['volume'] ?? $coin['volume_24h'] ?? 0),
             'market_cap' => (float)($liveData['market_cap'] ?? $coin['market_cap'] ?? 0),
@@ -136,17 +151,35 @@ try {
         return $coin;
     }, $coins);
     
+    // Make sure we have an array with numeric keys
+    $coinsWithBalances = array_values($coinsWithBalances);
+    
+    // Clean any output that might have been generated
+    ob_clean();
+    
     // Return JSON response
     echo json_encode([
         'success' => true,
-        'data' => array_values($coinsWithBalances), // Reset array keys
-        'show_all' => $showAll,
+        'data' => $coinsWithBalances,
+        'show_all' => $showAll ?? false,
         'timestamp' => time()
     ]);
     
+    // End output buffering and flush
+    ob_end_flush();
+    exit;
 } catch (Exception $e) {
+    // Clean any output that might have been generated
+    ob_clean();
+    
+    // Handle any errors
+    http_response_code(400);
     echo json_encode([
         'success' => false,
-        'error' => $e->getMessage()
+        'message' => 'Failed to get coin data: ' . $e->getMessage()
     ]);
+    
+    // End output buffering and flush
+    ob_end_flush();
+    exit;
 }
