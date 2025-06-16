@@ -11,7 +11,10 @@ $action = $input['action'] ?? '';
 $coinId = $input['coinId'] ?? '';
 $amount = $input['amount'] ?? 0;
 
-if (empty($action) || empty($coinId) || $amount <= 0) {
+// Special validation for sell action with 'all' amount
+if ($action === 'sell' && $amount === 'all') {
+    // This is valid, we'll handle it later
+} else if (empty($action) || empty($coinId) || $amount <= 0) {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Invalid parameters']);
     exit();

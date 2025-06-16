@@ -301,16 +301,16 @@ $(document).ready(function() {
         
         // If no amount entered, use the max amount available in portfolio
         if (!amount || amount.trim() === '') {
-            amount = maxAmount;
-            // Update the input field to show the max amount
-            $(this).closest('.d-flex').find('.trade-amount').val(maxAmount);
-        } else {
-            amount = parseFloat(amount);
-        }
-
-        if (amount <= 0) {
-            alert('Please enter a valid amount to sell');
+            // Use 'all' as a special value to tell the backend to sell everything
+            sellCoin(coinId, 'all');
             return;
+        } else {
+            // Make sure we have a valid number
+            amount = parseFloat(amount);
+            if (isNaN(amount) || amount <= 0) {
+                alert('Please enter a valid amount to sell');
+                return;
+            }
         }
         
         if (amount > maxAmount) {
