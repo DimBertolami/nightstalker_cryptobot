@@ -33,12 +33,12 @@ function getTradingStats(): array {
         // Active trades (buy orders without corresponding sell)
         $result = $db->query("
             SELECT COUNT(*) as count FROM trades t1
-            WHERE t1.type = 'buy'
+            WHERE t1.trade_type = 'buy'
             AND NOT EXISTS (
                 SELECT 1 FROM trades t2 
                 WHERE t2.coin_id = t1.coin_id 
-                AND t2.type = 'sell'
-                AND t2.created_at > t1.created_at
+                AND t2.trade_type = 'sell'
+                AND t2.trade_time > t1.trade_time
             )
         ");
         if ($result) {
@@ -51,8 +51,8 @@ function getTradingStats(): array {
             $stats['total_profit'] = (float)$result->fetch_assoc()['total'] ?? 0;
         }
 
-        // Total trading volume
-        $result = $db->query("SELECT SUM(amount * price) as volume FROM trades");
+        // Total volume
+        $result = $db->query("SELECT SUM(total_value) as volume FROM trades");
         if ($result) {
             $stats['total_volume'] = (float)$result->fetch_assoc()['volume'] ?? 0;
         }
@@ -498,55 +498,56 @@ function fetchFromAllSources() {
 /**
  * Get user's cryptocurrency balances
  */
-/**
- * Get user's cryptocurrency balances with proper number formatting
- */
-function getUserBalance(int $userId): array {
+function getUserBalance(int $userId = 1): array {
     try {
         $db = getDBConnection();
         if (!$db) {
             throw new Exception("Database connection failed");
         }
 
-        // Create trades table if it doesn't exist
-        $db->query("CREATE TABLE IF NOT EXISTS trades (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
-            coin_id INT NOT NULL,
-            symbol VARCHAR(20) NOT NULL,
-            amount DECIMAL(18,8) NOT NULL,
-            price DECIMAL(18,2) NOT NULL,
-            type ENUM('buy', 'sell') NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )");
-        
+        // First get all trades grouped by coin_id
         $stmt = $db->prepare("SELECT 
-                    t.symbol,
-                    t.symbol as name,
-                    ROUND(SUM(CASE WHEN t.type = 'buy' THEN t.amount ELSE -t.amount END), 8) AS balance
+                    t.coin_id,
+                    ROUND(SUM(CASE WHEN t.trade_type = 'buy' THEN t.amount ELSE -t.amount END), 8) AS balance
                 FROM trades t
-                WHERE t.user_id = ?
-                GROUP BY t.symbol
+                GROUP BY t.coin_id
                 HAVING balance > 0");
         
-        $stmt->bind_param('i', $userId);
         $stmt->execute();
-        
         $result = $stmt->get_result();
-        $balances = [];
         
+        if ($result->num_rows === 0) {
+            return [];
+        }
+        
+        // Get cryptocurrency data to map coin_id to symbol and name
+        $cryptoData = [];
+        $cryptoStmt = $db->prepare("SELECT id, symbol, name FROM cryptocurrencies");
+        $cryptoStmt->execute();
+        $cryptoResult = $cryptoStmt->get_result();
+        while ($row = $cryptoResult->fetch_assoc()) {
+            $cryptoData[$row['id']] = $row;
+        }
+        $cryptoStmt->close();
+        
+        $balances = [];
         while ($row = $result->fetch_assoc()) {
-            $balances[$row['symbol']] = [
+            $coinId = $row['coin_id'];
+            $symbol = $cryptoData[$coinId]['symbol'] ?? 'UNKNOWN';
+            $name = $cryptoData[$coinId]['name'] ?? 'Unknown';
+            
+            $balances[$symbol] = [
                 'balance' => (float)$row['balance'],  // Ensure float type
-                'name' => $row['name'],
-                'symbol' => $row['symbol']
+                'name' => $name,
+                'symbol' => $symbol,
+                'coin_id' => $coinId
             ];
         }
         
         return $balances;
         
     } catch (Exception $e) {
-        error_log("[getUserBalance] Error for user $userId: " . $e->getMessage());
+        error_log("[getUserBalance] Error: " . $e->getMessage());
         return [];
     }
 }
@@ -560,22 +561,54 @@ function getRecentTrades(int $limit = 100): array {
             throw new Exception("Database connection failed");
         }
 
+        // Query using the actual database structure
         $stmt = $db->prepare("SELECT 
                     t.id, 
                     t.coin_id,
-                    t.symbol,
                     t.amount,
                     t.price,
-                    t.type AS trade_type,
-                    t.created_at,
-                    (t.amount * t.price) AS total_value
+                    t.trade_type,
+                    t.trade_time,
+                    t.total_value
                 FROM trades t
-                ORDER BY t.created_at DESC
+                ORDER BY t.trade_time DESC
                 LIMIT ?");
         $stmt->bind_param("i", $limit);
         $stmt->execute();
+        $result = $stmt->get_result();
         
-        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        if ($result->num_rows === 0) {
+            return [];
+        }
+        
+        // Get cryptocurrency data to map coin_id to symbol
+        $cryptoData = [];
+        $cryptoStmt = $db->prepare("SELECT id, symbol, name FROM cryptocurrencies");
+        $cryptoStmt->execute();
+        $cryptoResult = $cryptoStmt->get_result();
+        while ($row = $cryptoResult->fetch_assoc()) {
+            $cryptoData[$row['id']] = $row;
+        }
+        $cryptoStmt->close();
+        
+        $trades = [];
+        while ($row = $result->fetch_assoc()) {
+            $coinId = $row['coin_id'];
+            $symbol = $cryptoData[$coinId]['symbol'] ?? 'UNKNOWN';
+            
+            $trades[] = [
+                'id' => $row['id'],
+                'coin_id' => $coinId,
+                'symbol' => $symbol,
+                'amount' => $row['amount'],
+                'price' => $row['price'],
+                'trade_type' => $row['trade_type'],
+                'trade_time' => $row['trade_time'],
+                'total_value' => $row['total_value']
+            ];
+        }
+        
+        return $trades;
     } catch (Exception $e) {
         error_log("[getRecentTrades] " . $e->getMessage());
         return [];
@@ -642,25 +675,13 @@ function getRecentTradesWithMarketData(int $limit = 100): array {
             throw new Exception("Database connection failed");
         }
         
-        // Create trades table if it doesn't exist
-        $db->query("CREATE TABLE IF NOT EXISTS trades (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL,
-            coin_id INT NOT NULL,
-            symbol VARCHAR(20) NOT NULL,
-            amount DECIMAL(18,8) NOT NULL,
-            price DECIMAL(18,2) NOT NULL,
-            type ENUM('buy', 'sell') NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )");
-
+        // Query using the actual database structure
         $stmt = $db->prepare("SELECT 
-                    t.id, t.user_id, t.coin_id, t.symbol, 
-                    t.amount, t.price, t.type AS trade_type,
-                    t.created_at AS trade_time,
-                    (t.amount * t.price) AS total_value
+                    t.id, t.coin_id, 
+                    t.amount, t.price, t.trade_type,
+                    t.trade_time, t.total_value, t.profit_loss
                 FROM trades t
-                ORDER BY t.created_at DESC
+                ORDER BY t.trade_time DESC
                 LIMIT ?");
         $stmt->bind_param("i", $limit);
         $stmt->execute();
@@ -670,24 +691,66 @@ function getRecentTradesWithMarketData(int $limit = 100): array {
             return [];
         }
 
-        $marketData = fetchFromCoinMarketCap();
+        // Get cryptocurrency data to enhance trade information
+        $cryptoData = [];
+        $cryptoStmt = $db->prepare("SELECT id, symbol, name FROM cryptocurrencies");
+        $cryptoStmt->execute();
+        $cryptoResult = $cryptoStmt->get_result();
+        while ($row = $cryptoResult->fetch_assoc()) {
+            $cryptoData[$row['id']] = $row;
+        }
+        $cryptoStmt->close();
         
-        return array_map(function($trade) use ($marketData) {
-            $symbol = $trade['symbol'];
-            $currentData = $marketData[$symbol] ?? null;
+        // Get current market data for calculating current values
+        $marketData = [];
+        try {
+            $marketData = fetchFromAllSources();
+        } catch (Exception $e) {
+            error_log("Error fetching market data: " . $e->getMessage());
+        }
+        
+        return array_map(function($trade) use ($cryptoData, $marketData) {
+            // Get symbol and name from crypto data
+            $symbol = $cryptoData[$trade['coin_id']]['symbol'] ?? 'UNKNOWN';
+            $name = $cryptoData[$trade['coin_id']]['name'] ?? 'Unknown';
+            
+            // Find current price from market data
+            $currentPrice = 0;
+            $priceChange24h = 0;
+            $marketCap = 0;
+            $volume24h = 0;
+            
+            if (isset($marketData[$symbol])) {
+                $currentPrice = $marketData[$symbol]['price'] ?? 0;
+                $priceChange24h = $marketData[$symbol]['change'] ?? 0;
+                $marketCap = $marketData[$symbol]['market_cap'] ?? 0;
+                $volume24h = $marketData[$symbol]['volume'] ?? 0;
+            }
+            
+            // Calculate current value and profit/loss
+            $currentValue = $trade['amount'] * $currentPrice;
+            $profitLoss = $currentValue - $trade['total_value'];
+            $profitLossPercent = $trade['total_value'] > 0 
+                ? ($profitLoss / $trade['total_value']) * 100 
+                : 0;
             
             return [
-                ...$trade,
-                'current_price' => $currentData['price'] ?? 0,
-                'price_change_24h' => $currentData['change'] ?? 0,
-                'coin_name' => $currentData['name'] ?? 'Unknown',
-                'market_cap' => $currentData['market_cap'] ?? 0,
-                'volume_24h' => $currentData['volume_24h'] ?? 0,
-                'current_value' => $trade['amount'] * ($currentData['price'] ?? 0),
-                'profit_loss' => ($trade['amount'] * ($currentData['price'] ?? 0)) - $trade['total_value'],
-                'profit_loss_percent' => $trade['total_value'] > 0 
-                    ? ((($trade['amount'] * ($currentData['price'] ?? 0)) - $trade['total_value']) / $trade['total_value']) * 100 
-                    : 0
+                'id' => $trade['id'],
+                'coin_id' => $trade['coin_id'],
+                'symbol' => $symbol,
+                'amount' => $trade['amount'],
+                'price' => $trade['price'],
+                'trade_type' => $trade['trade_type'],
+                'trade_time' => $trade['trade_time'],
+                'total_value' => $trade['total_value'],
+                'current_price' => $currentPrice,
+                'price_change_24h' => $priceChange24h,
+                'coin_name' => $name,
+                'market_cap' => $marketCap,
+                'volume_24h' => $volume24h,
+                'current_value' => $currentValue,
+                'profit_loss' => $profitLoss,
+                'profit_loss_percent' => $profitLossPercent
             ];
         }, $trades);
     } catch (Exception $e) {
@@ -756,3 +819,79 @@ function validateMarketData(array $marketData): bool {
     return true;
 }
 
+
+/**
+ * Execute a buy trade: Insert a trade row and return the trade ID
+ * @param string|int $coinId
+ * @param float $amount
+ * @param float $price
+ * @return int|false Trade ID or false on failure
+ */
+function executeBuy($coinId, $amount, $price) {
+    $db = getDBConnection();
+    if (!$db) return false;
+    
+    // Calculate total value
+    $totalValue = $amount * $price;
+    
+    // Insert trade record using the actual table structure
+    $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) 
+                         VALUES (?, 'buy', ?, ?, ?, NOW())");
+    $stmt->bind_param("sddd", $coinId, $amount, $price, $totalValue);
+    
+    if ($stmt->execute()) {
+        $tradeId = $stmt->insert_id;
+        $stmt->close();
+        return $tradeId;
+    } else {
+        error_log("[executeBuy] Failed to insert trade: " . $stmt->error);
+        $stmt->close();
+        return false;
+    }
+}
+
+/**
+ * Execute a sell trade: Insert a sell trade row and return profit/loss info
+ * @param string|int $coinId
+ * @param float $amount
+ * @param float $price
+ * @param int $buyTradeId Optional reference to the buy trade
+ * @return array Result with profit_loss and profit_percentage
+ */
+function executeSell($coinId, $amount, $price, $buyTradeId = null) {
+    $db = getDBConnection();
+    if (!$db) return ["profit_loss" => 0, "profit_percentage" => 0];
+    
+    // Calculate total value
+    $totalValue = $amount * $price;
+    
+    // Calculate profit/loss if we have a buy trade reference
+    $profitLoss = 0;
+    $profitPercentage = 0;
+    $buyPrice = 0;
+    
+    if ($buyTradeId) {
+        $stmt = $db->prepare("SELECT price FROM trades WHERE id = ? AND trade_type = 'buy'");
+        $stmt->bind_param("i", $buyTradeId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result && $row = $result->fetch_assoc()) {
+            $buyPrice = $row["price"];
+            $profitLoss = ($price - $buyPrice) * $amount;
+            $profitPercentage = $buyPrice > 0 ? (($price - $buyPrice) / $buyPrice) * 100 : 0;
+        }
+        $stmt->close();
+    }
+    
+    // Insert the sell trade with the actual table structure
+    $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time, profit_loss) 
+                         VALUES (?, 'sell', ?, ?, ?, NOW(), ?)");
+    $stmt->bind_param("sdddd", $coinId, $amount, $price, $totalValue, $profitLoss);
+    $stmt->execute();
+    $stmt->close();
+    
+    return [
+        "profit_loss" => $profitLoss,
+        "profit_percentage" => $profitPercentage
+    ];
+}
