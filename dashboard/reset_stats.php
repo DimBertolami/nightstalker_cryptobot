@@ -6,13 +6,17 @@ require_once __DIR__ . '/../includes/TradingLogger.php';
 // Initialize the trading logger
 $logger = new TradingLogger();
 
+// Get selected strategy from session or default to new_coin_strategy
+session_start();
+$selectedStrategy = $_SESSION['selected_strategy'] ?? 'new_coin_strategy';
+
 // Reset trading statistics
 $success = false;
 $message = '';
 
 try {
     // Reset stats in the database
-    $logger->resetStatistics('main_strategy');
+    $logger->resetStatistics($selectedStrategy);
     $success = true;
     $message = 'Trading statistics have been reset successfully.';
 } catch (Exception $e) {

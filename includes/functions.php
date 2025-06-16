@@ -23,8 +23,9 @@ function logEvent($message) {
 
 /**
  * Get trading statistics
+ * @param string $strategy The strategy to get stats for
  */
-function getTradingStats(): array {
+function getTradingStats(string $strategy = 'new_coin_strategy'): array {
     try {
         $db = getDBConnection();
         if (!$db) {
@@ -72,7 +73,7 @@ function getTradingStats(): array {
         }
 
         // Sync with TradingLogger if it exists
-        syncTradesWithLogger();
+        syncTradesWithLogger($strategy);
 
         return $stats;
 
@@ -91,7 +92,9 @@ function getTradingStats(): array {
  * Sync trades data with the TradingLogger system
  * This ensures that the dashboard displays the correct trade data
  */
-function syncTradesWithLogger() {
+function syncTradesWithLogger($strategy = 'main_strategy') {
+    // This function synchronizes the trades table with the TradingLogger system
+    // to ensure dashboard statistics are accurate
     try {
         // Check if TradingLogger class exists
         if (!class_exists('TradingLogger')) {
@@ -107,7 +110,7 @@ function syncTradesWithLogger() {
         $query = "SELECT t.*, c.symbol, c.name 
                  FROM trades t 
                  LEFT JOIN cryptocurrencies c ON t.coin_id = c.id 
-                 ORDER BY t.trade_time DESC";
+                 ORDER BY t.trade_time ASC";
         
         $result = $db->query($query);
         if (!$result) {
@@ -117,16 +120,8 @@ function syncTradesWithLogger() {
         // Initialize TradingLogger
         $logger = new TradingLogger();
         
-        // Get existing events to avoid duplicates
-        $existingEvents = $logger->getRecentEvents('main_strategy', 1000);
-        $existingTradeIds = [];
-        
-        foreach ($existingEvents as $event) {
-            $eventData = json_decode($event['event_data'], true);
-            if (isset($eventData['trade_id'])) {
-                $existingTradeIds[] = $eventData['trade_id'];
-            }
-        }
+        // Reset the logger statistics for this strategy to start fresh
+        $logger->resetStatistics($strategy);
         
         // Process each trade and log it
         $stats = [
@@ -143,11 +138,6 @@ function syncTradesWithLogger() {
         $totalProfit = 0;
         
         while ($trade = $result->fetch_assoc()) {
-            // Skip if already logged
-            if (in_array($trade['id'], $existingTradeIds)) {
-                continue;
-            }
-            
             $eventType = $trade['trade_type']; // 'buy' or 'sell'
             $symbol = $trade['symbol'] ?? 'UNKNOWN';
             
@@ -155,24 +145,26 @@ function syncTradesWithLogger() {
                 'trade_id' => $trade['id'],
                 'symbol' => $symbol,
                 'amount' => (float)$trade['amount'],
-                'price' => (float)$trade['price'],
-                'total_value' => (float)$trade['total_value'],
+                'price' => (float)$trade['price_per_coin'],
+                'total' => (float)$trade['total_value'],
                 'timestamp' => strtotime($trade['trade_time'])
             ];
             
-            if ($trade['profit_loss'] !== null) {
-                $eventData['profit_loss'] = (float)$trade['profit_loss'];
+            // Add profit data for sell events
+            if ($eventType == 'sell' && isset($trade['profit'])) {
+                $eventData['profit'] = (float)$trade['profit'];
+                $eventData['profit_percentage'] = (float)$trade['profit_percentage'];
                 
                 // Update stats
                 $totalTrades++;
-                if ($trade['profit_loss'] > 0) {
+                if ($trade['profit'] > 0) {
                     $successfulTrades++;
                 }
-                $totalProfit += (float)$trade['profit_loss'];
+                $totalProfit += (float)$trade['profit'];
             }
             
             // Log the event
-            $logger->logEvent('main_strategy', $eventType, $eventData);
+            $logger->logEvent($strategy, $eventType, $eventData, $trade['trade_time']);
         }
         
         // Update statistics
@@ -184,7 +176,7 @@ function syncTradesWithLogger() {
             $stats['win_rate'] = ($successfulTrades / $totalTrades) * 100;
             $stats['avg_profit_percentage'] = $totalProfit / $totalTrades;
             
-            $logger->updateStats('main_strategy', $stats);
+            $logger->updateStats($strategy, $stats);
         }
         
         return true;
@@ -980,42 +972,111 @@ function executeBuy($coinId, $amount, $price) {
  * @param float $amount
  * @param float $price
  * @param int $buyTradeId Optional reference to the buy trade
- * @return array Result with profit_loss and profit_percentage
+ * @return array Result with success status, message, profit_loss and profit_percentage
  */
+/**
+ * Get user's current balance for a specific coin
+ * @param string|int $coinId The coin ID to check balance for
+ * @return float The current balance of the specified coin
+ */
+function getUserCoinBalance($coinId) {
+    $db = getDBConnection();
+    if (!$db) return 0;
+    
+    // Calculate the difference between buys and sells for this coin
+    $query = "SELECT 
+                SUM(CASE WHEN trade_type = 'buy' THEN amount ELSE 0 END) - 
+                SUM(CASE WHEN trade_type = 'sell' THEN amount ELSE 0 END) as balance 
+              FROM trades 
+              WHERE coin_id = ?";
+              
+    $stmt = $db->prepare($query);
+    $stmt->bind_param("s", $coinId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result && $row = $result->fetch_assoc()) {
+        return (float)($row['balance'] ?? 0);
+    }
+    
+    return 0;
+}
+
 function executeSell($coinId, $amount, $price, $buyTradeId = null) {
     $db = getDBConnection();
-    if (!$db) return ["profit_loss" => 0, "profit_percentage" => 0];
+    if (!$db) return [
+        "success" => false,
+        "message" => "Database connection failed",
+        "profit_loss" => 0, 
+        "profit_percentage" => 0
+    ];
+    
+    // Check if user has enough of this coin to sell
+    $userBalance = getUserCoinBalance($coinId);
+    
+    if ($userBalance < $amount) {
+        return [
+            "success" => false,
+            "message" => "Insufficient balance. You only have {$userBalance} coins available to sell.",
+            "profit_loss" => 0,
+            "profit_percentage" => 0
+        ];
+    }
     
     // Calculate total value
     $totalValue = $amount * $price;
     
-    // Calculate profit/loss if we have a buy trade reference
-    $profitLoss = 0;
-    $profitPercentage = 0;
-    $buyPrice = 0;
-    
-    if ($buyTradeId) {
-        $stmt = $db->prepare("SELECT price FROM trades WHERE id = ? AND trade_type = 'buy'");
-        $stmt->bind_param("i", $buyTradeId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result && $row = $result->fetch_assoc()) {
-            $buyPrice = $row["price"];
-            $profitLoss = ($price - $buyPrice) * $amount;
-            $profitPercentage = $buyPrice > 0 ? (($price - $buyPrice) / $buyPrice) * 100 : 0;
-        }
-        $stmt->close();
-    }
-    
-    // Insert the sell trade with the actual table structure
-    $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time, profit_loss) 
-                         VALUES (?, 'sell', ?, ?, ?, NOW(), ?)");
-    $stmt->bind_param("sdddd", $coinId, $amount, $price, $totalValue, $profitLoss);
+    // Calculate average buy price from previous buy trades
+    $stmt = $db->prepare("SELECT AVG(price) as avg_price, SUM(amount * price) / SUM(amount) as weighted_avg 
+                         FROM trades 
+                         WHERE coin_id = ? AND trade_type = 'buy'");
+    $stmt->bind_param("s", $coinId);
     $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result->fetch_assoc();
+    $buyPrice = $row['weighted_avg'] ?? $price; // Use weighted average price if available
     $stmt->close();
     
-    return [
-        "profit_loss" => $profitLoss,
-        "profit_percentage" => $profitPercentage
-    ];
+    // Calculate profit/loss based on average buy price
+    $profitLoss = ($price - $buyPrice) * $amount;
+    $profitPercentage = $buyPrice > 0 ? (($price - $buyPrice) / $buyPrice) * 100 : 0;
+    
+    // Begin transaction
+    $db->begin_transaction();
+    
+    try {
+        // Insert the sell trade
+        $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price_per_coin, total_value, trade_time, profit, profit_percentage) 
+                             VALUES (?, 'sell', ?, ?, ?, NOW(), ?, ?)");
+        $stmt->bind_param("sddddd", $coinId, $amount, $price, $totalValue, $profitLoss, $profitPercentage);
+        $success = $stmt->execute();
+        $stmt->close();
+        
+        if (!$success) {
+            throw new Exception("Failed to record sell trade");
+        }
+        
+        // Commit transaction
+        $db->commit();
+        
+        // Log the trade
+        logEvent('Trade', "Sold {$amount} of coin {$coinId} at price {$price}");
+        
+        return [
+            "success" => true,
+            "message" => "Successfully sold {$amount} coins",
+            "profit_loss" => $profitLoss,
+            "profit_percentage" => $profitPercentage
+        ];
+    } catch (Exception $e) {
+        // Rollback transaction on error
+        $db->rollback();
+        
+        return [
+            "success" => false,
+            "message" => "Error executing sell: " . $e->getMessage(),
+            "profit_loss" => 0,
+            "profit_percentage" => 0
+        ];
+    }
 }

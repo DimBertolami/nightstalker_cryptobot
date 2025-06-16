@@ -13,8 +13,12 @@ ini_set('default_charset', 'UTF-8');
 // Initialize the trading logger
 $logger = new TradingLogger();
 
+// Get selected strategy from session or default to new_coin_strategy
+session_start();
+$selectedStrategy = $_SESSION['selected_strategy'] ?? 'new_coin_strategy';
+
 // Get trading statistics
-$stats = $logger->getStats('main_strategy');
+$stats = $logger->getStats($selectedStrategy);
 
 // Check if there's an active trade
 if (empty($stats['active_trade_symbol'])) {

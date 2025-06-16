@@ -12,9 +12,13 @@ ini_set('default_charset', 'UTF-8');
 // Initialize the trading logger
 $logger = new TradingLogger();
 
+// Get selected strategy from session or default to new_coin_strategy
+session_start();
+$selectedStrategy = $_SESSION['selected_strategy'] ?? 'new_coin_strategy';
+
 // Get recent events
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 50;
-$strategy = isset($_GET['strategy']) ? $_GET['strategy'] : 'main_strategy';
+$strategy = isset($_GET['strategy']) ? $_GET['strategy'] : $selectedStrategy;
 
 try {
     $events = $logger->getRecentEvents($strategy, $limit);

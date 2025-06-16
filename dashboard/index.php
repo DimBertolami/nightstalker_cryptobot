@@ -4,24 +4,30 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/TradingLogger.php';
 require_once __DIR__ . '/../includes/auth.php';
 
-// Check if user is logged in
-session_start();
-requireAuth();
-
 // Initialize the trading logger
 $logger = new TradingLogger();
 
+// Get selected strategy from session or default to new_coin_strategy
+session_start();
+if (isset($_POST['strategy'])) {
+    $_SESSION['selected_strategy'] = $_POST['strategy'];
+}
+$selectedStrategy = $_SESSION['selected_strategy'] ?? 'new_coin_strategy';
+
+// Check if user is logged in
+requireAuth();
+
 // Get trading statistics
-$stats = $logger->getStats('main_strategy');
+$stats = $logger->getStats($selectedStrategy);
 
 // Get recent trading events
-$recentEvents = $logger->getRecentEvents('main_strategy', 50);
+$recentEvents = $logger->getRecentEvents($selectedStrategy, 50);
 
 // Get performance metrics for different time periods
-$dayPerformance = $logger->getPerformance('main_strategy', 'day');
-$weekPerformance = $logger->getPerformance('main_strategy', 'week');
-$monthPerformance = $logger->getPerformance('main_strategy', 'month');
-$allTimePerformance = $logger->getPerformance('main_strategy', 'all');
+$dayPerformance = $logger->getPerformance($selectedStrategy, 'day');
+$weekPerformance = $logger->getPerformance($selectedStrategy, 'week');
+$monthPerformance = $logger->getPerformance($selectedStrategy, 'month');
+$allTimePerformance = $logger->getPerformance($selectedStrategy, 'all');
 
 // Format currency values
 function formatCurrency($value, $decimals = 2) {
@@ -82,14 +88,19 @@ $activeTrade = !empty($stats['active_trade_symbol']);
     
     <div class="container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Trading Dashboard</h2>
-            <div>
-                <span class="badge bg-secondary">Last updated: <?php echo date('Y-m-d H:i:s'); ?></span>
-                <?php if ($activeTrade): ?>
-                    <span class="badge bg-success ms-2">Active Trade</span>
-                <?php else: ?>
-                    <span class="badge bg-warning ms-2">Searching</span>
-                <?php endif; ?>
+            <h1 class="h3">Trading Dashboard</h1>
+            <div class="d-flex align-items-center">
+                <form method="post" id="strategy-form" class="me-3">
+                    <div class="input-group">
+                        <label class="input-group-text" for="strategy-select">Strategy:</label>
+                        <select class="form-select form-select-sm" id="strategy-select" name="strategy" onchange="this.form.submit()">
+                            <option value="new_coin_strategy" <?php echo ($selectedStrategy == 'new_coin_strategy') ? 'selected' : ''; ?>>New Coin Strategy</option>
+                            <option value="main_strategy" <?php echo ($selectedStrategy == 'main_strategy') ? 'selected' : ''; ?>>Main Strategy</option>
+                        </select>
+                    </div>
+                </form>
+                <span class="text-muted me-3">Last updated: <?php echo date('Y-m-d H:i'); ?></span>
+                <button id="refresh-btn" class="btn btn-sm btn-primary">Refresh</button>
             </div>
         </div>
 

@@ -1,7 +1,7 @@
 <?php
-require_once __DIR__ . '/../../includes/config.php';
-require_once __DIR__ . '/../../includes/functions.php';
-require_once __DIR__ . '/../../includes/database.php';
+require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/database.php';
 
 header('Content-Type: application/json');
 
@@ -18,7 +18,7 @@ if (empty($action) || empty($coinId) || $amount <= 0) {
 }
 
 // Get current price (in a real app, this would come from exchange API)
-$db = connectDB();
+$db = getDBConnection();
 $stmt = $db->prepare("SELECT price FROM cryptocurrencies WHERE id = ?");
 $stmt->bind_param('s', $coinId);
 $stmt->execute();
@@ -42,14 +42,16 @@ if ($action === 'buy') {
         'tradeId' => $tradeId
     ]);
 } elseif ($action === 'sell') {
-    // In a real app, you'd need to know which buy trade this is selling
-    $result = executeSell($coinId, $amount, $price, 1); // Using 1 as dummy buy trade ID
-    echo json_encode([
-        'success' => true,
-        'message' => 'Sell order executed',
-        'profitLoss' => $result['profit_loss'],
-        'profitPercentage' => $result['profit_percentage']
-    ]);
+    // Check if amount is 0 or 'all' to sell entire balance
+    if ($amount === 'all') {
+        $amount = getUserCoinBalance($coinId);
+    }
+    
+    // Execute the sell operation
+    $result = executeSell($coinId, $amount, $price);
+    
+    // Return the result directly from executeSell
+    echo json_encode($result);
 } else {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Invalid action']);

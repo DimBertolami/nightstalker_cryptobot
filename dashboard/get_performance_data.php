@@ -12,13 +12,17 @@ ini_set('default_charset', 'UTF-8');
 // Initialize the trading logger
 $logger = new TradingLogger();
 
+// Get selected strategy from session or default to new_coin_strategy
+session_start();
+$selectedStrategy = $_SESSION['selected_strategy'] ?? 'new_coin_strategy';
+
 try {
     // Get trading statistics
-    $stats = $logger->getStats('main_strategy');
+    $stats = $logger->getStats($selectedStrategy);
     
     // Get recent sell events to build performance chart
     $sellEvents = $logger->getFilteredEvents(
-        'main_strategy',
+        $selectedStrategy,
         'sell',
         null,
         null,

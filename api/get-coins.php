@@ -10,8 +10,8 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/database.php';
 
 try {
-    // Get fresh data from CoinMarketCap API
-    $marketData = fetchFromCMC();
+    // Get fresh data from all cryptocurrency sources
+    $marketData = fetchFromAllSources();
     
     // Get data from database
     $db = db_connect();
@@ -33,6 +33,10 @@ try {
         $stmt->execute();
         $result = $stmt->get_result();
         while ($row = $result->fetch_assoc()) {
+            // Check if source column exists, if not, default to CoinMarketCap
+            if (!isset($row['source'])) {
+                $row['source'] = 'CoinMarketCap';
+            }
             $coinsData[] = $row;
         }
     } else {
@@ -45,13 +49,39 @@ try {
         }
     }
     
+    // Get user portfolio balances for each coin
+    $userBalances = [];
+    try {
+        $db2 = getDBConnection(); // Use our standard connection function
+        
+        // Query to get balance for each coin (buys - sells)
+        $balanceQuery = "SELECT 
+                            coin_id,
+                            SUM(CASE WHEN trade_type = 'buy' THEN amount ELSE 0 END) - 
+                            SUM(CASE WHEN trade_type = 'sell' THEN amount ELSE 0 END) as balance 
+                          FROM trades 
+                          GROUP BY coin_id";
+        
+        $balanceResult = $db2->query($balanceQuery);
+        if ($balanceResult) {
+            while ($row = $balanceResult->fetch_assoc()) {
+                if ($row['balance'] > 0) { // Only store positive balances
+                    $userBalances[$row['coin_id']] = (float)$row['balance'];
+                }
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Error getting user balances: " . $e->getMessage());
+    }
+    
     // Merge live data with database data
-    $coins = array_map(function($coin) use ($marketData) {
+    $coins = array_map(function($coin) use ($marketData, $userBalances) {
         $symbol = $coin['symbol'];
         $liveData = $marketData[$symbol] ?? [];
+        $coinId = $coin['id'];
         
         return [
-            'id' => $coin['id'],
+            'id' => $coinId,
             'name' => $coin['name'],
             'symbol' => $symbol,
             'price' => (float)($liveData['price'] ?? $coin['current_price'] ?? 0),
@@ -61,8 +91,9 @@ try {
             'date_added' => $liveData['date_added'] ?? $coin['date_added'] ?? null,
             'is_trending' => (bool)($coin['is_trending'] ?? false),
             'volume_spike' => (bool)($coin['volume_spike'] ?? false),
-            'data_source' => !empty($liveData) ? 'CoinMarketCap' : 'Local DB',
-            'last_updated' => date('Y-m-d H:i:s')
+            'data_source' => $liveData['source'] ?? $coin['source'] ?? 'Local DB',
+            'last_updated' => date('Y-m-d H:i:s'),
+            'user_balance' => $userBalances[$coinId] ?? 0 // Add user balance for this coin
         ];
     }, $coinsData);
     
