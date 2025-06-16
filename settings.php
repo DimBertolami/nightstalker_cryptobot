@@ -3,16 +3,43 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
+require_once __DIR__ . '/includes/cron_manager.php';
 
 $title = "Settings";
+
+// Add custom CSS for the slider
+$additional_styles = ['assets/css/slider.css'];
+
 require_once __DIR__ . '/includes/header.php';
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // In a real application, you'd validate and save settings here
-    $message = "Settings updated successfully";
-    $alertType = "success";
+    // Process cron job settings if submitted
+    if (isset($_POST['cronEnabled']) && isset($_POST['cronInterval'])) {
+        $cronEnabled = $_POST['cronEnabled'] === '1';
+        $cronInterval = max(2, min(120, (int)$_POST['cronInterval'])); // Limit between 2-120 minutes
+        
+        // Schedule or disable the cron job
+        $cronResult = schedule_fetch_coins_cron($cronInterval, $cronEnabled);
+        
+        if ($cronResult) {
+            $message = $cronEnabled 
+                ? "Coin fetching scheduled every $cronInterval minutes" 
+                : "Coin fetching cron job disabled";
+            $alertType = "success";
+        } else {
+            $message = "Failed to update cron job settings";
+            $alertType = "danger";
+        }
+    } else {
+        // Handle other settings
+        $message = "Settings updated successfully";
+        $alertType = "success";
+    }
 }
+
+// Get current cron status
+$cronStatus = get_fetch_coins_cron_status();
 ?>
 
 <div class="container-fluid">
@@ -202,7 +229,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     
     <div class="row">
-        <div class="col-md-6">
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Data Fetching</h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h4 class="alert-heading">Automatic Data Updates</h4>
+                        <p>Configure how often Night Stalker fetches new cryptocurrency data.</p>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="cronEnabledToggle" name="cronEnabledToggleUI" <?php echo $cronStatus['enabled'] ? 'checked' : ''; ?>>
+                            <label class="form-check-label fw-bold" for="cronEnabledToggle">
+                                Enable Automatic Data Fetching
+                            </label>
+                            <small class="text-muted d-block">Schedule automatic updates of cryptocurrency data</small>
+                        </div>
+                        
+                        <!-- Hidden inputs for form submission -->
+                        <input type="hidden" id="cronEnabled" name="cronEnabled" value="<?php echo $cronStatus['enabled'] ? '1' : '0'; ?>">
+                        <input type="hidden" id="cronInterval" name="cronInterval" value="<?php echo $cronStatus['interval']; ?>">
+                        
+                        <div class="interval-slider-container <?php echo $cronStatus['enabled'] ? '' : 'opacity-50'; ?>">
+                            <label for="intervalSlider" class="form-label">Update Frequency</label>
+                            <input type="range" class="interval-slider" id="intervalSlider" 
+                                min="2" max="120" step="1" 
+                                value="<?php echo $cronStatus['interval']; ?>" 
+                                <?php echo $cronStatus['enabled'] ? '' : 'disabled'; ?>>
+                            
+                            <div class="interval-labels">
+                                <span>Fast (2m)</span>
+                                <span>Medium (30m)</span>
+                                <span>Slow (2h)</span>
+                            </div>
+                            
+                            <div class="text-center mt-3">
+                                <div class="interval-value <?php echo $cronStatus['interval'] <= 10 ? 'fast' : ($cronStatus['interval'] <= 30 ? 'medium' : 'slow'); ?>">
+                                    <span id="intervalValue"><?php echo $cronStatus['interval'] < 60 ? $cronStatus['interval'] : ($cronStatus['interval'] / 60); ?></span>
+                                    <span id="intervalUnit"><?php echo $cronStatus['interval'] < 60 ? ($cronStatus['interval'] === 1 ? 'minute' : 'minutes') : ($cronStatus['interval'] === 60 ? 'hour' : 'hours'); ?></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <small>Faster updates consume more server resources and API calls.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
             <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
                     <h3 class="mb-0">Exchange Configuration</h3>
@@ -428,9 +509,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <?php
-// Add exchange-config.js to the footer scripts
+// Add scripts to the footer
 $additional_scripts = [
-    'assets/js/exchange-config.js'
+    'assets/js/exchange-config.js',
+    'assets/js/cron-settings.js'
 ];
 include 'includes/footer.php'; 
 ?>

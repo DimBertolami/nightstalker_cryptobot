@@ -1,0 +1,92 @@
+/* Custom Slider Styling */
+.interval-slider-container {
+    padding: 10px 0;
+}
+
+.interval-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 10px;
+    border-radius: 5px;
+    background: linear-gradient(to right, #4CAF50, #FFC107, #F44336);
+    outline: none;
+    opacity: 0.7;
+    -webkit-transition: .2s;
+    transition: opacity .2s;
+}
+
+.interval-slider:hover {
+    opacity: 1;
+}
+
+.interval-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #2196F3;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.interval-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+}
+
+.interval-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #2196F3;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.interval-slider::-moz-range-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.5);
+}
+
+.interval-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 5px;
+    color: #666;
+    font-size: 0.8rem;
+}
+
+.interval-value {
+    text-align: center;
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-top: 10px;
+    color: #333;
+    transition: all 0.3s ease;
+}
+
+.interval-value.fast {
+    color: #F44336;
+}
+
+.interval-value.medium {
+    color: #FFC107;
+}
+
+.interval-value.slow {
+    color: #4CAF50;
+}
+
+/* Animated pulse effect for the interval value */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.interval-value.updating {
+    animation: pulse 0.5s ease-in-out;
+}

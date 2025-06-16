@@ -1,0 +1,6 @@
+aiohttp
+asyncio
+requests
+dash
+pandas
+plotly

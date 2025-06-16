@@ -62,6 +62,7 @@ if (isset($data['api_key']) && isset($data['api_secret'])) {
     $credentials = [
         'api_key' => $data['api_key'],
         'api_secret' => $data['api_secret'],
+        'api_url' => isset($data['api_url']) ? $data['api_url'] : $exchange['credentials']['api_url'],
         'test_mode' => isset($data['test_mode']) ? (bool)$data['test_mode'] : $exchange['credentials']['test_mode'],
         'additional_params' => isset($data['additional_params']) ? $data['additional_params'] : $exchange['credentials']['additional_params']
     ];

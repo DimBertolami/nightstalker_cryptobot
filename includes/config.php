@@ -3,8 +3,8 @@
 
 // Database Configuration
 define('DB_HOST', 'localhost');
-define('DB_USER', 'ns_admin');
-define('DB_PASS', 'password');
+define('DB_USER', 'root');
+define('DB_PASS', '1304');
 define('DB_NAME', 'night_stalker');
 
 // API Keys (replace with your actual keys)

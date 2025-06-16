@@ -25,6 +25,7 @@ $(document).ready(function() {
                     $('#exchangeSelect').prop('disabled', true); // Disable changing exchange type when editing
                     $('#apiKey').val(exchange.credentials.api_key || '');
                     $('#apiSecret').val(exchange.credentials.api_secret || '');
+                    $('#apiUrl').val(exchange.credentials.api_url || ''); // Corrected: only one instance
                     $('#testMode').prop('checked', exchange.credentials.test_mode || false);
                     
                     if (exchange.credentials.additional_params) {
@@ -55,7 +56,7 @@ $(document).ready(function() {
             },
             complete: function() {
                 // Reset button
-                $('.edit-exchange[data-exchange-id="' + exchangeId + '"]').html('<i class="fas fa-edit"></i>');
+                $('.edit-exchange[data-exchange-id="' + exchangeId + '"]').html('<i class="bi bi-pencil"></i>');
             }
         });
     });
@@ -114,6 +115,7 @@ $(document).ready(function() {
         $('#exchangeSelect').prop('disabled', false);
         $('#apiKey').val('');
         $('#apiSecret').val('');
+        $('#apiUrl').val(''); // Corrected: only one instance
         $('#additionalParams').val('');
         $('#testMode').prop('checked', false);
         $('#saveExchange').text('Add Exchange');
@@ -127,6 +129,7 @@ $(document).ready(function() {
         const exchangeId = $('#exchangeSelect').val();
         const apiKey = $('#apiKey').val();
         const apiSecret = $('#apiSecret').val();
+        const apiUrl = $('#apiUrl').val(); // Corrected: read apiUrl
         const additionalParams = $('#additionalParams').val();
         const testMode = $('#testMode').is(':checked');
         const isEditMode = $(this).data('edit-mode');
@@ -151,6 +154,7 @@ $(document).ready(function() {
             exchange_id: exchangeId,
             api_key: apiKey,
             api_secret: apiSecret,
+            api_url: apiUrl, // Corrected: include apiUrl
             test_mode: testMode,
             additional_params: additionalParams
         };
@@ -173,7 +177,7 @@ $(document).ready(function() {
                     
                     // Reload the page to show updated exchanges
                     setTimeout(function() {
-                        location.reload();
+                        // location.reload();
                     }, 1000);
                 } else {
                     showAlert('Error: ' + response.message, 'danger');
@@ -198,151 +202,3 @@ $(document).ready(function() {
         const apiSecret = $('#apiSecret').val();
         const additionalParams = $('#additionalParams').val();
         const testMode = $('#testMode').is(':checked');
-        
-        if (!exchangeId) {
-            showAlert('Please select an exchange', 'danger');
-            return;
-        }
-        
-        if (!apiKey || !apiSecret) {
-            showAlert('API Key and Secret are required', 'danger');
-            return;
-        }
-        
-        // Show loading indicator
-        const originalButtonText = $(this).html();
-        $(this).html('<i class="fas fa-spinner fa-spin"></i> Testing...');
-        $(this).prop('disabled', true);
-        
-        // Prepare data for submission
-        const exchangeData = {
-            exchange_id: exchangeId,
-            api_key: apiKey,
-            api_secret: apiSecret,
-            test_mode: testMode,
-            additional_params: additionalParams
-        };
-        
-        // Send test request
-        $.ajax({
-            url: `${BASE_URL}/api/test-exchange.php`,
-            method: 'POST',
-            data: JSON.stringify(exchangeData),
-            contentType: 'application/json',
-            dataType: 'json',
-            success: function(response) {
-                if (response.success) {
-                    showAlert(`Connection successful! Found ${response.markets_count || 'multiple'} markets.`, 'success');
-                } else {
-                    showAlert('Connection failed: ' + response.message, 'danger');
-                }
-            },
-            error: function(xhr, status, error) {
-                showAlert('Error connecting to server', 'danger');
-                console.error('AJAX error:', error);
-            },
-            complete: function() {
-                // Reset button
-                $('#testExchange').html(originalButtonText);
-                $('#testExchange').prop('disabled', false);
-            }
-        });
-    });
-    
-    // Helper function to add exchange to the list
-    function addExchangeToList(exchangeId, exchangeName) {
-        const exchangeHtml = `
-            <div class="form-check form-switch mb-2">
-                <input class="form-check-input" type="checkbox" id="${exchangeId}Exchange" name="exchanges[${exchangeId}]" checked>
-                <label class="form-check-label" for="${exchangeId}Exchange">
-                    <img src="assets/images/exchanges/${exchangeId}.png" alt="${exchangeName}" width="20" class="me-2" onerror="this.src='assets/images/exchanges/generic.png';">
-                    ${exchangeName}
-                </label>
-                <button type="button" class="btn btn-sm btn-outline-primary ms-2 edit-exchange" data-exchange-id="${exchangeId}">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-danger ms-1 delete-exchange" data-exchange-id="${exchangeId}">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        `;
-        
-        // Add to active exchanges list
-        $('.active-exchanges').append(exchangeHtml);
-        
-        // Add to default exchange dropdown if not already there
-        if ($(`#defaultExchange option[value="${exchangeId}"]`).length === 0) {
-            $('#defaultExchange').append(`<option value="${exchangeId}">${exchangeName}</option>`);
-        }
-    }
-    
-    // Function to show alerts
-    function showAlert(message, type) {
-        const alertHtml = `
-            <div class="alert alert-${type} alert-dismissible fade show" role="alert">
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        `;
-        
-        // Show alert at the top of the page
-        $('#alerts-container').html(alertHtml);
-        
-        // Auto-dismiss after 5 seconds
-        setTimeout(function() {
-            $('.alert').alert('close');
-        }, 5000);
-    }
-    
-    // Test connection button
-    $('#testConnection').on('click', function() {
-        const exchangeId = $('#exchangeSelect').val();
-        const apiKey = $('#apiKey').val();
-        const apiSecret = $('#apiSecret').val();
-        const additionalParams = $('#additionalParams').val();
-        const testMode = $('#testMode').is(':checked');
-        
-        if (!exchangeId || !apiKey || !apiSecret) {
-            showAlert('Please fill in all required fields', 'danger');
-            return;
-        }
-        
-        // Show loading indicator
-        $(this).html('<i class="fas fa-spinner fa-spin"></i> Testing...');
-        $(this).prop('disabled', true);
-        
-        // Prepare data for test
-        const testData = {
-            exchange_id: exchangeId,
-            api_key: apiKey,
-            api_secret: apiSecret,
-            test_mode: testMode,
-            additional_params: additionalParams
-        };
-        
-        // Send test request
-        $.ajax({
-            url: `${BASE_URL}/api/test-exchange.php`,
-            method: 'POST',
-            data: JSON.stringify(testData),
-            contentType: 'application/json',
-            dataType: 'json',
-            success: function(response) {
-                if (response.success) {
-                    showAlert('Connection successful!', 'success');
-                } else {
-                    showAlert('Connection failed: ' + response.message, 'danger');
-                }
-            },
-            error: function(xhr, status, error) {
-                showAlert('Error testing connection', 'danger');
-                console.error('AJAX error:', error);
-            },
-            complete: function() {
-                // Reset button
-                $('#testConnection').html('Test Connection');
-                $('#testConnection').prop('disabled', false);
-            }
-        });
-    });
-});

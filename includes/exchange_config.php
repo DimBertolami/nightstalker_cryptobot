@@ -18,10 +18,11 @@ if (!file_exists(EXCHANGE_CONFIG_PATH)) {
         'jupiter' => [
             'name' => 'Jupiter (Solana)',
             'enabled' => true,
-            'is_default' => true,
+            'is_default' => false,
             'credentials' => [
-                'api_key' => '',
-                'api_secret' => '',
+                'api_key' => 'X8HpKiRKv6fNCulGEV2ReFpgyeS4wT0SWgokopvObB6ICUADi5nOEUZNFbcWUP9I',
+                'api_secret' => 'qeJ3x3SByFxFepLXrBqkWkSYijPt2DjvNA1MVA7fykgOqgUw6Jrb0Cmmvm7DWqWs',
+                'api_url' => 'https://jup.ag/swap/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v-So11111111111111111111111111111111111111112?inAmount=',
                 'test_mode' => false,
                 'additional_params' => []
             ]
@@ -31,8 +32,9 @@ if (!file_exists(EXCHANGE_CONFIG_PATH)) {
             'enabled' => true,
             'is_default' => false,
             'credentials' => [
-                'api_key' => '',
-                'api_secret' => '',
+                'api_key' => 'X8HpKiRKv6fNCulGEV2ReFpgyeS4wT0SWgokopvObB6ICUADi5nOEUZNFbcWUP9I',
+                'api_secret' => 'qeJ3x3SByFxFepLXrBqkWkSYijPt2DjvNA1MVA7fykgOqgUw6Jrb0Cmmvm7DWqWs',
+                'api_url' => 'https://api.binance.com',
                 'test_mode' => false,
                 'additional_params' => []
             ]
@@ -40,10 +42,11 @@ if (!file_exists(EXCHANGE_CONFIG_PATH)) {
         'bitvavo' => [
             'name' => 'Bitvavo',
             'enabled' => true,
-            'is_default' => false,
+            'is_default' => true,
             'credentials' => [
-                'api_key' => '',
-                'api_secret' => '',
+                'api_key' => 'ce59283de845c416deef1dd91f10c3879f0554e18c938dc9170550cebfcfbe37',
+                'api_secret' => '28de1f1699a1bc9845a132e91dfa888801d7437d297e419521f6b9bbce670c88ea3a937b6f5c09421573340b5cc75f98edb05cd3ca19a79ddcc820e43b20c29b',
+                'api_url' => 'https://api.bitvavo.com/v2/order',
                 'test_mode' => false,
                 'additional_params' => []
             ]

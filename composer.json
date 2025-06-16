@@ -1,6 +1,6 @@
 {
     "require": {
-        "ccxt/ccxt": "^4.0",
+        "ccxt/ccxt": "^1.53",
         "vlucas/phpdotenv": "^5.5"
     }
 }

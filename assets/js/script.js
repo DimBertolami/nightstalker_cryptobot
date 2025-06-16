@@ -30,14 +30,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Auto-refresh data every 3 seconds
-    setInterval(() => {
-        // In a real implementation, this would fetch new data
-        console.log('Checking for updates...');
-        
-        // You could implement WebSocket or AJAX polling here
-        // refreshData();
-    }, 3000);
+    // Auto-refresh functionality is now handled in coins.js
+    // No need for additional polling here
 });
 
 // Example function to fetch coin details

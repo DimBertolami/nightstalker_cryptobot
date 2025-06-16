@@ -1,0 +1,8 @@
+{
+    "enabled": true,
+    "maxCoinAge": 24,
+    "minMarketCap": 1500000,
+    "minVolume": 1500000,
+    "monitoringInterval": 3,
+    "sellTriggerSeconds": 30
+}

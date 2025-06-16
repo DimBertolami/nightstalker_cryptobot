@@ -21,11 +21,7 @@
     <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.4/js/dataTables.bootstrap5.min.js"></script>
     
-    <!-- Custom JS -->
-    <?php if(defined('BASE_URL')): ?>
-    <script src="<?= BASE_URL ?>/assets/js/script.js"></script>
-    <?php endif; ?>
-    
+
     <!-- Web3/Wallet Integration -->
     <script>
     // Improved Phantom Wallet initialization - runs immediately
@@ -63,65 +59,6 @@
             console.log("Phantom wallet not detected");
         }
     });
-
-    // DataTables Initialization
-    $(document).ready(function() {
-        $('#coins-table').DataTable({
-            order: [[4, 'desc']], // Default sort by Volume (descending)
-            pageLength: 25,
-            stateSave: true,
-            responsive: true,
-            columnDefs: [
-                { targets: 0, type: 'string' },  // Name
-                { targets: 1, type: 'string' },  // Symbol
-                { 
-                    targets: 2,                  // Price
-                    type: 'num-fmt',
-                    render: function(data, type) {
-                        return type === 'sort' ? data.replace(/[^0-9.]/g, '') : data;
-                    }
-                },
-                { 
-                    targets: 3,                  // 24h Change
-                    type: 'num-fmt',
-                    render: function(data, type) {
-                        return type === 'sort' ? data.replace('%', '') : data;
-                    }
-                },
-                { 
-                    targets: 4,                  // Volume
-                    type: 'num-fmt',
-                    render: function(data, type) {
-                        return type === 'sort' ? data.replace(/[^0-9]/g, '') : data;
-                    }
-                },
-                { 
-                    targets: 5,                  // Market Cap
-                    type: 'num-fmt',
-                    render: function(data, type) {
-                        return type === 'sort' ? data.replace(/[^0-9]/g, '') : data;
-                    }
-                },
-                { 
-                    targets: 6,                  // Age
-                    type: 'num',
-                    render: function(data, type) {
-                        return type === 'sort' ? parseInt(data.replace('h', '')) : data;
-                    }
-                },
-                { targets: 7, orderable: false } // Status
-            ],
-            language: {
-                search: "_INPUT_",
-                searchPlaceholder: "Search coins...",
-                lengthMenu: "Show _MENU_ coins per page",
-                paginate: {
-                    previous: "&laquo;",
-                    next: "&raquo;"
-                }
-            }
-        });
-    });
     
     <?php if($auto_refresh_enabled ?? false): ?>
     // Auto-refresh with activity monitoring
@@ -132,12 +69,16 @@
         document.addEventListener(event, () => lastActivity = Date.now());
     });
 
-    setInterval(() => {
-        if (Date.now() - lastActivity > 2000) {
-            location.reload();
-        }
-    }, 3000);
+    // setInterval(() => {
+    //     if (Date.now() - lastActivity > 2000) {
+    //         location.reload();
+    //     }
+    // }, 3000);
     <?php endif; ?>
     </script>
+<?php if(defined('BASE_URL')): ?>
+<script src="<?= BASE_URL ?>/assets/js/script.js"></script>
+<script src="<?= BASE_URL ?>/assets/js/coins.js"></script>
+<?php endif; ?>
 </body>
 </html>

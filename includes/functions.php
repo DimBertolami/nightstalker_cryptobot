@@ -464,7 +464,7 @@ function fetchFromBitvavo() {
  */
 function fetchFromAllSources() {
     $allData = [];
-    $debugOutput = true; // Set to true to see debug output
+    $debugOutput = false; // Set to false to prevent text output in JSON response
     
     // Fetch from CoinMarketCap
     try {
@@ -958,6 +958,30 @@ function executeBuy($coinId, $amount, $price) {
     if ($stmt->execute()) {
         $tradeId = $stmt->insert_id;
         $stmt->close();
+        
+        // Log the trade using TradingLogger
+        require_once __DIR__ . '/TradingLogger.php';
+        $logger = new TradingLogger();
+        
+        // Get additional coin data if available
+        $coinData = getCoinData($coinId);
+        $marketCap = $coinData['market_cap'] ?? 0;
+        $volume = $coinData['volume'] ?? 0;
+        
+        // Prepare event data for logging
+        $eventData = [
+            'symbol' => $coinId,
+            'amount' => $amount,
+            'price' => $price,
+            'cost' => $totalValue,
+            'currency' => 'USD',
+            'market_cap' => $marketCap,
+            'volume' => $volume
+        ];
+        
+        // Log the buy event
+        $logger->logEvent('new_coin_strategy', 'buy', $eventData);
+        
         return $tradeId;
     } else {
         error_log("[executeBuy] Failed to insert trade: " . $stmt->error);
@@ -1046,9 +1070,9 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
     
     try {
         // Insert the sell trade
-        $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price_per_coin, total_value, trade_time, profit, profit_percentage) 
-                             VALUES (?, 'sell', ?, ?, ?, NOW(), ?, ?)");
-        $stmt->bind_param("sddddd", $coinId, $amount, $price, $totalValue, $profitLoss, $profitPercentage);
+        $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) 
+        VALUES (?, 'sell', ?, ?, ?, NOW())");
+        $stmt->bind_param("sddd", $coinId, $amount, $price, $totalValue);
         $success = $stmt->execute();
         $stmt->close();
         
@@ -1059,7 +1083,26 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
         // Commit transaction
         $db->commit();
         
-        // Log the trade
+        // Log the trade using TradingLogger
+        require_once __DIR__ . '/TradingLogger.php';
+        $logger = new TradingLogger();
+        
+        // Prepare event data for logging
+        $eventData = [
+            'symbol' => $coinId,
+            'amount' => $amount,
+            'sell_price' => $price,
+            'buy_price' => $buyPrice,
+            'profit' => $profitLoss,
+            'profit_percentage' => $profitPercentage,
+            'currency' => 'USD',
+            'holding_time_seconds' => 0 // You could calculate this if you have the buy time
+        ];
+        
+        // Log the sell event
+        $logger->logEvent('new_coin_strategy', 'sell', $eventData);
+        
+        // Also log with the simple logger for backward compatibility
         logEvent('Trade', "Sold {$amount} of coin {$coinId} at price {$price}");
         
         return [

@@ -1,14 +1,14 @@
 <?php
-require_once __DIR__ . '/../../includes/config.php';
-require_once __DIR__ . '/../../includes/functions.php';
-require_once __DIR__ . '/../../includes/database.php';
+require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/database.php';
 
 header('Content-Type: application/json');
 
 // This would be replaced with actual CoinGecko API calls
 // For now, we'll just return the current database state
 
-$db = connectDB();
+$db = getDBConnection();
 
 // Get all coins
 $coins = $db->query("

@@ -20,10 +20,10 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
 <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src 'self' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.datatables.net 'unsafe-inline';
+    script-src 'self' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.datatables.net 'unsafe-inline' 'unsafe-eval';
     style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.datatables.net 'unsafe-inline';
-    img-src 'self' data: https:;
-    font-src 'self' https://cdnjs.cloudflare.com;
+    img-src 'self' data: https: *;
+    font-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com 'unsafe-inline';
 ">
 
     <title><?= htmlspecialchars($page_title, ENT_QUOTES) ?></title>

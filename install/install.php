@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../../includes/config.php';
+require_once __DIR__ . '/../../includes/cron_manager.php';
 
 $title = "Night Stalker Installation";
 require_once __DIR__ . '/../../includes/header.php';
@@ -129,6 +130,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: ?step=4");
             exit();
         }
+    } elseif ($step == 4) {
+        // Set up cron job for fetch_coins.php
+        $cronInterval = 30; // Default to 30 minutes
+        $cronEnabled = true;
+        
+        // Schedule the cron job
+        $cronResult = schedule_fetch_coins_cron($cronInterval, $cronEnabled);
+        
+        if (!$cronResult) {
+            $errors[] = "Failed to set up cron job for fetch_coins.php";
+        }
+        
+        if (empty($errors)) {
+            header("Location: ?step=5");
+            exit();
+        }
     }
 }
 
@@ -242,7 +259,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                     <?php elseif ($step == 4): ?>
                         <div class="mb-4">
-                            <h4>Step 4: Installation Complete</h4>
+                            <h4>Step 4: Scheduling Data Updates</h4>
+                            <p>Setting up automatic data fetching via cron job.</p>
+                            
+                            <div class="alert alert-info">
+                                <i class="fas fa-clock me-2"></i>
+                                We'll configure a cron job to fetch cryptocurrency data every 30 minutes.
+                            </div>
+                            
+                            <div class="mb-3">
+                                <p>This will ensure your cryptocurrency data stays up-to-date automatically.</p>
+                                <p>You can adjust the frequency later in the settings panel.</p>
+                            </div>
+                            
+                            <form method="POST">
+                                <button type="submit" class="btn btn-primary">Set Up Cron Job</button>
+                            </form>
+                        </div>
+                        
+                    <?php elseif ($step == 5): ?>
+                        <div class="mb-4">
+                            <h4>Step 5: Installation Complete</h4>
                             <div class="alert alert-success">
                                 <i class="fas fa-check-circle me-2"></i>
                                 Night Stalker has been successfully installed!
@@ -254,7 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <li>Configure your CoinGecko API key in settings</li>
                                     <li>Set up exchange API keys in the Exchange Configuration panel</li>
                                     <li>Install Composer dependencies with: <code>php composer.phar install --ignore-platform-req=ext-gmp</code></li>
-                                    <li>Set up cron jobs for automatic trading</li>
+                                    <li>Adjust data fetching frequency in the Settings panel if needed</li>
                                     <li>Review the default trading parameters</li>
                                 </ol>
                             </div>
@@ -268,7 +305,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php endif; ?>
                 </div>
                 <div class="card-footer text-center">
-                    <small class="text-muted">Installation Step <?php echo $step; ?> of 4</small>
+                    <small class="text-muted">Installation Step <?php echo $step; ?> of 5</small>
                 </div>
             </div>
         </div>
