@@ -119,6 +119,32 @@ Night Stalker is an advanced cryptocurrency trading platform designed to detect 
 5. Test the connection before saving
 6. Set your preferred default exchange
 
+### Supported Exchanges
+Currently, the system supports the following CCXT-based exchanges:
+- Binance
+- Kraken
+- OKX
+- Alpaca
+- Coinbase
+- MEXC
+- Ascendex
+- BigOne
+- BingX
+- Bitbns
+- Bitfinex
+- Bitflyer
+- Bitget
+- Bithumb
+- Bitmart
+- Bitmex
+- Bitopro
+- Bitrue
+- Bitso
+- Bitstamp
+- Bitteam
+- Bittrade
+- Blockchaincom
+
 ### Wallet Integration
 
 1. Configure Phantom Wallet in the Wallet Configuration panel
