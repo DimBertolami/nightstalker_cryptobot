@@ -743,9 +743,12 @@ function getNewCryptocurrencies(): array {
         }
 
         $maxAge = MAX_COIN_AGE; // Store constant in variable
-        $stmt = $db->prepare("SELECT * FROM cryptocurrencies 
-                            WHERE age_hours <= ? 
-                            ORDER BY created_at DESC");
+        // Calculate age in hours using TIMESTAMPDIFF since we don't have an age_hours column
+        $stmt = $db->prepare("SELECT *, 
+                              TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
+                              FROM coins 
+                              WHERE TIMESTAMPDIFF(HOUR, date_added, NOW()) <= ? 
+                              ORDER BY date_added DESC");
         $stmt->bind_param("i", $maxAge);
         $stmt->execute();
         
@@ -767,10 +770,12 @@ function getTrendingCoins(): array {
         }
 
         $minVolume = MIN_VOLUME_THRESHOLD;
-        $stmt = $db->prepare("SELECT * FROM cryptocurrencies 
-                            WHERE volume >= ? 
-                            AND is_trending = TRUE 
-                            ORDER BY volume DESC");
+        $stmt = $db->prepare("SELECT *, 
+                              TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
+                              FROM coins 
+                              WHERE volume_24h >= ? 
+                              AND is_trending = TRUE 
+                              ORDER BY volume_24h DESC");
         $stmt->bind_param("d", $minVolume);
         $stmt->execute();
         

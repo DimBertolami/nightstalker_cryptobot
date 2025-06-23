@@ -16,8 +16,8 @@
                     <p class="mb-1"><strong>Market Cap:</strong></p>
                 </div>
                 <div class="col-6 text-end">
-                    <p class="mb-1">$<?php echo number_format($coin['price'], 4); ?></p>
-                    <p class="mb-1">$<?php echo number_format($coin['volume']); ?></p>
+                    <p class="mb-1">$<?php echo number_format($coin['current_price'], 4); ?></p>
+                    <p class="mb-1">$<?php echo number_format($coin['volume_24h']); ?></p>
                     <p class="mb-1">$<?php echo number_format($coin['market_cap']); ?></p>
                 </div>
             </div>
