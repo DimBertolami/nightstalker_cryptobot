@@ -5,7 +5,7 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
 
 // Set title before including header
-$title = "All Cryptocurrencies - Real-time Data";
+$title = "New High-Value Coins - Less than 24 Hours Old";
 
 // Add custom CSS for new coin highlighting and real-time updates
 $customCSS = <<<EOT
@@ -68,15 +68,21 @@ try {
         throw new Exception("Database connection failed");
     }
 
-    // Try to get data from cryptocurrencies table first (new schema)
-    $coinsQuery = "SELECT * FROM cryptocurrencies ORDER BY market_cap DESC";
-    $coinsResult = $db->query($coinsQuery);
+    // Get only coins that are < 24h old AND have market cap and volume_24h >= $1,500,000
+    $minThreshold = 1500000; // $1.5M minimum for market cap and volume
+    $maxAgeHours = 24; // Only show coins less than 24 hours old
     
-    // If cryptocurrencies table doesn't have data, try the coins table (old schema)
-    if (!$coinsResult || $coinsResult->num_rows == 0) {
-        $coinsQuery = "SELECT * FROM coins ORDER BY market_cap DESC";
-        $coinsResult = $db->query($coinsQuery);
-    }
+    $coinsQuery = "SELECT *, TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
+                FROM coins 
+                WHERE TIMESTAMPDIFF(HOUR, date_added, NOW()) < ? 
+                AND market_cap >= ? 
+                AND volume_24h >= ? 
+                ORDER BY date_added DESC";
+    
+    $stmt = $db->prepare($coinsQuery);
+    $stmt->bind_param("idd", $maxAgeHours, $minThreshold, $minThreshold);
+    $stmt->execute();
+    $coinsResult = $stmt->get_result();
     
     // Get the data as an associative array
     $coinsData = $coinsResult ? $coinsResult->fetch_all(MYSQLI_ASSOC) : [];
@@ -94,11 +100,12 @@ echo "</pre>";
             'id' => $coin['id'],
             'name' => $coin['name'],
             'symbol' => $symbol,
-            'price' => (float)($liveData['price'] ?? $coin['current_price'] ?? 0),
+            'current_price' => (float)($liveData['price'] ?? $coin['current_price'] ?? 0),
             'price_change_24h' => (float)($liveData['change'] ?? $coin['price_change_24h'] ?? 0),
-            'volume' => (float)($liveData['volume'] ?? $coin['volume_24h'] ?? 0),
+            'volume_24h' => (float)($liveData['volume'] ?? $coin['volume_24h'] ?? 0),
             'market_cap' => (float)($liveData['market_cap'] ?? $coin['market_cap'] ?? 0),
             'date_added' => $liveData['date_added'] ?? $coin['date_added'] ?? null,
+            'age_hours' => (int)($coin['age_hours'] ?? 0),
             'is_trending' => (bool)($coin['is_trending'] ?? false),
             'volume_spike' => (bool)($coin['volume_spike'] ?? false),
             'last_updated' => $coin['last_updated'] ?? null
@@ -236,7 +243,7 @@ try {
             <div class="card shadow">
                 <div class="card-header bg-primary text-white">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-coins me-2"></i>All Cryptocurrencies
+                        <i class="fas fa-coins me-2"></i>New High-Value Coins (<24h old)
                         <span id="last-update"></span>
                         <button id="refresh-btn" class="btn btn-sm btn-light">
                             <i class="fas fa-sync-alt"></i> Refresh
@@ -278,30 +285,10 @@ try {
                                     $canSell = $userBalance > 0;
                                     $priceChangeClass = $coin['price_change_24h'] >= 0 ? 'price-up' : 'price-down';
                                     
-                                    // Calculate coin age
-                                    $dateAdded = null;
-                                    $isNew = false;
-                                    $ageDisplay = 'Unknown';
-                                    $ageClass = '';
-                                    
-                                    if (!empty($coin['date_added'])) {
-                                        $dateAdded = new DateTime($coin['date_added']);
-                                        $now = new DateTime();
-                                        $interval = $dateAdded->diff($now);
-                                        
-                                        if ($interval->days > 0) {
-                                            $ageDisplay = $interval->days . ' days';
-                                        } else {
-                                            $hours = $interval->h + ($interval->days * 24);
-                                            $ageDisplay = $hours . ' hours';
-                                            
-                                            // Highlight if less than 24 hours old
-                                            if ($hours < 24) {
-                                                $isNew = true;
-                                                $ageClass = 'new-coin';
-                                            }
-                                        }
-                                    }
+                                    // Coin age is now calculated directly in the SQL query
+                                    $isNew = true; // All displayed coins are < 24h old based on our query
+                                    $ageClass = 'new-coin';
+                                    $ageDisplay = $coin['age_hours'] . ' hours';
                                 ?>
                                 <tr>
                                     <td>
@@ -312,7 +299,7 @@ try {
                                             </div>
                                         </div>
                                     </td>
-                                    <td>$<?= number_format($coin['price'], $coin['price'] >= 1 ? 2 : 8) ?></td>
+                                    <td>$<?= number_format($coin['current_price'], $coin['current_price'] >= 1 ? 2 : 8) ?></td>
                                     <td class="<?= $priceChangeClass ?>">
                                         <?php if ($coin['price_change_24h'] >= 0): ?>
                                             <i class="fas fa-caret-up"></i>
@@ -321,7 +308,7 @@ try {
                                         <?php endif; ?>
                                         <?= number_format(abs($coin['price_change_24h']), 2) ?>%
                                     </td>
-                                    <td>$<?= number_format($coin['volume'] ?? 0) ?></td>
+                                    <td>$<?= number_format($coin['volume_24h'] ?? 0) ?></td>
                                     <td>$<?= number_format($coin['market_cap']) ?></td>
                                     <td class="<?= $ageClass ?>">
                                         <?= $ageDisplay ?>
@@ -347,13 +334,13 @@ try {
                                                 <button type="button" class="btn btn-success buy-btn" 
                                                     data-coin-id="<?= $coin['id'] ?>" 
                                                     data-symbol="<?= $coin['symbol'] ?>" 
-                                                    data-price="<?= $coin['price'] ?>">
+                                                    data-price="<?= $coin['current_price'] ?>">
                                                     <i class="fas fa-shopping-cart"></i> Buy
                                                 </button>
                                                 <button type="button" class="btn btn-danger sell-btn" 
                                                     data-coin-id="<?= $coin['id'] ?>" 
                                                     data-symbol="<?= $coin['symbol'] ?>" 
-                                                    data-price="<?= $coin['price'] ?>" 
+                                                    data-price="<?= $coin['current_price'] ?>" 
                                                     <?= $canSell ? '' : 'disabled' ?>>
                                                     <i class="fas fa-money-bill-wave"></i> Sell
                                                 </button>
