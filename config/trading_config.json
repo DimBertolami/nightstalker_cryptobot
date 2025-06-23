@@ -1,0 +1,32 @@
+{
+    "test_mode": true,
+    "strategies": {
+        "new_coin": {
+            "enabled": true,
+            "max_trades_per_run": 3,
+            "min_volume": 100000,
+            "max_coins": 5,
+            "trade_amount": 100
+        },
+        "profitable_sell": {
+            "enabled": true,
+            "profit_target": 10,
+            "stop_loss": -5
+        }
+    },
+    "trading_interval": 3600,
+    "exchanges": {
+        "bitvavo": {
+            "enabled": true,
+            "pairs": ["BTC/EUR", "ETH/EUR", "XRP/EUR"]
+        }
+    },
+    "api_data_sources": {
+        "coingecko": {"enabled": true},
+        "coinmarketcap": {"enabled": true},
+        "bitvavo": {"enabled": false},
+        "jupiter": {"enabled": false},
+        "alpaca": {"enabled": false},
+        "livecoinwatch": {"enabled": false}
+    }
+}

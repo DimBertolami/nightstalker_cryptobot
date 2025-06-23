@@ -29,29 +29,11 @@ $weekPerformance = $logger->getPerformance($selectedStrategy, 'week');
 $monthPerformance = $logger->getPerformance($selectedStrategy, 'month');
 $allTimePerformance = $logger->getPerformance($selectedStrategy, 'all');
 
-// Format currency values
-function formatCurrency($value, $decimals = 2) {
-    return number_format($value, $decimals);
-}
+// These functions are now imported from functions.php
+// No need to define them here anymore
 
-// Format percentage values
-function formatPercentage($value) {
-    return number_format($value, 2) . '%';
-}
-
-// Format time duration
-function formatDuration($seconds) {
-    if ($seconds < 60) {
-        return $seconds . "s";
-    } elseif ($seconds < 3600) {
-        return floor($seconds / 60) . "m " . ($seconds % 60) . "s";
-    } else {
-        $hours = floor($seconds / 3600);
-        $minutes = floor(($seconds % 3600) / 60);
-        $secs = $seconds % 60;
-        return $hours . "h " . $minutes . "m " . $secs . "s";
-    }
-}
+// formatDuration is now imported from functions.php
+// No need to define it here anymore
 
 // Check if there's an active trade
 $activeTrade = !empty($stats['active_trade_symbol']);
@@ -90,15 +72,6 @@ $activeTrade = !empty($stats['active_trade_symbol']);
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1 class="h3">Trading Dashboard</h1>
             <div class="d-flex align-items-center">
-                <form method="post" id="strategy-form" class="me-3">
-                    <div class="input-group">
-                        <label class="input-group-text" for="strategy-select">Strategy:</label>
-                        <select class="form-select form-select-sm" id="strategy-select" name="strategy" onchange="this.form.submit()">
-                            <option value="new_coin_strategy" <?php echo ($selectedStrategy == 'new_coin_strategy') ? 'selected' : ''; ?>>New Coin Strategy</option>
-                            <option value="main_strategy" <?php echo ($selectedStrategy == 'main_strategy') ? 'selected' : ''; ?>>Main Strategy</option>
-                        </select>
-                    </div>
-                </form>
                 <span class="text-muted me-3">Last updated: <?php echo date('Y-m-d H:i'); ?></span>
                 <button id="refresh-btn" class="btn btn-sm btn-primary">Refresh</button>
             </div>
@@ -189,6 +162,18 @@ $activeTrade = !empty($stats['active_trade_symbol']);
                     </div>
                     <div class="card-body">
                         <div class="stat-card">
+                            <div class="stat-value <?php echo ($allTimePerformance['total_profit'] ?? 0) > 0 ? 'positive' : (($allTimePerformance['total_profit'] ?? 0) < 0 ? 'negative' : 'neutral'); ?>">
+                                <?php echo formatCurrency($allTimePerformance['total_profit'] ?? 0, 2); ?> EUR
+                            </div>
+                            <div class="stat-label">Total Profit</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">
+                                <?php echo $allTimePerformance['buy_count'] ?? 0; ?> / <?php echo $allTimePerformance['sell_count'] ?? 0; ?>
+                            </div>
+                            <div class="stat-label">Buys / Sells</div>
+                        </div>
+                        <div class="stat-card">
                             <div class="stat-value">
                                 <?php echo $stats['total_trades'] ?? 0; ?>
                             </div>
@@ -218,6 +203,18 @@ $activeTrade = !empty($stats['active_trade_symbol']);
                             </div>
                             <div class="stat-label">Avg. Profit/Loss</div>
                         </div>
+                        <?php if (!empty($allTimePerformance['best_trade'])): ?>
+                        <div class="stat-card">
+                            <div class="stat-value positive"><?php echo formatPercentage($allTimePerformance['best_trade']['profit_percentage']); ?></div>
+                            <div class="stat-label">Best Trade (<?php echo $allTimePerformance['best_trade']['symbol']; ?>)</div>
+                        </div>
+                        <?php endif; ?>
+                        <?php if (!empty($allTimePerformance['worst_trade'])): ?>
+                        <div class="stat-card">
+                            <div class="stat-value negative"><?php echo formatPercentage($allTimePerformance['worst_trade']['profit_percentage']); ?></div>
+                            <div class="stat-label">Worst Trade (<?php echo $allTimePerformance['worst_trade']['symbol']; ?>)</div>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -267,15 +264,19 @@ $activeTrade = !empty($stats['active_trade_symbol']);
                             <tbody>
                                 <?php foreach ($recentEvents as $event): ?>
                                 <tr>
-                                    <td><?php echo $event['timestamp']; ?></td>
+                                    <td><?php echo $event['event_time']; ?></td>
                                     <td>
                                         <span class="badge bg-<?php echo getEventBadgeClass($event['event_type']); ?>">
                                             <?php echo ucfirst($event['event_type']); ?>
                                         </span>
                                     </td>
-                                    <td><?php echo $event['symbol']; ?></td>
                                     <td>
-                                        <?php $eventData = json_decode($event['event_data'], true); ?>
+                                        <?php 
+                                        $eventData = json_decode($event['event_data'], true);
+                                        echo isset($eventData['symbol']) ? $eventData['symbol'] : 'N/A'; 
+                                        ?>
+                                    </td>
+                                    <td>
                                         <?php if ($event['event_type'] == 'buy'): ?>
                                             Buy Price: <?php echo formatCurrency($eventData['buy_price'], 8); ?>, 
                                             Amount: <?php echo $eventData['amount']; ?>, 

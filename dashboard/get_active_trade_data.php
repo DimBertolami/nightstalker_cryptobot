@@ -29,19 +29,8 @@ if (empty($stats['active_trade_symbol'])) {
     exit;
 }
 
-// Format time duration
-function formatDuration($seconds) {
-    if ($seconds < 60) {
-        return $seconds . "s";
-    } elseif ($seconds < 3600) {
-        return floor($seconds / 60) . "m " . ($seconds % 60) . "s";
-    } else {
-        $hours = floor($seconds / 3600);
-        $minutes = floor(($seconds % 3600) / 60);
-        $secs = $seconds % 60;
-        return $hours . "h " . $minutes . "m " . $secs . "s";
-    }
-}
+// formatDuration is now imported from functions.php
+// No need to define it here
 
 try {
     // Get the current price of the active trade

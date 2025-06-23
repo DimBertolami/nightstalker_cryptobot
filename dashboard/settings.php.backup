@@ -23,23 +23,6 @@ $settings = [
     'refreshInterval' => 3
 ];
 
-// Initialize API data sources if missing
-$tradingConfigPath = __DIR__ . '/../config/trading_config.json';
-if (file_exists($tradingConfigPath)) {
-    $tradingConfig = json_decode(file_get_contents($tradingConfigPath), true);
-    if (!isset($tradingConfig['api_data_sources'])) {
-        $tradingConfig['api_data_sources'] = [
-            'coingecko' => ['enabled' => true],
-            'coinmarketcap' => ['enabled' => true],
-            'bitvavo' => ['enabled' => false],
-            'jupiter' => ['enabled' => false],
-            'alpaca' => ['enabled' => false],
-            'livecoinwatch' => ['enabled' => false]
-        ];
-        file_put_contents($tradingConfigPath, json_encode($tradingConfig, JSON_PRETTY_PRINT));
-    }
-}
-
 // Read current settings from the config file
 if (file_exists($configFile)) {
     $configContent = file_get_contents($configFile);
@@ -216,26 +199,11 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-<style>
-    .tab-card {
-        transition: all 0.3s ease;
-        opacity: 0.8;
-        cursor: pointer;
-    }
-    
-    .tab-card:hover {
-        transform: translateY(-3px);
-    }
-    
-    .active-tab {
-        opacity: 1 !important;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
-</style>
 </head>
 <body>
     <?php include_once('nav.php'); ?>
     
+    <form method="POST" id="settings-form">
     <div class="container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2>Settings</h2>
@@ -251,141 +219,144 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
         </div>
         <?php endif; ?>
         
-        <!-- Configuration Tabs -->
-        <div class="row mb-4 justify-content-center" style="max-width: 900px; margin-left: auto; margin-right: auto;">
-            <div class="col-md-4 px-1">
-                <div class="card bg-primary text-white tab-card" id="strategy-tab" onclick="showTab('strategy')">
-                    <div class="card-body py-3">
-                        <h5 class="card-title mb-0 text-center">Strategy Configuration</h5>
+        <div class="row">
+            <div class="col-md-8">
+                <!-- Strategy Configuration -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-gear"></i> Strategy Configuration
+                        </div>
+                        <div class="form-group mb-0">
+                            <select class="form-select form-select-sm" id="strategy-selector" onchange="switchStrategy(this.value)">
+                                <option value="general">5% Strategy</option>
+                                <option value="new_coin">New Coin Strategy</option>
+                            </select>
+                        </div>
                     </div>
-                </div>
-            </div>
-            <div class="col-md-4 px-1">
-                <div class="card bg-primary text-white tab-card" id="exchange-tab" onclick="showTab('exchange')">
-                    <div class="card-body py-3">
-                        <h5 class="card-title mb-0 text-center">Exchange Configuration</h5>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4 px-1">
-                <div class="card bg-primary text-white tab-card" id="api-tab" onclick="showTab('api')">
-                    <div class="card-body py-3">
-                        <h5 class="card-title mb-0 text-center">API Configuration</h5>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <form method="POST" id="settings-form">
-        <!-- Configuration Content -->
-        <div class="row justify-content-center" style="max-width: 900px; margin-left: auto; margin-right: auto;">
-            <!-- Strategy Configuration Content -->
-            <div class="col-12 mb-4 tab-content" id="strategy-content">
-                <div class="card">
-                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h3 class="mb-0">Strategy Configuration</h3>
-                                </div>
-                                <div class="form-group mb-0">
-                                    <select class="form-select form-select-sm" id="strategy-selector" onchange="switchStrategy(this.value)">
-                                        <option value="general">5% Strategy</option>
-                                        <option value="new_coin">New Coin Strategy</option>
-                                    </select>
-                                </div>
+                    <div class="card-body">
+                        <!-- General Trading Settings (formerly Trading Bot Configuration) -->
+                        <div id="general-settings" class="strategy-section">
+                            <div class="alert alert-info">
+                                <h4 class="alert-heading">5% Strategy</h4>
+                                <p>Sell when the profit reaches 5%</p>
                             </div>
-                            <div class="card-body">
-                                <!-- General Trading Settings (formerly Trading Bot Configuration) -->
-                                <div id="general-settings" class="strategy-section">
-                                    <div class="alert alert-info">
-                                        <h4 class="alert-heading">5% Strategy</h4>
-                                        <p>Sell when the profit reaches 5%</p>
-                                    </div>
-                                    
-                                    <form method="POST" action="" id="generalForm">
-                                        <div class="mb-3 form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="testMode" name="testMode" <?php echo $settings['testMode'] ? 'checked' : ''; ?>>
-                                            <label class="form-check-label" for="testMode">Simulation Mode</label>
-                                            <div class="form-text">When enabled, trades are simulated and no real money is used.</div>
-                                        </div>
+                            
+                            <form method="POST" action="" id="generalForm">
+                                <div class="mb-3 form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="testMode" name="testMode" <?php echo $settings['testMode'] ? 'checked' : ''; ?>>
+                                    <label class="form-check-label" for="testMode">Simulation Mode</label>
+                                    <div class="form-text">When enabled, trades are simulated and no real money is used.</div>
+                                </div>
                                 
-                                        <div class="mb-3">
-                                            <label for="buyAmount" class="form-label">Buy Amount (EUR)</label>
-                                            <input type="number" class="form-control" id="buyAmount" name="buyAmount" value="<?php echo $settings['buyAmount']; ?>" step="0.01" min="0" required>
-                                            <div class="form-text">Amount in EUR to spend on each trade.</div>
-                                        </div>
-                                        
-                                        <div class="mb-3">
-                                            <label for="profitTarget" class="form-label">Profit Target (%)</label>
-                                            <input type="number" class="form-control" id="profitTarget" name="profitTarget" value="<?php echo $settings['profitTarget']; ?>" step="0.1" min="0.1" required>
-                                            <div class="form-text">Percentage profit at which to sell.</div>
-                                        </div>
-                                        
-                                        <div class="mb-3">
-                                            <label for="stopLoss" class="form-label">Stop Loss (%)</label>
-                                            <input type="number" class="form-control" id="stopLoss" name="stopLoss" value="<?php echo $settings['stopLoss']; ?>" step="0.1" max="0" required>
-                                            <div class="form-text">Percentage loss at which to sell (negative number).</div>
-                                        </div>
-                                        
-                                        <div class="mb-3">
-                                            <label for="maxHoldingTime" class="form-label">Maximum Holding Time (seconds)</label>
-                                            <input type="number" class="form-control" id="maxHoldingTime" name="maxHoldingTime" value="<?php echo $settings['maxHoldingTime']; ?>" min="60" required>
-                                            <div class="form-text">Maximum time to hold a position before selling (in seconds).</div>
-                                        </div>
-                                        
-                                        <div class="mb-3">
-                                            <label for="refreshInterval" class="form-label">Price Refresh Interval (seconds)</label>
-                                            <input type="number" class="form-control" id="refreshInterval" name="refreshInterval" value="<?php echo $settings['refreshInterval']; ?>" min="1" max="60" required>
-                                            <div class="form-text">How often to check prices (in seconds).</div>
-                                        </div>
-                                        
-                                        <button type="submit" class="btn btn-primary" name="saveGeneral">Save General Settings</button>
+                                <div class="mb-3">
+                                    <label for="buyAmount" class="form-label">Buy Amount (EUR)</label>
+                                    <input type="number" class="form-control" id="buyAmount" name="buyAmount" value="<?php echo $settings['buyAmount']; ?>" step="0.01" min="0" required>
+                                    <div class="form-text">Amount in EUR to spend on each trade.</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="profitTarget" class="form-label">Profit Target (%)</label>
+                                    <input type="number" class="form-control" id="profitTarget" name="profitTarget" value="<?php echo $settings['profitTarget']; ?>" step="0.1" min="0.1" required>
+                                    <div class="form-text">Percentage profit at which to sell.</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="stopLoss" class="form-label">Stop Loss (%)</label>
+                                    <input type="number" class="form-control" id="stopLoss" name="stopLoss" value="<?php echo $settings['stopLoss']; ?>" step="0.1" max="0" required>
+                                    <div class="form-text">Percentage loss at which to sell (negative number).</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="maxHoldingTime" class="form-label">Maximum Holding Time (seconds)</label>
+                                    <input type="number" class="form-control" id="maxHoldingTime" name="maxHoldingTime" value="<?php echo $settings['maxHoldingTime']; ?>" min="60" required>
+                                    <div class="form-text">Maximum time to hold a position before selling (in seconds).</div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="refreshInterval" class="form-label">Price Refresh Interval (seconds)</label>
+                                    <input type="number" class="form-control" id="refreshInterval" name="refreshInterval" value="<?php echo $settings['refreshInterval']; ?>" min="1" max="60" required>
+                                    <div class="form-text">How often to check prices (in seconds).</div>
+                                </div>
+                                
+                                <button type="submit" class="btn btn-primary" name="saveGeneral">Save General Settings</button>
                             </form>
                         </div>
                         
                         <!-- New Coin Strategy Settings -->
                         <div id="new-coin-settings" class="strategy-section" style="display: none;">
+                            <?php
+                            // Include NewCoinStrategy class
+                            require_once __DIR__ . '/../includes/NewCoinStrategy.php';
+                            
+                            // Get current strategy settings
+                            $strategyConfig = [];
+                            $configFile = __DIR__ . '/../config/new_coin_strategy.json';
+                            if (file_exists($configFile)) {
+                                $strategyConfig = json_decode(file_get_contents($configFile), true) ?? [];
+                            }
+                            
+                            // Default values if not set
+                            $maxCoinAge = $strategyConfig['maxCoinAge'] ?? 24;
+                            $minMarketCap = $strategyConfig['minMarketCap'] ?? 1500000;
+                            $minVolume = $strategyConfig['minVolume'] ?? 1500000;
+                            $monitoringInterval = $strategyConfig['monitoringInterval'] ?? 3;
+                            $sellTriggerSeconds = $strategyConfig['sellTriggerSeconds'] ?? 30;
+                            $enabled = $strategyConfig['enabled'] ?? false;
+                            ?>
+                            
                             <div class="alert alert-info">
                                 <h4 class="alert-heading">New Coin Strategy</h4>
-                                <p>Monitor new cryptocurrencies, more specifically the marketcap (minimum 1,500,000), its total volume of trades (same minimum as the marketcap), and the age (&lt;24h)</p>
+                                <p>Monitor new cryptocurrencies, more specifically the marketcap (minimum 1.5Million), it's total volume of trades (same minimum as the marketcap), and the age (&lt;24h)</p>
                             </div>
+                            
                             <form method="POST" action="" id="newCoinForm">
                                 <div class="mb-3 form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="strategyEnabled" name="strategyEnabled" checked>
+                                    <input class="form-check-input" type="checkbox" id="strategyEnabled" name="strategyEnabled" <?php echo $enabled ? 'checked' : ''; ?>>
                                     <label class="form-check-label" for="strategyEnabled">Enable New Coin Strategy</label>
                                     <div class="form-text">When enabled, the bot will automatically look for and trade newly listed coins.</div>
                                 </div>
+                                
                                 <div class="mb-3">
                                     <label for="maxCoinAge" class="form-label">Maximum Coin Age (hours)</label>
-                                    <input type="number" class="form-control" id="maxCoinAge" name="maxCoinAge" value="24" min="1" max="72" required>
+                                    <input type="number" class="form-control" id="maxCoinAge" name="maxCoinAge" value="<?php echo $maxCoinAge; ?>" min="1" max="72" required>
                                     <div class="form-text">Only consider coins listed within this timeframe.</div>
                                 </div>
+                                
                                 <div class="mb-3">
                                     <label for="minMarketCap" class="form-label">Minimum Market Cap ($)</label>
-                                    <input type="number" class="form-control" id="minMarketCap" name="minMarketCap" value="1500000" min="100000" required>
+                                    <input type="number" class="form-control" id="minMarketCap" name="minMarketCap" value="<?php echo $minMarketCap; ?>" min="100000" required>
                                     <div class="form-text">Only consider coins with market cap above this threshold.</div>
                                 </div>
+                                
                                 <div class="mb-3">
                                     <label for="minVolume" class="form-label">Minimum 24h Volume ($)</label>
-                                    <input type="number" class="form-control" id="minVolume" name="minVolume" value="1500000" min="100000" required>
+                                    <input type="number" class="form-control" id="minVolume" name="minVolume" value="<?php echo $minVolume; ?>" min="100000" required>
                                     <div class="form-text">Only consider coins with 24h trading volume above this threshold.</div>
                                 </div>
+                                
                                 <div class="mb-3">
                                     <label for="monitoringInterval" class="form-label">Price Monitoring Interval (seconds)</label>
-                                    <input type="number" class="form-control" id="monitoringInterval" name="monitoringInterval" value="3" min="1" max="30" required>
+                                    <input type="number" class="form-control" id="monitoringInterval" name="monitoringInterval" value="<?php echo $monitoringInterval; ?>" min="1" max="30" required>
                                     <div class="form-text">How often to check prices during active monitoring.</div>
                                 </div>
+                                
+                                <div class="mb-3">
+                                    <label for="sellTriggerSeconds" class="form-label">Sell Trigger Duration (seconds)</label>
+                                    <input type="number" class="form-control" id="sellTriggerSeconds" name="sellTriggerSeconds" value="<?php echo $sellTriggerSeconds; ?>" min="5" max="300" required>
+                                    <div class="form-text">Sell after price drops for this many consecutive seconds.</div>
+                                </div>
+                                
                                 <button type="submit" class="btn btn-primary" name="saveStrategy">Save Strategy Settings</button>
                             </form>
                         </div>
                     </div>
                 </div>
-            </div>
-            
-            <!-- Exchange Configuration Content -->
-            <div class="col-12 mb-4 tab-content" id="exchange-content" style="display: none;">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h3 class="mb-0">Exchange Configuration</h3>
+                
+                <!-- Exchange Configuration Panel -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-currency-exchange"></i> Exchange Configuration
                     </div>
                     <div class="card-body">
                         <div class="alert alert-info">
@@ -455,17 +426,67 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
                         </div>
                     </div>
                 </div>
+                
+                <!-- Wallet Configuration -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">Wallet Configuration</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Supported Wallets</label>
+                            
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="phantomWallet" name="wallets[phantom]" checked>
+                                <label class="form-check-label" for="phantomWallet">
+                                    <img src="../assets/images/wallets/phantom.png" alt="Phantom" width="24" height="24" class="me-2">
+                                    Phantom (Solana)
+                                </label>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="metamaskWallet" name="wallets[metamask]">
+                                <label class="form-check-label" for="metamaskWallet">
+                                    <img src="../assets/images/wallets/metamask.png" alt="MetaMask" width="24" height="24" class="me-2">
+                                    MetaMask (Ethereum)
+                                </label>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="keplrWallet" name="wallets[keplr]">
+                                <label class="form-check-label" for="keplrWallet">
+                                    <img src="../assets/images/wallets/keplr.png" alt="Keplr" width="24" height="24" class="me-2">
+                                    Keplr (Cosmos)
+                                </label>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="trustWallet" name="wallets[trust]">
+                                <label class="form-check-label" for="trustWallet">
+                                    <img src="../assets/images/wallets/trust.png" alt="Trust Wallet" width="24" height="24" class="me-2">
+                                    Trust Wallet (Multi-chain)
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="defaultWallet" class="form-label">Default Wallet</label>
+                            <select class="form-select" id="defaultWallet" name="default_wallet">
+                                <option value="phantom" selected>Phantom</option>
+                                <option value="metamask">MetaMask</option>
+                                <option value="keplr">Keplr</option>
+                                <option value="trust">Trust Wallet</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-            </div>
-            
-            <!-- API Configuration Content -->
-            <div class="col-md-12 col-lg-10 col-xl-8 mx-auto mb-4 tab-content" id="api-content" style="display: none;">
-                <div class="card">
+
+                <!-- API Configuration -->
+                <div class="card mb-4">
                     <div class="card-header bg-primary text-white">
                         <h3 class="mb-0">API Configuration</h3>
                     </div>
-                    <div class="card-body bg-white">
+                    <div class="card-body">
                         <div class="form-check form-switch mb-3">
                             <input class="form-check-input" type="checkbox" id="enableFetching" name="enable_fetching" checked>
                             <label class="form-check-label" for="enableFetching">
@@ -475,92 +496,173 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
                         </div>
                         
                         <h5 class="mt-4 mb-3">Data Sources</h5>
-                            <button type="button" class="btn btn-outline-primary btn-sm mb-3" id="addDataSourceBtn">
-                                <i class="bi bi-plus-circle"></i> Add Data Source
-                            </button>
-                            <!-- Add Data Source Modal -->
-                            <div class="modal fade" id="addDataSourceModal" tabindex="-1" aria-labelledby="addDataSourceModalLabel" aria-hidden="true">
-                                <div class="modal-dialog">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title" id="addDataSourceModalLabel">Add API Data Source</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <form id="addDataSourceForm">
-                                                <div class="mb-3">
-                                                    <label for="dataSourceName" class="form-label">Source Name <span class="text-danger">*</span></label>
-                                                    <input type="text" class="form-control" id="dataSourceName" name="dataSourceName" required placeholder="e.g. CoinGecko">
-                                                    <div class="form-text">Enter a unique name for this data source.</div>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label for="dataSourceApiKey" class="form-label">API Key</label>
-                                                    <input type="text" class="form-control" id="dataSourceApiKey" name="dataSourceApiKey" placeholder="Optional">
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label for="dataSourceApiSecret" class="form-label">API Secret</label>
-                                                    <input type="text" class="form-control" id="dataSourceApiSecret" name="dataSourceApiSecret" placeholder="Optional">
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label for="dataSourceApiUrl" class="form-label">API URL</label>
-                                                    <input type="text" class="form-control" id="dataSourceApiUrl" name="dataSourceApiUrl" placeholder="Optional">
-                                                </div>
-                                                <button type="submit" class="btn btn-primary">Add Data Source</button>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                         
-                        <div class="d-flex align-items-center mb-2">
-                            <div class="form-check form-switch mb-0 me-2">
-                                <input class="form-check-input" type="checkbox" id="coinGecko" name="data_sources[coingecko]" checked>
-                                <label class="form-check-label" for="coinGecko">CoinGecko</label>
-                            </div>
-                            <button type="button" class="btn btn-outline-primary btn-sm p-1 me-1" title="Edit CoinGecko"><i class="bi bi-pencil"></i></button>
-                            <button type="button" class="btn btn-outline-danger btn-sm p-1 delete-data-source" data-source-id="coingecko" title="Delete CoinGecko"><i class="bi bi-trash"></i></button>
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="coinGecko" name="data_sources[coingecko]" checked>
+                            <label class="form-check-label" for="coinGecko">
+                                CoinGecko
+                            </label>
                         </div>
-                        <div class="d-flex align-items-center mb-2">
-                            <div class="form-check form-switch mb-0 me-2">
-                                <input class="form-check-input" type="checkbox" id="coinMarketCap" name="data_sources[coinmarketcap]" checked>
-                                <label class="form-check-label" for="coinMarketCap">CoinMarketCap</label>
-                            </div>
-                            <button type="button" class="btn btn-outline-primary btn-sm p-1 me-1" title="Edit CoinMarketCap"><i class="bi bi-pencil"></i></button>
-                            <button type="button" class="btn btn-outline-danger btn-sm p-1 delete-data-source" data-source-id="coinmarketcap" title="Delete CoinMarketCap"><i class="bi bi-trash"></i></button>
+                        
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="coinMarketCap" name="data_sources[coinmarketcap]" checked>
+                            <label class="form-check-label" for="coinMarketCap">
+                                CoinMarketCap
+                            </label>
                         </div>
-                        <div class="d-flex align-items-center mb-2">
-                            <div class="form-check form-switch mb-0 me-2">
-                                <input class="form-check-input" type="checkbox" id="bitvavo" name="data_sources[bitvavo]">
-                                <label class="form-check-label" for="bitvavo">Bitvavo</label>
-                            </div>
-                            <button type="button" class="btn btn-outline-primary btn-sm p-1 me-1" title="Edit Bitvavo"><i class="bi bi-pencil"></i></button>
-                            <button type="button" class="btn btn-outline-danger btn-sm p-1 delete-data-source" data-source-id="bitvavo" title="Delete Bitvavo"><i class="bi bi-trash"></i></button>
+                        
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="bitvavo" name="data_sources[bitvavo]">
+                            <label class="form-check-label" for="bitvavo">
+                                Bitvavo
+                            </label>
                         </div>
-                        <div class="d-flex align-items-center mb-2">
-                            <div class="form-check form-switch mb-0 me-2">
-                                <input class="form-check-input" type="checkbox" id="jupiter" name="data_sources[jupiter]">
-                                <label class="form-check-label" for="jupiter">Jupiter</label>
-                            </div>
-                            <button type="button" class="btn btn-outline-primary btn-sm p-1 me-1" title="Edit Jupiter"><i class="bi bi-pencil"></i></button>
-                            <button type="button" class="btn btn-outline-danger btn-sm p-1 delete-data-source" data-source-id="jupiter" title="Delete Jupiter"><i class="bi bi-trash"></i></button>
+                        
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="jupiter" name="data_sources[jupiter]">
+                            <label class="form-check-label" for="jupiter">
+                                Jupiter
+                            </label>
                         </div>
-                        <div class="d-flex align-items-center mb-2">
-                            <div class="form-check form-switch mb-0 me-2">
-                                <input class="form-check-input" type="checkbox" id="alpaca" name="data_sources[alpaca]">
-                                <label class="form-check-label" for="alpaca">Alpaca</label>
-                            </div>
-                            <button type="button" class="btn btn-outline-primary btn-sm p-1 me-1" title="Edit Alpaca"><i class="bi bi-pencil"></i></button>
-                            <button type="button" class="btn btn-outline-danger btn-sm p-1 delete-data-source" data-source-id="alpaca" title="Delete Alpaca"><i class="bi bi-trash"></i></button>
+                        
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="alpaca" name="data_sources[alpaca]">
+                            <label class="form-check-label" for="alpaca">
+                                Alpaca
+                            </label>
                         </div>
-                        <div class="d-flex align-items-center mb-2">
-                            <div class="form-check form-switch mb-0 me-2">
-                                <input class="form-check-input" type="checkbox" id="liveCoinWatch" name="data_sources[livecoinwatch]">
-                                <label class="form-check-label" for="liveCoinWatch">LiveCoinWatch</label>
-                            </div>
-                            <button type="button" class="btn btn-outline-primary btn-sm p-1 me-1" title="Edit LiveCoinWatch"><i class="bi bi-pencil"></i></button>
-                            <button type="button" class="btn btn-outline-danger btn-sm p-1 delete-data-source" data-source-id="livecoinwatch" title="Delete LiveCoinWatch"><i class="bi bi-trash"></i></button>
+                        
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="liveCoinWatch" name="data_sources[livecoinwatch]">
+                            <label class="form-check-label" for="liveCoinWatch">
+                                LiveCoinWatch
+                            </label>
+                        </div>
+
+                        <div class="mb-3 mt-4">
+                            <label for="coinMarketCapApiKey" class="form-label">CoinMarketCap API Key</label>
+                            <input type="text" class="form-control" id="coinMarketCapApiKey" name="coinmarketcap_api_key" placeholder="Enter your CoinMarketCap API key">
                         </div>
                     </div>
+                </div>
+                
+            </div>
+            
+            <div class="col-md-4">
+                <!-- Quick Actions -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-lightning"></i> Quick Actions
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a href="index.php" class="btn btn-outline-primary">
+                                <i class="bi bi-speedometer2"></i> Dashboard
+                            </a>
+                            <a href="logs.php" class="btn btn-outline-secondary">
+                                <i class="bi bi-journal-text"></i> View Logs
+                            </a>
+                            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#resetStatsModal">
+                                <i class="bi bi-arrow-counterclockwise"></i> Reset Statistics
+                <!-- Performance Summary -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-graph-up"></i> Performance Summary
+                    </div>
+                    <div class="card-body">
+                        <div class="stat-card">
+                            <div class="stat-value"><?php echo formatCurrency($allTimePerformance['total_profit'] ?? 0, 2); ?> EUR</div>
+                            <div class="stat-label">Total Profit</div>
+                        </div>
+                        
+                        <div class="stat-card mt-3">
+                            <div class="stat-value"><?php echo $allTimePerformance['buy_count'] ?? 0; ?> / <?php echo $allTimePerformance['sell_count'] ?? 0; ?></div>
+                            <div class="stat-label">Buys / Sells</div>
+                        </div>
+                        
+                        <div class="stat-card mt-3">
+                            <div class="stat-value"><?php echo formatPercentage($allTimePerformance['win_rate'] ?? 0); ?></div>
+                            <div class="stat-label">Win Rate</div>
+                        </div>
+                        
+                        <div class="stat-card mt-3">
+                            <div class="stat-value"><?php echo formatPercentage($allTimePerformance['avg_profit_percentage'] ?? 0); ?></div>
+                            <div class="stat-label">Average Profit</div>
+                        </div>
+                        
+                        <?php if (!empty($allTimePerformance['best_trade'])): ?>
+                        <div class="stat-card mt-3">
+                            <div class="stat-value positive"><?php echo formatPercentage($allTimePerformance['best_trade']['profit_percentage']); ?></div>
+                            <div class="stat-label">Best Trade (<?php echo $allTimePerformance['best_trade']['symbol']; ?>)</div>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <?php if (!empty($allTimePerformance['worst_trade'])): ?>
+                        <div class="stat-card mt-3">
+                            <div class="stat-value negative"><?php echo formatPercentage($allTimePerformance['worst_trade']['profit_percentage']); ?></div>
+                            <div class="stat-label">Worst Trade (<?php echo $allTimePerformance['worst_trade']['symbol']; ?>)</div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+            <div class="card-header">
+                <i class="bi bi-graph-up"></i> Performance Summary
+            </div>
+            <div class="card-body">
+                <div class="stat-card">
+                    <div class="stat-value"><?php echo formatCurrency($allTimePerformance['total_profit'] ?? 0, 2); ?> EUR</div>
+                    <div class="stat-label">Total Profit</div>
+                </div>
+                
+                <div class="stat-card mt-3">
+                    <div class="stat-value"><?php echo $allTimePerformance['buy_count'] ?? 0; ?> / <?php echo $allTimePerformance['sell_count'] ?? 0; ?></div>
+                    <div class="stat-label">Buys / Sells</div>
+                </div>
+                
+                <div class="stat-card mt-3">
+                    <div class="stat-value"><?php echo formatPercentage($allTimePerformance['win_rate'] ?? 0); ?></div>
+                    <div class="stat-label">Win Rate</div>
+                </div>
+                
+                <div class="stat-card mt-3">
+                    <div class="stat-value"><?php echo formatPercentage($allTimePerformance['avg_profit_percentage'] ?? 0); ?></div>
+                    <div class="stat-label">Average Profit</div>
+                </div>
+                
+                <?php if (!empty($allTimePerformance['best_trade'])): ?>
+                <div class="stat-card mt-3">
+                    <div class="stat-value positive"><?php echo formatPercentage($allTimePerformance['best_trade']['profit_percentage']); ?></div>
+                    <div class="stat-label">Best Trade (<?php echo $allTimePerformance['best_trade']['symbol']; ?>)</div>
+                </div>
+                <?php endif; ?>
+                
+                <?php if (!empty($allTimePerformance['worst_trade'])): ?>
+                <div class="stat-card mt-3">
+                    <div class="stat-value negative"><?php echo formatPercentage($allTimePerformance['worst_trade']['profit_percentage']); ?></div>
+                    <div class="stat-label">Worst Trade (<?php echo $allTimePerformance['worst_trade']['symbol']; ?>)</div>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-lightning"></i> Quick Actions
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="index.php" class="btn btn-outline-primary">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                    <a href="logs.php" class="btn btn-outline-secondary">
+                        <i class="bi bi-journal-text"></i> View Logs
+                    </a>
+                    <button class="btn btn-outline-danger" id="resetStatsBtn">
+                        <i class="bi bi-trash"></i> Reset Statistics
+                    </button>
                 </div>
             </div>
         </div>
@@ -666,7 +768,7 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
             </div>
         </div>
     </div>
-</form>
+</div>
 
 <!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -678,56 +780,23 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
         document.querySelectorAll('.strategy-section').forEach(section => {
             section.style.display = 'none';
         });
+        
         // Show the selected strategy section
         if (strategy === 'general') {
             document.getElementById('general-settings').style.display = 'block';
         } else if (strategy === 'new_coin') {
             document.getElementById('new-coin-settings').style.display = 'block';
         }
+        
+        // Save the selected strategy in localStorage
+        localStorage.setItem('selectedStrategy', strategy);
     }
     
-    // Tab switching functionality
-    function showTab(tabName) {
-        // Hide all tab contents
-        document.querySelectorAll('.tab-content').forEach(content => {
-            content.style.display = 'none';
-        });
-        
-        // Show the selected tab content
-        document.getElementById(tabName + '-content').style.display = 'block';
-        
-        // Update active tab styling
-        document.querySelectorAll('.tab-card').forEach(tab => {
-            tab.classList.remove('active-tab');
-            tab.style.opacity = '0.8';
-        });
-        
-        document.getElementById(tabName + '-tab').classList.add('active-tab');
-        document.getElementById(tabName + '-tab').style.opacity = '1';
-    }
-    
-    // Initialize with the default strategy and tab
+    // Initialize strategy selector on page load
     document.addEventListener('DOMContentLoaded', function() {
         const savedStrategy = localStorage.getItem('selectedStrategy') || 'general';
         document.getElementById('strategy-selector').value = savedStrategy;
         switchStrategy(savedStrategy);
-        showTab('strategy'); // Initialize with strategy tab active
-        
-        // Add hover effect for tabs
-        document.querySelectorAll('.tab-card').forEach(tab => {
-            tab.addEventListener('mouseover', function() {
-                if (!this.classList.contains('active-tab')) {
-                    this.style.opacity = '0.9';
-                    this.style.cursor = 'pointer';
-                }
-            });
-            
-            tab.addEventListener('mouseout', function() {
-                if (!this.classList.contains('active-tab')) {
-                    this.style.opacity = '0.8';
-                }
-            });
-        });
     });
     
     // Alert function for displaying messages
@@ -757,34 +826,6 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
                 resetStatsModal.show();
             });
         }
-    });
-
-    // Make delete buttons in Data Sources remove the row from DOM and backend
-    document.addEventListener('DOMContentLoaded', function() {
-        document.querySelectorAll('#api-content .delete-data-source').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var row = btn.closest('.d-flex.align-items-center');
-                if (!row) return;
-                var sourceKey = btn.getAttribute('data-source-id');
-                if (!sourceKey) return;
-                fetch('delete_data_source.php', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({source: sourceKey})
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        row.remove();
-                    } else {
-                        alert('Failed to delete data source: ' + (data.error || 'Unknown error'));
-                    }
-                })
-                .catch(() => {
-                    alert('Failed to contact backend.');
-                });
-            });
-        });
     });
 </script>
 <script src="../assets/js/exchange-config.js"></script>

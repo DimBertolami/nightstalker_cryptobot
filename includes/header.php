@@ -74,7 +74,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link <?= $current_page === 'settings.php' ? 'active' : '' ?>" href="<?= BASE_URL ?>/settings.php">
+                        <a class="nav-link <?= $current_page === 'settings.php' || $current_page === 'dashboard/settings.php' ? 'active' : '' ?>" href="<?= BASE_URL ?>/dashboard/settings.php">
                             <i class="fas fa-cog me-1"></i>Settings
                         </a>
                     </li>

@@ -75,28 +75,11 @@ $cronStatus = get_fetch_coins_cron_status();
     <?php endif; ?>
 
     <div class="row">
-        <div class="col-md-4">
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h3 class="mb-0">Trading Parameters</h3>
-                </div>
-                <div class="card-body">
-                        <div class="mb-3">
-                            <label for="minVolume" class="form-label">Minimum Volume Threshold</label>
-                            <div class="input-group">
-                                <span class="input-group-text">$</span>
-                                <input type="number" class="form-control" id="minVolume" name="minVolume" 
-                                    value="<?php echo MIN_VOLUME_THRESHOLD; ?>" step="100000">
-                            </div>
-                            <small class="text-muted">Minimum trade volume to trigger alerts</small>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="maxAge" class="form-label">Maximum Coin Age (hours)</label>
-                            <input type="number" class="form-control" id="maxAge" name="maxAge" 
-                                value="<?php echo MAX_COIN_AGE; ?>">
-                            <small class="text-muted">Only track coins younger than this age</small>
-                        </div>
+        <?php
+        // Keep parameters defined to avoid errors
+        $minVolume = MIN_VOLUME_THRESHOLD;
+        $maxAge = MAX_COIN_AGE;
+        ?>
                         
                         <div class="mb-3">
                             <label for="checkInterval" class="form-label">Check Interval (seconds)</label>

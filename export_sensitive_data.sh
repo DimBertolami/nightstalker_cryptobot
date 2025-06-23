@@ -3,12 +3,72 @@
 # This script backs up all sensitive data including database, config files, and credentials
 # Created: June 2025
 
-# Set variables
+# Display usage information
+show_usage() {
+    echo "Usage: $0 [options]"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help     Show this help message"
+    echo "  -d, --dry-run  Show what would be backed up without actually creating backups"
+    echo "  -p, --password Set the database password"
+    echo "  -u, --user     Set the database username (default: root)"
+    echo "  -n, --name     Set the database name (default: night_stalker)"
+    echo ""
+    echo "Example:"
+    echo "  $0 --dry-run              # Show what would be backed up"
+    echo "  $0 --password=mypass      # Set database password"
+    echo "  $0 -u admin -n my_db      # Set database user and name"
+    exit 0
+}
+
+# Get the directory where the script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Set default variables
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 BACKUP_DIR="$(pwd)/backup_$TIMESTAMP"
 DB_NAME="night_stalker"
 DB_USER="root"
-DB_PASS=""  # Set your database password here if needed
+DB_PASS=""  # Default empty password
+DRY_RUN=false
+
+# Parse command line arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_usage
+            ;;
+        -d|--dry-run)
+            DRY_RUN=true
+            ;;
+        -p=*|--password=*)
+            DB_PASS="${arg#*=}"
+            ;;
+        -u=*|--user=*)
+            DB_USER="${arg#*=}"
+            ;;
+        -n=*|--name=*)
+            DB_NAME="${arg#*=}"
+            ;;
+        -p|--password)
+            read -sp "Enter MySQL password: " DB_PASS
+            echo ""
+            ;;
+        -u|--user)
+            if [[ "$2" != -* ]]; then
+                DB_USER="$2"
+                shift
+            fi
+            ;;
+        -n|--name)
+            if [[ "$2" != -* ]]; then
+                DB_NAME="$2"
+                shift
+            fi
+            ;;
+    esac
+    shift
+done
 
 # Text colors
 GREEN='\033[0;32m'
@@ -18,93 +78,209 @@ NC='\033[0m' # No Color
 
 # Create backup directory
 echo -e "${YELLOW}Creating backup directory...${NC}"
-mkdir -p "$BACKUP_DIR"
-mkdir -p "$BACKUP_DIR/config"
-mkdir -p "$BACKUP_DIR/includes"
-mkdir -p "$BACKUP_DIR/database"
+if [ "$DRY_RUN" = false ]; then
+    mkdir -p "$BACKUP_DIR"
+    mkdir -p "$BACKUP_DIR/config"
+    mkdir -p "$BACKUP_DIR/includes"
+    mkdir -p "$BACKUP_DIR/database"
+else
+    echo -e "${GREEN}[DRY RUN]${NC} Would create directory: $BACKUP_DIR"
+    echo -e "${GREEN}[DRY RUN]${NC} Would create subdirectories: config, includes, database"
+fi
 
 # Export MySQL database
 echo -e "${YELLOW}Exporting database...${NC}"
-if [ -z "$DB_PASS" ]; then
-    mysqldump -u "$DB_USER" "$DB_NAME" > "$BACKUP_DIR/database/${DB_NAME}_$TIMESTAMP.sql"
-else
-    mysqldump -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$BACKUP_DIR/database/${DB_NAME}_$TIMESTAMP.sql"
-fi
 
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}Database export successful!${NC}"
+# Check if mysqldump is available
+if ! command -v mysqldump &> /dev/null; then
+    echo -e "${RED}mysqldump command not found. Database export skipped.${NC}"
+    echo -e "${YELLOW}Please install MySQL client tools or check your PATH.${NC}"
 else
-    echo -e "${RED}Database export failed!${NC}"
+    # Ask for password if not provided and not running in non-interactive mode
+    if [ -z "$DB_PASS" ] && [ -t 0 ] && [ "$DRY_RUN" = false ]; then
+        read -sp "Enter MySQL password for user $DB_USER (leave empty for no password): " DB_PASS
+        echo ""
+    fi
+    
+    # Set export file path
+    DB_EXPORT_FILE="$BACKUP_DIR/database/${DB_NAME}_$TIMESTAMP.sql"
+    
+    if [ "$DRY_RUN" = false ]; then
+        # Attempt database export with error handling
+        if [ -z "$DB_PASS" ]; then
+            mysqldump -u "$DB_USER" "$DB_NAME" > "$DB_EXPORT_FILE" 2>/tmp/mysqldump_error
+        else
+            mysqldump -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$DB_EXPORT_FILE" 2>/tmp/mysqldump_error
+        fi
+        
+        if [ $? -eq 0 ] && [ -s "$DB_EXPORT_FILE" ]; then
+            echo -e "${GREEN}Database export successful!${NC}"
+            echo -e "${GREEN}Saved to: $DB_EXPORT_FILE${NC}"
+        else
+            echo -e "${RED}Database export failed!${NC}"
+            if [ -f /tmp/mysqldump_error ]; then
+                echo -e "${RED}Error message: $(cat /tmp/mysqldump_error)${NC}"
+                rm /tmp/mysqldump_error
+            fi
+            echo -e "${YELLOW}Continuing with other backups...${NC}"
+        fi
+    else
+        echo -e "${GREEN}[DRY RUN]${NC} Would export database '$DB_NAME' as user '$DB_USER'"
+        echo -e "${GREEN}[DRY RUN]${NC} Would save to: $DB_EXPORT_FILE"
+    fi
 fi
 
 # Backup config files
 echo -e "${YELLOW}Backing up configuration files...${NC}"
-cp -r ./config/* "$BACKUP_DIR/config/"
-echo -e "${GREEN}Config files backed up!${NC}"
+if [ -d "$SCRIPT_DIR/config" ] && [ "$(ls -A "$SCRIPT_DIR/config" 2>/dev/null)" ]; then
+    if [ "$DRY_RUN" = false ]; then
+        cp -r "$SCRIPT_DIR/config"/* "$BACKUP_DIR/config/"
+        echo -e "${GREEN}Config files backed up!${NC}"
+    else
+        echo -e "${GREEN}[DRY RUN]${NC} Would backup config files from: $SCRIPT_DIR/config"
+        echo -e "${GREEN}[DRY RUN]${NC} Found files: $(ls -A "$SCRIPT_DIR/config" | tr '\n' ' ')"
+    fi
+else
+    echo -e "${YELLOW}No config files found or directory is empty.${NC}"
+fi
 
 # Backup sensitive PHP files
 echo -e "${YELLOW}Backing up sensitive PHP files...${NC}"
-cp ./includes/config.php "$BACKUP_DIR/includes/"
-cp ./includes/auth.php "$BACKUP_DIR/includes/"
-cp ./includes/database.php "$BACKUP_DIR/includes/"
-cp ./includes/exchange_config.php "$BACKUP_DIR/includes/"
-cp ./wallet-auth.php "$BACKUP_DIR/" 2>/dev/null || echo -e "${YELLOW}wallet-auth.php not found, skipping...${NC}"
+
+# Define sensitive files to backup
+SENSITIVE_FILES=(
+    "includes/config.php"
+    "includes/auth.php"
+    "includes/database.php"
+    "includes/exchange_config.php"
+    "wallet-auth.php"
+)
+
+# Process each file
+for file in "${SENSITIVE_FILES[@]}"; do
+    src_file="$SCRIPT_DIR/$file"
+    if [ -f "$src_file" ]; then
+        if [ "$DRY_RUN" = false ]; then
+            # Create target directory if needed
+            target_dir="$BACKUP_DIR/$(dirname "$file")"
+            mkdir -p "$target_dir"
+            
+            # Copy the file
+            cp "$src_file" "$BACKUP_DIR/$file"
+            echo -e "${GREEN}$(basename "$file") backed up!${NC}"
+        else
+            echo -e "${GREEN}[DRY RUN]${NC} Would backup: $file"
+        fi
+    else
+        echo -e "${YELLOW}$(basename "$file") not found, skipping...${NC}"
+    fi
+done
 
 # Backup .env file if exists
-if [ -f "./.env" ]; then
+if [ -f "$SCRIPT_DIR/.env" ]; then
     echo -e "${YELLOW}Backing up .env file...${NC}"
-    cp ./.env "$BACKUP_DIR/"
-    echo -e "${GREEN}.env file backed up!${NC}"
+    if [ "$DRY_RUN" = false ]; then
+        cp "$SCRIPT_DIR/.env" "$BACKUP_DIR/"
+        echo -e "${GREEN}.env file backed up!${NC}"
+    else
+        echo -e "${GREEN}[DRY RUN]${NC} Would backup .env file"
+    fi
 else
     echo -e "${YELLOW}.env file not found, skipping...${NC}"
 fi
 
 # Backup SQL schema files
 echo -e "${YELLOW}Backing up SQL schema files...${NC}"
-cp ./install/*.sql "$BACKUP_DIR/database/" 2>/dev/null
-echo -e "${GREEN}SQL schema files backed up!${NC}"
+if [ -d "$SCRIPT_DIR/install" ]; then
+    sql_files=$(find "$SCRIPT_DIR/install" -name "*.sql" 2>/dev/null)
+    if [ -n "$sql_files" ]; then
+        if [ "$DRY_RUN" = false ]; then
+            mkdir -p "$BACKUP_DIR/database"
+            cp "$SCRIPT_DIR/install"/*.sql "$BACKUP_DIR/database/" 2>/dev/null
+            echo -e "${GREEN}SQL schema files backed up!${NC}"
+        else
+            echo -e "${GREEN}[DRY RUN]${NC} Would backup SQL schema files:"
+            for sql_file in $sql_files; do
+                echo -e "${GREEN}[DRY RUN]${NC}   - $(basename "$sql_file")"
+            done
+        fi
+    else
+        echo -e "${YELLOW}No SQL schema files found.${NC}"
+    fi
+else
+    echo -e "${YELLOW}Install directory not found.${NC}"
+fi
 
 # Create a README file in the backup directory
-cat > "$BACKUP_DIR/README.txt" << EOL
-Night Stalker Backup - $TIMESTAMP
+echo -e "${YELLOW}Creating README file with restoration instructions...${NC}"
+if [ "$DRY_RUN" = false ]; then
+    cat > "$BACKUP_DIR/README.txt" << EOL
+=== Night Stalker Backup Restoration Guide ===
+Timestamp: $TIMESTAMP
 
 This backup contains sensitive data required to restore your Night Stalker installation.
-When restoring, copy these files to their respective locations in a fresh installation.
 
-Contents:
-1. Database dump: database/${DB_NAME}_$TIMESTAMP.sql
-2. Configuration files: config/
-3. Sensitive PHP files: includes/
-4. Environment variables: .env (if present)
-5. SQL schema files: database/*.sql
+1. Database Restoration:
+   - Import the SQL dump using: mysql -u [username] -p [database_name] < database/${DB_NAME}_$TIMESTAMP.sql
 
-Restoration Instructions:
-1. Install a fresh copy of Night Stalker from GitHub
-2. Import the database: mysql -u [username] -p [database_name] < database/${DB_NAME}_$TIMESTAMP.sql
-3. Copy the config files to the config/ directory
-4. Copy the sensitive PHP files to their respective locations
-5. Copy the .env file to the root directory (if present)
+2. Configuration Files:
+   - Copy the 'config' directory to your Night Stalker installation root
 
-IMPORTANT: Keep this backup secure as it contains API keys and other sensitive information!
+3. PHP Include Files:
+   - Copy files from the 'includes' directory to your Night Stalker 'includes' directory
+
+4. Other Files:
+   - Copy any other files (.env, wallet-auth.php, etc.) to your Night Stalker root directory
+
+IMPORTANT: Keep this backup secure as it contains sensitive information!
 EOL
+    echo -e "${GREEN}Created README.txt with restoration instructions${NC}"
+else
+    echo -e "${GREEN}[DRY RUN]${NC} Would create README.txt with restoration instructions"
+fi
 
-# Create a compressed archive
+# Create compressed archive
+ARCHIVE_NAME="night_stalker_backup_$TIMESTAMP.zip"
 echo -e "${YELLOW}Creating compressed archive...${NC}"
-BACKUP_FILENAME="night_stalker_backup_$TIMESTAMP.tar.gz"
-tar -czf "$BACKUP_FILENAME" -C "$(dirname "$BACKUP_DIR")" "$(basename "$BACKUP_DIR")"
-
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}Backup archive created: $BACKUP_FILENAME${NC}"
+if [ "$DRY_RUN" = false ]; then
+    # Check if zip command is available
+    if command -v zip &> /dev/null; then
+        # Create zip archive from backup directory
+        (cd "$(dirname "$BACKUP_DIR")" && zip -r "$ARCHIVE_NAME" "$(basename "$BACKUP_DIR")") 
+        echo -e "${GREEN}Backup archive created: $ARCHIVE_NAME${NC}"
+    else
+        echo -e "${RED}zip command not found. Using tar.gz format instead.${NC}"
+        ARCHIVE_NAME="night_stalker_backup_$TIMESTAMP.tar.gz"
+        tar -czf "$ARCHIVE_NAME" -C "$(dirname "$BACKUP_DIR")" "$(basename "$BACKUP_DIR")"
+        echo -e "${GREEN}Backup archive created: $ARCHIVE_NAME${NC}"
+    fi
+    
+    # Clean up temporary files
     echo -e "${YELLOW}Cleaning up temporary files...${NC}"
     rm -rf "$BACKUP_DIR"
     echo -e "${GREEN}Backup completed successfully!${NC}"
 else
-    echo -e "${RED}Failed to create backup archive!${NC}"
-    echo -e "${YELLOW}Backup files remain in: $BACKUP_DIR${NC}"
+    # Check if zip command is available for dry run message
+    if command -v zip &> /dev/null; then
+        echo -e "${GREEN}[DRY RUN]${NC} Would create ZIP archive: $ARCHIVE_NAME"
+    else
+        echo -e "${GREEN}[DRY RUN]${NC} Would create TAR.GZ archive: night_stalker_backup_$TIMESTAMP.tar.gz (zip command not available)"
+    fi
+    echo -e "${GREEN}[DRY RUN]${NC} Would clean up temporary directory: $BACKUP_DIR"
+    echo -e "${GREEN}[DRY RUN]${NC} Dry run completed successfully!"
 fi
 
-echo -e "\n${GREEN}=== Night Stalker Backup Summary ===${NC}"
-echo -e "Timestamp: $TIMESTAMP"
-echo -e "Archive: $BACKUP_FILENAME"
-echo -e "\nTo restore this backup, extract the archive and follow the instructions in README.txt"
-echo -e "${YELLOW}IMPORTANT: Keep this backup secure as it contains sensitive information!${NC}"
+# Print summary
+echo ""
+echo "=== Night Stalker Backup Summary ==="
+echo "Timestamp: $TIMESTAMP"
+if [ "$DRY_RUN" = false ]; then
+    echo "Archive: $ARCHIVE_NAME"
+    echo ""
+    echo "To restore this backup, extract the archive and follow the instructions in README.txt"
+    echo "IMPORTANT: Keep this backup secure as it contains sensitive information!"
+else
+    echo "Mode: DRY RUN (no files were actually backed up)"
+    echo ""
+    echo "Run without --dry-run to perform the actual backup operation"
+fi

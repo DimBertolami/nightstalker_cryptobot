@@ -298,6 +298,11 @@ class TradingLogger {
     public function getFilteredEvents($strategy, $eventType = '', $symbol = '', $dateFrom = '', $dateTo = '', $limit = 100) {
         $this->ensureTablesExist();
         
+        if (defined('DEBUG_MODE') && DEBUG_MODE) {
+            error_log('[TradingLogger] Fetching events with params: ' . 
+                print_r(func_get_args(), true));
+        }
+        
         $query = "SELECT * FROM {$this->logTable} WHERE strategy = ?";
         $types = "s";
         $params = [$strategy];
@@ -309,7 +314,7 @@ class TradingLogger {
         }
         
         if (!empty($symbol)) {
-            $query .= " AND JSON_EXTRACT(event_data, '$.symbol') = ?";
+            $query .= " AND JSON_UNQUOTE(JSON_EXTRACT(event_data, '$.symbol')) = ?";
             $params[] = $symbol;
             $types .= "s";
         }
@@ -327,22 +332,30 @@ class TradingLogger {
         }
         
         $query .= " ORDER BY event_time DESC LIMIT ?";
-        $params[] = (int)$limit;
+        $params[] = $limit;
         $types .= "i";
         
-        $stmt = $this->conn->prepare($query);
-        $stmt->bind_param($types, ...$params);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        $events = [];
-        while ($row = $result->fetch_assoc()) {
-            $row['event_data'] = json_decode($row['event_data'], true);
-            $events[] = $row;
+        try {
+            $stmt = $this->conn->prepare($query);
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            $events = [];
+            while ($row = $result->fetch_assoc()) {
+                $row['event_data'] = json_decode($row['event_data'], true);
+                $events[] = $row;
+            }
+            
+            if (defined('DEBUG_MODE') && DEBUG_MODE) {
+                error_log('[TradingLogger] Found ' . count($events) . ' events');
+            }
+            
+            return $events;
+        } catch (Exception $e) {
+            error_log("Error fetching filtered events: " . $e->getMessage());
+            return [];
         }
-        
-        $stmt->close();
-        return $events;
     }
     
     /**

@@ -15,7 +15,19 @@ $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 100;
 $strategy = isset($_GET['strategy']) ? $_GET['strategy'] : 'new_coin_strategy';
 
 // Get events with filters
-$events = $logger->getFilteredEvents($strategy, $eventType, $symbol, $dateFrom, $dateTo, $limit);
+$events = $logger->getFilteredEvents(
+    $strategy, 
+    $eventType, 
+    $symbol, 
+    $dateFrom, 
+    $dateTo, 
+    $limit
+);
+
+// Debug: Verify event count
+if (defined('DEBUG_MODE') && DEBUG_MODE) {
+    error_log('[logs.php] Fetched ' . count($events) . ' events');
+}
 
 // Get unique symbols for the filter dropdown
 $symbols = $logger->getUniqueSymbols($strategy);
@@ -98,6 +110,29 @@ function getEventBadgeClass($eventType) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trading Logs - Night Stalker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <style>
+        /* Custom styles */
+        .flatpickr-calendar {
+            z-index: 99999 !important;
+            position: absolute !important;
+        }
+        
+        /* Ensure date picker inputs are properly styled */
+        .date-picker {
+            cursor: pointer;
+            background-color: #fff;
+        }
+        
+        /* Fix for mobile devices */
+        @media (max-width: 768px) {
+            .flatpickr-calendar {
+                width: 100%;
+                max-width: 307px;
+            }
+        }
+    </style>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
@@ -223,12 +258,43 @@ function getEventBadgeClass($eventType) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
+        // Wait for DOM to be fully loaded
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize date pickers
-            flatpickr(".date-picker", {
-                dateFormat: "Y-m-d",
-                allowInput: true
+            // Force destroy any existing instances
+            document.querySelectorAll('.date-picker').forEach(function(element) {
+                if (element._flatpickr) {
+                    element._flatpickr.destroy();
+                }
             });
+            
+            // Initialize date pickers with error handling
+            setTimeout(function() {
+                try {
+                    const datePickers = document.querySelectorAll('.date-picker');
+                    datePickers.forEach(function(picker) {
+                        flatpickr(picker, {
+                            dateFormat: "Y-m-d",
+                            allowInput: true,
+                            clickOpens: true,
+                            defaultDate: null,
+                            maxDate: "today",
+                            positionElement: picker,
+                            appendTo: document.body,
+                            static: true,
+                            disableMobile: true,
+                            onOpen: function(selectedDates, dateStr, instance) {
+                                // Force calendar to appear on top
+                                const calendar = instance.calendarContainer;
+                                calendar.style.zIndex = '999999';
+                                calendar.style.position = 'absolute';
+                            }
+                        });
+                    });
+                    console.log('Date pickers initialized successfully');
+                } catch (e) {
+                    console.error("Flatpickr initialization failed:", e);
+                }
+            }, 100); // Small delay to ensure DOM is ready
         });
     </script>
 </body>

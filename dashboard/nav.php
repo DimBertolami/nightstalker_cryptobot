@@ -3,7 +3,7 @@
 $navItems = [
     [
         'title' => 'Dashboard',
-        'url' => '/NS/dashboard/',
+        'url' => 'http://localhost/NS/dashboard/',
         'icon' => 'bi-speedometer2'
     ],
     [
@@ -24,7 +24,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="/NS/dashboard/">
+        <a class="navbar-brand" href="http://localhost/NS/dashboard/">
             <i class="bi bi-graph-up me-2"></i>
             Night Stalker
         </a>

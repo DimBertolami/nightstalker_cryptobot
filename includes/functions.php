@@ -1123,3 +1123,42 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
         ];
     }
 }
+
+/**
+ * Format a number as currency with specified decimal places
+ * 
+ * @param float $amount The amount to format
+ * @param int $decimals Number of decimal places
+ * @return string Formatted currency string
+ */
+function formatCurrency($amount, $decimals = 2) {
+    return number_format((float)$amount, $decimals, '.', ',');
+}
+
+/**
+ * Format a number as percentage
+ * 
+ * @param float $value The value to format
+ * @return string Formatted percentage string
+ */
+function formatPercentage($value) {
+    return number_format((float)$value, 2, '.', ',') . '%';
+}
+
+/**
+ * Format seconds into a human-readable duration
+ * 
+ * @param int $seconds Number of seconds
+ * @return string Formatted duration string
+ */
+function formatDuration($seconds) {
+    if ($seconds < 60) {
+        return $seconds . ' seconds';
+    } elseif ($seconds < 3600) {
+        return floor($seconds / 60) . ' minutes';
+    } elseif ($seconds < 86400) {
+        return floor($seconds / 3600) . ' hours ' . floor(($seconds % 3600) / 60) . ' minutes';
+    } else {
+        return floor($seconds / 86400) . ' days ' . floor(($seconds % 86400) / 3600) . ' hours';
+    }
+}
