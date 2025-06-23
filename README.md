@@ -1,3 +1,18 @@
+some screenshots first: 
+![image](https://github.com/user-attachments/assets/be514f07-99ba-4b05-8cfc-21067b65f53d)
+![image](https://github.com/user-attachments/assets/a1dd67b0-9c64-4869-8a28-926db70a583c)
+![image](https://github.com/user-attachments/assets/48d13133-ee2b-4bea-bd43-cb72953c66c3)
+![image](https://github.com/user-attachments/assets/1286c3e1-01d1-4c4e-b3d0-7db383472a5e)
+
+**SETTINGS:**
+<BR>
+![image](https://github.com/user-attachments/assets/fafd54e8-e5c7-4c75-a385-0cc2973fbe40)
+![image](https://github.com/user-attachments/assets/06b439f9-86de-4eb9-b4b5-fd1fda9d83d5)
+![image](https://github.com/user-attachments/assets/b11a7437-acfd-472c-8247-0a5accd4d5ce)
+![image](https://github.com/user-attachments/assets/7040e350-f120-438d-ada9-ad4fb8137aaa)
+
+
+
 # Night Stalker - Cryptocurrency Trading Bot
 
 A comprehensive cryptocurrency trading platform with volume spike detection, multi-exchange support, and automated trading capabilities.
