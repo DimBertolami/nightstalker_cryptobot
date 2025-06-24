@@ -9,7 +9,7 @@ use Exception;
  * https://messari.io/api/docs
  */
 class MessariDataSource implements CryptoDataSourceInterface {
-    private $apiKey;
+    private $apiKey = '';
     private $baseUrl = 'https://data.messari.io/api/v1';
     private $apiVersion = 'v1';
 
