@@ -18,19 +18,6 @@ try {
     if (!$db) {
         throw new Exception("Database connection failed");
     }
-    
-    // Note: We're not creating tables anymore as they already exist with different schema
-    // Just logging the existing table structure for reference
-    $log("Using existing cryptocurrencies table structure");
-    $db->query("CREATE TABLE IF NOT EXISTS price_history (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        coin_id INT NOT NULL,
-        price DECIMAL(20,8) NOT NULL,
-        volume DECIMAL(30,2) NOT NULL,
-        market_cap DECIMAL(30,2) NOT NULL,
-        recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (coin_id) REFERENCES cryptocurrencies(id)
-    )");
 
     // Get market data
     $marketData = fetchFromCMC();
@@ -45,19 +32,18 @@ try {
         throw new Exception("Invalid market data format received");
     }
 
-    // Prepare statements for cryptocurrencies table (new format)
-    $upsertCryptoCoin = $db->prepare("INSERT INTO cryptocurrencies 
+    // Prepare statements for database operations
+    // For cryptocurrencies table
+    $getCrypto = $db->prepare("SELECT id FROM cryptocurrencies WHERE symbol = ? ORDER BY last_updated DESC LIMIT 1");
+    $updateCrypto = $db->prepare("UPDATE cryptocurrencies SET 
+        name = ?, price = ?, price_change_24h = ?, market_cap = ?, 
+        volume = ?, last_updated = NOW() 
+        WHERE id = ?");
+    $insertCrypto = $db->prepare("INSERT INTO cryptocurrencies 
         (id, symbol, name, price, price_change_24h, market_cap, volume, last_updated, created_at) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) 
-        ON DUPLICATE KEY UPDATE 
-            name=VALUES(name), 
-            price=VALUES(price), 
-            price_change_24h=VALUES(price_change_24h), 
-            market_cap=VALUES(market_cap), 
-            volume=VALUES(volume), 
-            last_updated=NOW()");
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())");
     
-    // Prepare statements for coins table (old format but needed for price_history foreign key)
+    // For coins table (old format)
     $upsertCoin = $db->prepare("INSERT INTO coins 
         (symbol, name, current_price, price_change_24h, market_cap, volume_24h, last_updated) 
         VALUES (?, ?, ?, ?, ?, ?, NOW()) 
@@ -69,85 +55,102 @@ try {
             volume_24h=VALUES(volume_24h), 
             last_updated=NOW()");
     
-    // Get coin ID from coins table for price history
-    $getCoinId = $db->prepare("SELECT id FROM coins WHERE symbol = ?");
+    // For price history
     $insertHistory = $db->prepare("INSERT INTO price_history 
         (coin_id, price, volume, market_cap) 
         VALUES (?, ?, ?, ?)");
         
-    if (!$upsertCryptoCoin || !$upsertCoin || !$getCoinId || !$insertHistory) {
+    if (!$getCrypto || !$updateCrypto || !$insertCrypto || !$upsertCoin || !$insertHistory) {
         throw new Exception("Prepare failed: " . $db->error);
     }
 
     $db->autocommit(FALSE); // Start transaction mode
-
-    // Log market data for debugging
-    $log("Market data received: " . print_r($marketData, true));
     
     // Process updates
     $updated = 0;
     foreach ($marketData as $symbol => $coinData) {
-        // Extract data into variables for bind_param (must be variables, not array elements)
-        $cryptoId = strtolower($symbol);
+        // Extract data into variables for bind_param
         $cryptoSymbol = $symbol;
-        $cryptoName = $coinData['name'] ?? $symbol; // Use actual name from API data
+        $cryptoName = $coinData['name'] ?? $symbol;
         $price = $coinData['price'];
         $priceChange = $coinData['change']; // API returns 'change' not 'percent_change_24h'
         $marketCap = $coinData['market_cap'];
         $volume = $coinData['volume']; // API returns 'volume' not 'volume_24h'
         
-        // 1. Update cryptocurrencies table (new format)
-        $upsertCryptoCoin->bind_param('sssdddd',
-            $cryptoId,          // id (using symbol as ID)
-            $cryptoSymbol,      // symbol
-            $cryptoName,        // name
-            $price,             // price
-            $priceChange,       // price_change_24h
-            $marketCap,         // market_cap
-            $volume             // volume
-        );
+        // Output volume for debugging
+        echo "Coin $symbol volume: $volume\n";
         
-        if (!$upsertCryptoCoin->execute()) {
-            $log("Upsert cryptocurrencies failed for $symbol: " . $upsertCryptoCoin->error);
-            // Continue anyway to try the coins table
+        // First, check if this cryptocurrency already exists
+        $getCrypto->bind_param('s', $cryptoSymbol);
+        if (!$getCrypto->execute()) {
+            $log("Failed to check if cryptocurrency exists: " . $getCrypto->error);
+            continue;
         }
         
-        // 2. Update coins table (old format but needed for price_history foreign key)
-        $name = $cryptoName; // Use the same name as in cryptocurrencies table
-        $change = $priceChange; // Use the same price change as in cryptocurrencies table
+        $getCrypto->store_result();
         
+        if ($getCrypto->num_rows > 0) {
+            // Cryptocurrency exists, get its ID
+            $getCrypto->bind_result($cryptoId);
+            $getCrypto->fetch();
+            $getCrypto->free_result();
+            
+            $log("Found existing cryptocurrency with ID: $cryptoId for symbol: $cryptoSymbol");
+            
+            // Update the existing record
+            $updateCrypto->bind_param('sdddds',
+                $cryptoName,       // name
+                $price,            // price
+                $priceChange,      // price_change_24h
+                $marketCap,        // market_cap
+                $volume,           // volume
+                $cryptoId          // id
+            );
+            
+            if (!$updateCrypto->execute()) {
+                $log("Update cryptocurrencies failed for $cryptoSymbol: " . $updateCrypto->error);
+                continue; // Skip to next coin if update fails
+            }
+        } else {
+            // Cryptocurrency doesn't exist, create a new ID and insert
+            $cryptoId = md5($cryptoSymbol . time()); // Generate a unique ID
+            $log("Creating new cryptocurrency with ID: $cryptoId for symbol: $cryptoSymbol");
+            
+            // Insert new cryptocurrency
+            $insertCrypto->bind_param('sssdddd',
+                $cryptoId,          // id
+                $cryptoSymbol,      // symbol
+                $cryptoName,        // name
+                $price,             // price
+                $priceChange,       // price_change_24h
+                $marketCap,         // market_cap
+                $volume             // volume
+            );
+            
+            if (!$insertCrypto->execute()) {
+                $log("Insert cryptocurrencies failed for $cryptoSymbol: " . $insertCrypto->error);
+                continue; // Skip to next coin if we can't insert this one
+            }
+        }
+        
+        // Update coins table (old format)
         $upsertCoin->bind_param('ssdddd',
             $symbol,      // symbol
-            $name,        // name
+            $cryptoName,  // name
             $price,       // current_price
-            $change,      // price_change_24h
+            $priceChange, // price_change_24h
             $marketCap,   // market_cap
             $volume       // volume_24h
         );
         
         if (!$upsertCoin->execute()) {
             $log("Upsert coins failed for $symbol: " . $upsertCoin->error);
-            continue;
+            // Continue anyway, this is not critical
         }
         
-        // Get the numeric ID for this coin
-        $getCoinId->bind_param('s', $symbol);
-        if (!$getCoinId->execute()) {
-            $log("Failed to get coin ID for $symbol: " . $getCoinId->error);
-            continue;
-        }
-        
-        $getCoinId->bind_result($coinId);
-        if (!$getCoinId->fetch()) {
-            $log("No ID found for coin $symbol");
-            $getCoinId->free_result();
-            continue;
-        }
-        $getCoinId->free_result();
-        
-        // Insert price history with numeric ID
-        $insertHistory->bind_param("iddd",
-            $coinId,
+        // Insert price history record using the cryptocurrency ID
+        $insertHistory->bind_param("sddd",
+            $cryptoId,   // Use string ID from cryptocurrencies table
             $price,
             $volume,
             $marketCap
@@ -155,6 +158,9 @@ try {
         
         if (!$insertHistory->execute()) {
             $log("Insert history failed for $symbol: " . $insertHistory->error);
+            // Continue anyway, we've already updated the main tables
+        } else {
+            $log("Successfully inserted price history for $symbol with ID $cryptoId");
         }
         
         $updated++;
