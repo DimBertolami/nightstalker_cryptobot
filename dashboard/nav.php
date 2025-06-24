@@ -42,6 +42,14 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                         </a>
                     </li>
                 <?php endforeach; ?>
+                <?php
+                echo '<li class="nav-item">';
+                echo '<a class="nav-link" href="'.DASHBOARD_PATH.'?page=jupiter_swap">';
+                echo '<i class="fas fa-exchange-alt nav-icon"></i>';
+                echo '<p>Jupiter Terminal</p>';
+                echo '</a>';
+                echo '</li>';
+                ?>
             </ul>
             <div class="d-flex">
                 <span class="navbar-text me-3">

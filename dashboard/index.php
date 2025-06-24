@@ -325,6 +325,31 @@ $activeTrade = !empty($stats['active_trade_symbol']);
         </div>
     </div>
 
+    <?php 
+    // Add Jupiter Terminal page handler
+    switch ($_GET['page'] ?? '') {
+        case 'jupiter_swap':
+            require_once __DIR__.'/../includes/JupiterDataSource.php';
+            $jupiter = new NS\DataSources\JupiterDataSource();
+            
+            // Handle swap requests
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                // Process swap execution
+            } 
+            
+            // Display swap interface
+            echo '<div class="container-fluid">';
+            echo '<h2>Jupiter Terminal</h2>';
+            echo '<div class="card">';
+            echo '<div class="card-body">';
+            echo '<swap-interface></swap-interface>';
+            echo '</div>';
+            echo '</div>';
+            echo '</div>';
+            break;
+    }
+    ?>
+
     <!-- Toast Container for Notifications -->
     <div id="toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index: 11"></div>
 
