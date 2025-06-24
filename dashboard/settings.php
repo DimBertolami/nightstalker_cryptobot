@@ -1,8 +1,65 @@
 <?php
 require_once __DIR__ . '/../includes/config.php';
-require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/TradingLogger.php';
 require_once __DIR__ . '/../includes/auth.php';
+
+// Handle page routing
+$page = $_GET['page'] ?? 'dashboard';
+
+// Jupiter Terminal Handler
+if ($page === 'jupiter_swap') {
+    require_once __DIR__ . '/../includes/JupiterDataSource.php';
+    $jupiter = new NS\DataSources\JupiterDataSource();
+    
+    // API Endpoints
+    if (!empty($_POST['action'])) {
+        header('Content-Type: application/json');
+        try {
+            $response = match($_POST['action']) {
+                'get_quote' => $jupiter->getSwapQuote(
+                    $_POST['inputToken'],
+                    $_POST['outputToken'],
+                    (float)$_POST['amount']
+                ),
+                'execute_swap' => $jupiter->executeSwap($_POST['quote'])
+            };
+            
+            // Debug log the response
+            error_log('Jupiter API Response: ' . json_encode($response));
+            
+            echo json_encode($response);
+        } catch (Exception $e) {
+            http_response_code(500);
+            error_log('Jupiter API Error: ' . $e->getMessage());
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        exit;
+    }
+    
+    // Display Page
+    require_once __DIR__.'/../includes/header.php';
+    echo '<div class="container-fluid">';
+    echo '<h1>Jupiter Terminal</h1>';
+    echo '<div id="jupiter-app"><swap-interface></swap-interface></div>';
+    
+    // Add script tags for Jupiter Terminal
+    echo '<script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>';
+    echo '<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>';
+    echo '<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>';
+    echo '<script src="../assets/js/components/PriceChart.js"></script>';
+    echo '<script src="../assets/js/components/SwapInterface.js"></script>';
+    echo '<script>
+        document.addEventListener("DOMContentLoaded", function() {
+            new Vue({
+                el: "#jupiter-app"
+            });
+        });
+    </script>';
+    
+    echo '</div>';
+    require_once __DIR__.'/../includes/footer.php';
+    exit;
+}
 
 // Check if user is logged in
 session_start();
@@ -175,12 +232,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $configContent = file_get_contents($configFile);
                 
                 // Replace settings in the file
-                $configContent = preg_replace('/\$testMode\s*=\s*(true|false)/', '$testMode = ' . ($newSettings['testMode'] ? 'true' : 'false'), $configContent);
-                $configContent = preg_replace('/\$buyAmount\s*=\s*[0-9.]+/', '$buyAmount = ' . $newSettings['buyAmount'], $configContent);
-                $configContent = preg_replace('/\$profitTarget\s*=\s*[0-9.]+/', '$profitTarget = ' . $newSettings['profitTarget'], $configContent);
-                $configContent = preg_replace('/\$stopLoss\s*=\s*-[0-9.]+/', '$stopLoss = ' . $newSettings['stopLoss'], $configContent);
-                $configContent = preg_replace('/\$maxHoldingTime\s*=\s*[0-9]+/', '$maxHoldingTime = ' . $newSettings['maxHoldingTime'], $configContent);
-                $configContent = preg_replace('/\$refreshInterval\s*=\s*[0-9]+/', '$refreshInterval = ' . $newSettings['refreshInterval'], $configContent);
+                $configContent = preg_replace('/\\$testMode\s*=\s*(true|false)/', '$testMode = ' . ($newSettings['testMode'] ? 'true' : 'false'), $configContent);
+                $configContent = preg_replace('/\\$buyAmount\s*=\s*[0-9.]+/', '$buyAmount = ' . $newSettings['buyAmount'], $configContent);
+                $configContent = preg_replace('/\\$profitTarget\s*=\s*[0-9.]+/', '$profitTarget = ' . $newSettings['profitTarget'], $configContent);
+                $configContent = preg_replace('/\\$stopLoss\s*=\s*-[0-9.]+/', '$stopLoss = ' . $newSettings['stopLoss'], $configContent);
+                $configContent = preg_replace('/\\$maxHoldingTime\s*=\s*[0-9]+/', '$maxHoldingTime = ' . $newSettings['maxHoldingTime'], $configContent);
+                $configContent = preg_replace('/\\$refreshInterval\s*=\s*[0-9]+/', '$refreshInterval = ' . $newSettings['refreshInterval'], $configContent);
                 
                 if (file_put_contents($configFile, $configContent)) {
                     $message = "Settings updated successfully!";
@@ -204,6 +261,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Get trading statistics
 $logger = new TradingLogger();
 $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
+
 ?>
 
 <!DOCTYPE html>
