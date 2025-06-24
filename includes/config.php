@@ -10,7 +10,10 @@ define('DB_NAME', 'night_stalker');
 // API Keys (replace with your actual keys)
 define('COINGECKO_API_KEY', 'CG-YXnGRuZPgUAyWZs14mHBJVyW');
 define('COINGECKO_API_URL', 'https://api.coingecko.com/api/v3');
-
+// API Key for Messari
+define('MESSARI_API_KEY', 'KABFf3ComY+e1ZMnLZmlo6PuVeIwwTVAR0Xzkd93xelZ7TTB');
+define('MESSARI_API_URL', 'https://data.messari.io/api/v1');
+define('MESSARI_API_VERSION', 'v1');
 // CoinMarketCap Configuration
 define('CMC_API_KEY', '1758e18b-1744-4ad6-a2a9-908af2f33c8a');
 define('CMC_API_URL', 'https://pro-api.coinmarketcap.com/v1/cryptocurrency');

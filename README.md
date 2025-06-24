@@ -290,26 +290,106 @@ Currently, the system supports the following CCXT-based exchanges:
 4. Set up wallet integration for Solana transactions
 5. Save all changes with the global Save button
 
+## New Coin Detection System
+
+The Night Stalker platform includes a sophisticated new coin detection system that identifies and tracks newly listed cryptocurrencies:
+
+### Architecture
+
+1. **Discovery**: Python script (`newcoinstracker.py`) queries CoinGecko API for newly listed coins
+2. **Processing**: PHP import script (`save_new_coins.php`) processes discovery results
+3. **Storage**: New coins are stored in the `coins` table with timestamps and metadata
+4. **Display**: Frontend components show new coins on dashboard and coins pages
+
+### How It Works
+
+#### Coin Discovery Process
+
+1. **Initial Detection**: 
+   - Python script fetches the newest coins from CoinGecko
+   - Uses persistent tracking to identify genuinely new coins
+   - Filters by age (< 24 hours old) and volume thresholds
+   - Outputs results to a temporary JSON file
+
+2. **Data Import**:
+   - PHP script processes JSON data
+   - Updates `coins` table with new entries
+   - Sets `date_added` timestamp and `is_trending` flags
+
+3. **Frontend Display**:
+   - `getNewCryptocurrencies()` function retrieves coins < 24h old
+   - `getTrendingCoins()` function gets trending coins by volume
+   - `coins.php` displays only high-value new coins (market cap and volume ≥ $1.5M)
+
+#### Configuration Parameters
+
+- `MAX_COIN_AGE`: Maximum age in hours for a coin to be considered "new" (default: 24)
+- `MIN_VOLUME_THRESHOLD`: Minimum volume for trending status
+- Filter thresholds in `coins.php` for high-value coins
+
 ## Scheduled Tasks
 
 The system uses cron jobs for automated operations:
 
-1. **Coin Fetching**: Retrieves new coin data every 3 minutes
+1. **New Coin Discovery**: Looks for newly listed coins every 30 minutes
+   ```
+   */30 * * * * /usr/bin/python3 /home/dim/Documenten/newcoinstracker.py --json | php /opt/lampp/htdocs/NS/crons/save_new_coins.php
+   ```
+
+2. **Coin Fetching**: Retrieves general coin data every 3 minutes
    ```
    */3 * * * * php /opt/lampp/htdocs/NS/cron/fetch_coins.php
    ```
 
-2. **Trade Monitoring**: Checks for trading conditions every 5 minutes
+3. **Trade Monitoring**: Checks for trading conditions every 5 minutes
    ```
    */5 * * * * php /opt/lampp/htdocs/NS/cron/monitor_trades.php
    ```
 
-3. **Price Updates**: Updates coin prices every minute
+4. **Price Updates**: Updates coin prices every minute
    ```
    * * * * * php /opt/lampp/htdocs/NS/cron/update_prices.php
    ```
 
 ## Recent Fixes
+
+### New Coin Discovery & Display Enhancement (June 2025)
+
+Significant improvements were made to the new coin discovery, import, and frontend display functionality:
+
+#### 1. Python New Coin Discovery Script (`newcoinstracker.py`)
+
+- Fixed API request parameters to comply with CoinGecko's free tier requirements
+- Implemented robust error handling and retry logic for API requests
+- Added support for optional CoinGecko API key usage
+- Introduced persistent tracking of known coins to reliably identify genuinely new coins (< 24h old)
+- Improved JSON output handling by writing to a temporary file, cleanly separating logs from data
+- Ensured consistent numeric types and ISO-formatted timestamps
+- Added caching of coin detail queries to reduce API calls and respect rate limits
+
+#### 2. PHP Backend Import Script (`save_new_coins.php`)
+
+- Updated to handle the new Python script output format
+- Fixed string formatting errors in logging
+- Improved API key handling to only pass non-empty keys
+- Enhanced database update process for coin data including proper timestamp handling
+- Added detailed logging of coin age ranges and counts for debugging purposes
+
+#### 3. Frontend Functions Fix
+
+- Fixed `getNewCryptocurrencies()` function in `functions.php` to query the correct `coins` table instead of `cryptocurrencies`
+- Updated `getTrendingCoins()` function to use the correct database table and column names
+- Added runtime calculation of `age_hours` using MySQL's `TIMESTAMPDIFF()` function
+- Ensured proper sorting of coins by most recently added first
+
+#### 4. Coins Display Page Enhancement (`coins.php`)
+
+- Updated to show only coins less than 24 hours old
+- Added filtering to show only high-value coins with market cap AND volume ≥ $1.5 million
+- Fixed column name references throughout the page (price → current_price, volume → volume_24h)
+- Enhanced coin age display to show hours since addition
+- Updated page title and header to reflect the specialized nature of the display
+- Added visual indicators for new coins with highlighting
 
 ### Exchange Configuration Issues (June 2025)
 

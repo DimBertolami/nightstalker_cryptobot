@@ -5,7 +5,8 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
 
 // Set title before including header
-$title = "New High-Value Coins - Less than 24 Hours Old";
+$showAll = isset($_GET['show_all']) ? (bool)$_GET['show_all'] : false;
+$title = $showAll ? "All Coins - Night Stalker" : "New High-Value Coins - Less than 24 Hours Old";
 
 // Add custom CSS for new coin highlighting and real-time updates
 $customCSS = <<<EOT
@@ -68,20 +69,35 @@ try {
         throw new Exception("Database connection failed");
     }
 
-    // Get only coins that are < 24h old AND have market cap and volume_24h >= $1,500,000
-    $minThreshold = 1500000; // $1.5M minimum for market cap and volume
-    $maxAgeHours = 24; // Only show coins less than 24 hours old
+    // Process the show_all parameter if it's set via AJAX
+    $showAll = isset($_GET['show_all']) ? (bool)$_GET['show_all'] : false;
     
-    $coinsQuery = "SELECT *, TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
-                FROM coins 
-                WHERE TIMESTAMPDIFF(HOUR, date_added, NOW()) < ? 
-                AND market_cap >= ? 
-                AND volume_24h >= ? 
-                ORDER BY date_added DESC";
+    if ($showAll) {
+        // Show all coins, but still sort by market cap (highest first) and limit to 1000 for performance
+        $coinsQuery = "SELECT *, TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
+                    FROM coins 
+                    ORDER BY market_cap DESC 
+                    LIMIT 1000";
+                    
+        $stmt = $db->prepare($coinsQuery);
+        $stmt->execute();
+    } else {
+        // Get only coins that are < 24h old AND have market cap and volume_24h >= $1,500,000
+        $minThreshold = 1500000; // $1.5M minimum for market cap and volume
+        $maxAgeHours = 24; // Only show coins less than 24 hours old
+        
+        $coinsQuery = "SELECT *, TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
+                    FROM coins 
+                    WHERE TIMESTAMPDIFF(HOUR, date_added, NOW()) < ? 
+                    AND market_cap >= ? 
+                    AND volume_24h >= ? 
+                    ORDER BY date_added DESC";
+        
+        $stmt = $db->prepare($coinsQuery);
+        $stmt->bind_param("idd", $maxAgeHours, $minThreshold, $minThreshold);
+        $stmt->execute();
+    }
     
-    $stmt = $db->prepare($coinsQuery);
-    $stmt->bind_param("idd", $maxAgeHours, $minThreshold, $minThreshold);
-    $stmt->execute();
     $coinsResult = $stmt->get_result();
     
     // Get the data as an associative array
@@ -204,7 +220,7 @@ try {
     <div class="row mb-4">
         <div class="col-md-12">
             <h1 class="mt-4">
-                <i class="fas fa-coins"></i> All Cryptocurrencies
+                <i class="fas fa-coins"></i> <?php echo $showAll ? 'All Coins' : 'New High-Value Coins (<24h old)'; ?>
                 <small class="text-muted">Live Market Data</small>
             </h1>
             
@@ -216,7 +232,6 @@ try {
             <?php endif; ?>
             
             <!-- User Balances Display -->
-<!-- User Balances Display -->
 <div class="alert alert-info">
     <h5>Your Portfolio:</h5>
     <?php 
@@ -243,7 +258,8 @@ try {
             <div class="card shadow">
                 <div class="card-header bg-primary text-white">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-coins me-2"></i>New High-Value Coins (<24h old)
+                        <i class="fas fa-coins me-2"></i>
+                        <?php echo isset($_GET['show_all']) ? 'All Coins' : 'New High-Value Coins (<24h old)'; ?>
                         <span id="last-update"></span>
                         <button id="refresh-btn" class="btn btn-sm btn-light">
                             <i class="fas fa-sync-alt"></i> Refresh
@@ -251,6 +267,10 @@ try {
                         <div class="form-check form-switch d-inline-block" id="auto-refresh">
                             <input class="form-check-input" type="checkbox" id="auto-refresh-toggle" checked>
                             <label class="form-check-label text-white" for="auto-refresh-toggle">Auto-refresh</label>
+                        </div>
+                        <div class="form-check form-switch d-inline-block ms-3">
+                            <input class="form-check-input" type="checkbox" id="show-all-coins-toggle">
+                            <label class="form-check-label text-white" for="show-all-coins-toggle">Show All Coins</label>
                         </div>
                     </h5>
                     </div>
@@ -285,10 +305,20 @@ try {
                                     $canSell = $userBalance > 0;
                                     $priceChangeClass = $coin['price_change_24h'] >= 0 ? 'price-up' : 'price-down';
                                     
-                                    // Coin age is now calculated directly in the SQL query
-                                    $isNew = true; // All displayed coins are < 24h old based on our query
-                                    $ageClass = 'new-coin';
-                                    $ageDisplay = $coin['age_hours'] . ' hours';
+                                    // Determine if coin is new based on age
+                                    $isNew = $coin['age_hours'] < 24;
+                                    $ageClass = $isNew ? 'new-coin' : '';
+                                    
+                                    // Format age display based on how old it is
+                                    if ($coin['age_hours'] < 24) {
+                                        $ageDisplay = $coin['age_hours'] . ' hours';
+                                    } else if ($coin['age_hours'] < 48) {
+                                        $ageDisplay = '1 day';
+                                    } else if ($coin['age_hours'] < 720) { // 30 days
+                                        $ageDisplay = floor($coin['age_hours'] / 24) . ' days';
+                                    } else {
+                                        $ageDisplay = floor($coin['age_hours'] / 720) . ' months';
+                                    }
                                 ?>
                                 <tr>
                                     <td>
