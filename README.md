@@ -423,6 +423,15 @@ These fixes resolved issues preventing successful addition of cryptocurrency exc
   - Verify database connection in `includes/config.php`
   - Check MySQL service is running: `sudo service mysql status`
   - Run database diagnostics: `php tools/db_check.php`
+  - delete from coins table: `DELETE FROM coins WHERE id IN (886, 887, 888);`
+  - delete from cryptocurrencies table: `DELETE FROM cryptocurrencies WHERE symbol = 'SC1';`
+  - other handy commands:   `"SHOW DATABASES"` 
+                            `"SHOW TABLES FROM night_stalker"` 
+                            `"SELECT * FROM coins;"` 
+                            `"SELECT * FROM cryptocurrencies;"`
+                            `"SELECT count(*) FROM coins;"`
+                            `"DESCRIBE night_stalker.cryptocurrencies"`
+                            `"DESCRIBE night_stalker.coins"`
 
 - **Scheduled Tasks**:
   - Make sure cron jobs are running: `crontab -l`

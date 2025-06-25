@@ -45,37 +45,6 @@ $customCSS = <<<EOT
     #auto-refresh {
         margin-left: 10px;
     }
-    
-    /* Portfolio item styles */
-    .portfolio-item {
-        transition: all 0.3s ease;
-    }
-    
-    .portfolio-item.zero-balance {
-        opacity: 0.7;
-    }
-    
-    .portfolio-item.zero-balance .font-weight-bold {
-        color: #6c757d;
-    }
-    
-    .portfolio-item:hover {
-        background-color: rgba(0, 0, 0, 0.03);
-    }
-    
-    /* Tooltip styles */
-    .tooltip-inner {
-        max-width: 300px;
-        padding: 8px 12px;
-        background-color: #343a40;
-        font-size: 0.875rem;
-        text-align: left;
-    }
-    
-    .bs-tooltip-auto[x-placement^=left] .arrow::before, 
-    .bs-tooltip-left .arrow::before {
-        border-left-color: #343a40;
-    }
 </style>
 EOT;
 
@@ -94,46 +63,42 @@ try {
     // Debug: Log market data structure
     error_log("Market data structure: " . print_r($marketData, true));
 
+    // Get coins from database with additional data
+    $db = getDBConnection();
+    if (!$db) {
+        throw new Exception("Database connection failed");
+    }
+
     // Process the show_all parameter if it's set via AJAX
     $showAll = isset($_GET['show_all']) ? (bool)$_GET['show_all'] : false;
     
-    // Debug: Log the showAll flag
-    error_log("showAll: " . ($showAll ? 'true' : 'false'));
-    
     if ($showAll) {
         // Show all coins, but still sort by market cap (highest first) and limit to 1000 for performance
-        $db = getDBConnection();
-        if (!$db) {
-            throw new Exception("Database connection failed");
-        }
-        
         $coinsQuery = "SELECT *, TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
-                      FROM coins 
-                      ORDER BY market_cap DESC 
-                      LIMIT 1000";
-                      
+                    FROM coins 
+                    ORDER BY market_cap DESC 
+                    LIMIT 1000";
+                    
         $stmt = $db->prepare($coinsQuery);
         $stmt->execute();
-        $coinsResult = $stmt->get_result();
-        $coinsData = $coinsResult ? $coinsResult->fetch_all(MYSQLI_ASSOC) : [];
     } else {
-        // Use getTrendingCoins() to get trending coins
-        $coinsData = getTrendingCoins();
-        print_r($coinsData);
-        if (empty($coinsData)) {
-            error_log("No trending coins found");
-            // Fallback to new coins if no trending coins
-            $coinsData = getNewCryptocurrencies();
-            error_log("Falling back to " . count($coinsData) . " new coins");
-        } else {
-            error_log("Found " . count($coinsData) . " trending coins");
-        }
+        // Get coins that are < 24h old with less restrictive filters
+        $maxAgeHours = 24; // Only show coins less than 24 hours old
         
-        // Sort by volume_24h DESC (highest volume first)
-        usort($coinsData, function($a, $b) {
-            return $b['volume_24h'] <=> $a['volume_24h'];
-        });
+        $coinsQuery = "SELECT *, TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
+                    FROM coins 
+                    WHERE TIMESTAMPDIFF(HOUR, date_added, NOW()) < ? 
+                    ORDER BY date_added DESC";
+        
+        $stmt = $db->prepare($coinsQuery);
+        $stmt->bind_param("i", $maxAgeHours);
+        $stmt->execute();
     }
+    
+    $coinsResult = $stmt->get_result();
+    
+    // Get the data as an associative array
+    $coinsData = $coinsResult ? $coinsResult->fetch_all(MYSQLI_ASSOC) : [];
     
     // Initialize $coins variable before using it
     $coins = []; 
@@ -267,13 +232,9 @@ try {
             <div class="alert alert-dark">
                 <div class="d-flex align-items-center">
                     <strong>Your Portfolio:</strong>
-                    <div id="portfolio-loading" class="ms-2"></div>
                     <div id="portfolio" class="ms-2">
                         <!-- Portfolio items will be loaded here via JavaScript -->
                         <span class="text-muted">Loading portfolio...</span>
-                    </div>
-                    <div id="total-portfolio-value" class="ms-auto fw-bold">
-                        Total: $0.00
                     </div>
                 </div>
             </div>
@@ -295,8 +256,8 @@ try {
                             <label class="form-check-label text-white" for="auto-refresh-toggle">Auto-refresh</label>
                         </div>
                         <div class="form-check form-switch d-inline-block ms-3">
-                            <input class="form-check-input" type="checkbox" id="show-all-coins-toggle" <?= $showAll ? 'checked' : '' ?>>
-                            <label class="form-check-label text-white" for="show-all-coins-toggle">Show All Coins (<?= $showAll ? 'All' : 'Filtered' ?>)</label>
+                            <input class="form-check-input" type="checkbox" id="show-all-coins-toggle">
+                            <label class="form-check-label text-white" for="show-all-coins-toggle">Show All Coins</label>
                         </div>
                     </h5>
                     </div>

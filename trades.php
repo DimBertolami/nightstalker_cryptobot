@@ -82,7 +82,8 @@ try {
                                     <?php
                                         $currentValue = $trade['amount'] * $trade['current_price'];
                                         $profitLoss = $currentValue - $trade['total_value'];
-                                        $profitLossPercent = ($profitLoss / $trade['total_value']) * 100;
+                                        // Check for division by zero
+                                        $profitLossPercent = ($trade['total_value'] != 0) ? ($profitLoss / $trade['total_value']) * 100 : 0;
                                     ?>
                                     <tr>
                                         <td><?= htmlspecialchars(date('Y-m-d H:i', strtotime($trade['trade_time']))) ?></td>
