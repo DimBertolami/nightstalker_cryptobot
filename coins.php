@@ -5,18 +5,27 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
 
 // Set title before including header
-$showAll = isset($_GET['show_all']) ? (bool)$_GET['show_all'] : false;
-$title = $showAll ? "All Coins - Night Stalker" : "New High-Value Coins - Less than 24 Hours Old";
+$title = "Crypto Stalker - an early tsunami detection system but for crypto";
 
 // Add custom CSS for new coin highlighting and real-time updates
 $customCSS = <<<EOT
 <style>
+    div{
+        background-color: #061e36;
+        color: rgb(241, 207, 10);
+        font-weight: bold;
+    }
+    
     @keyframes blink {
         0% { opacity: 1; }
         50% { opacity: 0.5; }
         100% { opacity: 1; }
     }
-    
+    .text-field{
+        background-color: #061e36;
+        color: rgb(241, 207, 10);
+        font-weight: bold;
+    }
     .new-coin {
         animation: blink 1s infinite;
         font-weight: bold;
@@ -48,6 +57,13 @@ $customCSS = <<<EOT
     
     /* Portfolio item styles */
     .portfolio-item {
+        background-color: #061e36;
+        color: rgb(241, 207, 10);
+        font-weight: bold;
+        portfolio-padding: 1px;
+        portfolio-border-radius: 1px;
+        portfolio-border: 1px solid #320755;
+        portfolio-box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         transition: all 0.3s ease;
     }
     
@@ -186,8 +202,16 @@ $coins = array_filter($coins, function($coin) {
 <style>
     /* Table styles */
     #coins-table {
+        background-color: #061e36;
+        color: rgb(241, 207, 10);
+        border-left: 4px solid #17a2b8;
         width: 100%;
         margin: 20px 0;
+    }
+    #coins-table FILTER{
+        background-color: #061e36;
+        color: rgb(241, 207, 10);
+        border-left: 4px solid #17a2b8;
     }
     #coins-table th {
         background: #343a40;
@@ -196,6 +220,9 @@ $coins = array_filter($coins, function($coin) {
         white-space: nowrap;
     }
     #coins-table td {
+        background-color: #061e36;
+        color: rgb(241, 207, 10);
+        border-left: 4px solid #17a2b8;
         padding: 8px 12px;
         border-bottom: 1px solid #dee2e6;
         vertical-align: middle;
@@ -248,8 +275,8 @@ $coins = array_filter($coins, function($coin) {
         color: #212529;
     }
     .badge-volume-spike {
-        background-color: #17a2b8;
-        color: white;
+        background-color:rgb(20, 5, 63);
+        color: rgb(241, 207, 10);
     }
     
     /* Portfolio buttons */
@@ -267,7 +294,7 @@ $coins = array_filter($coins, function($coin) {
     <div class="row mb-4">
         <div class="col-md-12">
             <h1 class="mt-4">
-                <i class="fas fa-coins"></i> <?php echo $showAll ? 'All Coins' : 'New High-Value Coins (<24h old)'; ?>
+                <i class="fas fa-coins"></i> <?php echo $showAll ? 'All Coins' : 'New Coins'; ?>
                 <small class="text-muted">Live Market Data</small>
             </h1>
             
@@ -279,11 +306,11 @@ $coins = array_filter($coins, function($coin) {
             <?php endif; ?>
             
             <!-- User Balances Display -->
-            <div class="alert alert-dark">
+            <div class="alert portfolio-alert">
                 <div class="d-flex align-items-center">
                     <strong>Your Portfolio:</strong>
                     <div id="portfolio-loading" class="ms-2"></div>
-                    <div id="portfolio" class="ms-2">
+                    <div id="portfolio" class="ms-2 d-flex flex-wrap gap-2">
                         <!-- Portfolio items will be loaded here via JavaScript -->
                         <span class="text-muted">Loading portfolio...</span>
                     </div>
@@ -297,22 +324,11 @@ $coins = array_filter($coins, function($coin) {
     
     <div class="row">
         <div class="col-12">
-            <div class="card mb-4">
-                <div class="card-header bg-dark text-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-wallet me-2"></i>My Portfolio
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div id="portfolioList" class="d-flex flex-wrap gap-2"></div>
-                </div>
-            </div>
-            
             <div class="card shadow">
                 <div class="card-header bg-primary text-white">
                     <h5 class="card-title mb-0">
                         <i class="fas fa-coins me-2"></i>
-                        <?php echo isset($_GET['show_all']) ? 'All Coins' : 'New High-Value Coins (<24h old)'; ?>
+                        <?php echo isset($_GET['show_all']) ? 'All Coins' : 'High-Value Coins'; ?>
                         <span id="last-update"></span>
                         <button id="refresh-btn" class="btn btn-sm btn-light">
                             <i class="fas fa-sync-alt"></i> Refresh
@@ -331,7 +347,7 @@ $coins = array_filter($coins, function($coin) {
                 <?php if (empty($coins)): ?>
                     <div class="card-body">
                         <div class="alert alert-warning">
-                            No cryptocurrency data found. Please try again later.
+                            No data found.
                         </div>
                     </div>
                 <?php else: ?>

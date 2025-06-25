@@ -135,7 +135,10 @@
             
             // Format functions
             function formatPrice(price) {
-                return '$' + (price >= 1 ? price.toFixed(2) : price.toFixed(8));
+                let formatted = price >= 1 ? price.toFixed(2) : price.toFixed(8);
+                // Remove trailing zeros and optional trailing decimal point
+                formatted = formatted.replace(/\.?0+$/, '');
+                return '$' + formatted;
             }
             
             function formatLargeNumber(num) {
@@ -412,15 +415,19 @@
             function updatePortfolioDisplay() {
                 console.log('Updating portfolio display...');
                 
-                // Find the portfolio list container
-                const $portfolioList = $('#portfolioList');
-                if ($portfolioList.length === 0) {
-                    console.error('portfolioList element not found!');
+                // Find the portfolio container and total element
+                const $portfolio = $('#portfolio');
+                const $totalValue = $('#total-portfolio-value');
+                
+                if ($portfolio.length === 0 || $totalValue.length === 0) {
+                    console.error('Portfolio elements not found!');
                     return;
                 }
                 
                 // Show loading state
-                $portfolioList.html('<div class="text-center py-3"><i class="fas fa-spinner fa-spin me-2"></i>Loading portfolio...</div>');
+                const loadingHtml = '<div class="text-center py-3"><i class="fas fa-spinner fa-spin me-2"></i>Loading portfolio...</div>';
+                $portfolio.html(loadingHtml);
+                $totalValue.html('Total: $0.00');
                 
                 // Fetch portfolio data from the server
                 $.ajax({
@@ -432,20 +439,29 @@
                         console.log('Portfolio API Response:', response);
                         
                         // Clear previous content
-                        $portfolioList.empty();
+                        $portfolio.empty();
                         
                         if (!response.success || !response.portfolio || response.portfolio.length === 0) {
-                            $portfolioList.html('<div class="text-muted p-2">No coins in portfolio.</div>');
+                            $portfolio.html('<div class="text-muted">No coins in portfolio.</div>');
                             return;
                         }
                         
-                        // Filter out coins with zero or negative balance
+                        // Filter out coins with zero or negative balance and calculate total value
+                        let totalValue = 0;
                         const validCoins = response.portfolio.filter(coin => {
-                            return parseFloat(coin.amount || 0) > 0;
+                            const amount = parseFloat(coin.amount || 0);
+                            if (amount > 0) {
+                                totalValue += amount;
+                                return true;
+                            }
+                            return false;
                         });
                         
+                        // Update the total value display
+                        $totalValue.html(`Total: $${totalValue.toFixed(2)}`);
+                        
                         if (validCoins.length === 0) {
-                            $portfolioList.html('<div class="text-muted p-2">No coins with balance found.</div>');
+                            $portfolio.html('<div class="text-muted">No coins with balance found.</div>');
                             return;
                         }
                         
@@ -460,14 +476,16 @@
                             
                             console.log(`Adding portfolio item: ${symbol} (${amount})`);
                             
-                            const $button = $(`
-                                <button class="btn btn-sm btn-outline-danger me-2 mb-2 sell-portfolio-btn" 
-                                        data-coin="${coinId}"
-                                        data-symbol="${symbol}">
-                                    ${symbol} (${amount})
+                            // Create the button HTML
+                            const buttonHtml = `
+                                <button class="sell-portfolio-btn" data-coin="${coinId}" data-symbol="${symbol}">
+                                    <i class="fas fa-money-bill-wave me-1"></i>${symbol} (${amount})
                                 </button>
-                            `);
+                            `;
                             
+                            const $button = $(buttonHtml);
+                            
+                            // Add click handler
                             $button.on('click', function(e) {
                                 e.preventDefault();
                                 console.log(`Sell button clicked: ${symbol} (${amount})`);
@@ -477,14 +495,15 @@
                                 }
                             });
                             
-                            $portfolioList.append($button);
+                            // Append the button to the portfolio container
+                            $portfolio.append($button);
                         });
                         
                         console.log('Finished rendering portfolio buttons');
                     },
                     error: function(xhr, status, error) {
                         console.error('Error loading portfolio:', status, error);
-                        $portfolioList.html(`
+                        $portfolio.html(`
                             <div class="alert alert-danger">
                                 Error loading portfolio: ${status}<br>
                                 <button class="btn btn-sm btn-outline-secondary mt-2" onclick="updatePortfolioDisplay()">

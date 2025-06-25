@@ -4,10 +4,10 @@
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
-                    <span class="text-muted">Night Stalker &copy; <?= date('Y') ?></span>
+                    <span class="text-muted">Night Stalker crypto trading system by D.Bertolami</span>
                 </div>
                 <div class="col-md-6 text-md-end">
-                    <span class="text-muted">Version 1.0.0</span>
+                    <span class="text-muted italic small ">&copy; <?= date("M Y") ?></span>
                 </div>
             </div>
         </div>

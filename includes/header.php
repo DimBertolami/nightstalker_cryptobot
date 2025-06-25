@@ -46,7 +46,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
     <!-- Page-specific custom CSS -->
     <?= $customCSS ?? '' ?>
 </head>
-<body>
+<body class="bg-dark text-light">
     <!-- Navigation Bar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">

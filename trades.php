@@ -20,7 +20,27 @@ try {
 }
 ?>
 
-<div class="container-fluid">
+<?php
+// Fetch latest coin prices from DB
+$db = getDBConnection();
+$coinPrices = [];
+if (!empty($trades)) {
+    $symbols = array_unique(array_column($trades, 'symbol'));
+    $stmtPrice = $db->prepare("SELECT symbol, current_price FROM coins WHERE symbol = ?");
+    foreach ($symbols as $sym) {
+        $stmtPrice->bind_param("s", $sym);
+        $stmtPrice->execute();
+        $res = $stmtPrice->get_result();
+        if ($r = $res->fetch_assoc()) {
+            $coinPrices[$r['symbol']] = (float)$r['current_price'];
+        }
+        $res->free();
+    }
+    $stmtPrice->close();
+}
+?>
+
+<div class="container-fluid background-color:rgb(69, 3, 75); color: rgb(241, 207, 10);">
     <div class="row mb-4">
         <div class="col-md-12">
             <h1 class="mt-4">
@@ -40,7 +60,7 @@ try {
     <div class="row">
         <div class="col-md-12">
             <div class="card">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header background-color: #061e36; color: rgb(241, 207, 10);">
                     <div class="d-flex justify-content-between align-items-center">
                         <h3 class="mb-0">Recent Trades</h3>
                         <div>
@@ -56,15 +76,15 @@ try {
                         </div>
                     </div>
                 </div>
-                <div class="card-body">
+                <div class="card-body background-color:rgb(10, 88, 167); color: rgb(241, 207, 10);">
                     <?php if (empty($trades)): ?>
                         <div class="alert alert-warning">
                             No trade history found or market data unavailable.
                         </div>
                     <?php else: ?>
                         <div class="table-responsive">
-                            <table class="table table-striped datatable">
-                                <thead>
+                            <table class="table table-striped datatable background-color: #061e36; color: rgb(241, 207, 10);">
+                                <thead background-color: #061e36; color: rgb(241, 207, 10);>
                                     <tr>
                                         <th>Date</th>
                                         <th>Coin</th>
@@ -73,11 +93,11 @@ try {
                                         <th>Entry Price</th>
                                         <th>Current Price</th>
                                         <th>Invested</th>
-                                        <th>Current Value</th>
+                                        
                                         <th>P/L</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody background-color: #061e36; color: rgb(241, 207, 10);>
                                     <?php foreach ($trades as $trade): ?>
                                     <?php
                                         $currentValue = $trade['amount'] * $trade['current_price'];
@@ -100,11 +120,11 @@ try {
                                                 <?= strtoupper($trade['trade_type']) ?>
                                             </span>
                                         </td>
-                                        <td><?= number_format($trade['amount'], 4) ?></td>
-                                        <td>$<?= number_format($trade['price'], 4) ?></td>
-                                        <td>$<?= number_format($trade['current_price'], 4) ?></td>
+                                        <td><?= rtrim(rtrim(number_format($trade['amount'], 4, '.', ''), '0'), '.') ?></td>
+                                        <td>$<?= rtrim(rtrim(number_format($trade['price'], 4, '.', ''), '0'), '.') ?></td>
+                                        <td>$<?= rtrim(rtrim(number_format(($coinPrices[$trade['symbol']] ?? $trade['current_price']), 4, '.', ''), '0'), '.') ?></td>
                                         <td>$<?= number_format($trade['total_value'], 2) ?></td>
-                                        <td>$<?= number_format($currentValue, 2) ?></td>
+                                        
                                         <td class="<?= $profitLoss >= 0 ? 'text-success' : 'text-danger' ?>">
                                             $<?= number_format($profitLoss, 2) ?>
                                             (<?= number_format($profitLossPercent, 2) ?>%)
