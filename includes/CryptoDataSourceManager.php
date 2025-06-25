@@ -27,8 +27,7 @@ class CryptoDataSourceManager implements CryptoDataSourceInterface {
     private $priorities = [
         'CoinGeckoDataSource' => 1,
         'MessariDataSource' => 2,
-        'CryptoCompareDataSource' => 3,
-        'JupiterDataSource' => 4
+        'CryptoCompareDataSource' => 3
     ];
     
     /**
@@ -37,15 +36,6 @@ class CryptoDataSourceManager implements CryptoDataSourceInterface {
      * @param array $dataSources Array of data source instances
      */
     public function __construct(array $dataSources = []) {
-        // Add default data sources if none provided
-        if (empty($dataSources)) {
-            $dataSources = [
-                new CoinGeckoDataSource(),
-                new MessariDataSource(),
-                new JupiterDataSource()
-            ];
-        }
-        
         // Add provided data sources
         foreach ($dataSources as $source) {
             if ($source instanceof CryptoDataSourceInterface) {
@@ -148,14 +138,6 @@ class CryptoDataSourceManager implements CryptoDataSourceInterface {
                 }
                 
                 $source = $this->dataSources[$this->activeSource];
-                
-                // Skip if source doesn't implement the method
-                if (!method_exists($source, $method)) {
-                    $this->switchDataSource();
-                    $attempts++;
-                    continue;
-                }
-                
                 $result = call_user_func_array([$source, $method], $params);
                 
                 // Reset failure count on success
@@ -282,33 +264,6 @@ class CryptoDataSourceManager implements CryptoDataSourceInterface {
      */
     public function getErrors(): array {
         return $this->errors;
-    }
-    
-    /**
-     * Get Jupiter swap quote with source validation
-     */
-    public function getJupiterSwapQuote(string $inputToken, string $outputToken, float $amount): array {
-        // Only use sources that implement SwapDataSourceInterface
-        $swapSources = array_filter($this->dataSources, function($source) {
-            return $source instanceof SwapDataSourceInterface;
-        });
-        
-        if (empty($swapSources)) {
-            throw new \Exception('No swap data sources available');
-        }
-        
-        // Temporarily replace data sources with only swap-capable ones
-        $originalSources = $this->dataSources;
-        $this->dataSources = $swapSources;
-        
-        try {
-            $result = $this->executeWithFailover('getSwapQuote', [$inputToken, $outputToken, $amount]);
-            $this->dataSources = $originalSources;
-            return $result;
-        } catch (\Exception $e) {
-            $this->dataSources = $originalSources;
-            throw $e;
-        }
     }
     
     /**

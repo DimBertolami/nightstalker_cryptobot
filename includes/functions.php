@@ -739,20 +739,44 @@ function getNewCryptocurrencies(): array {
     try {
         $db = getDBConnection();
         if (!$db) {
+            error_log("[getNewCryptocurrencies] Database connection failed");
             throw new Exception("Database connection failed");
         }
 
         $maxAge = MAX_COIN_AGE; // Store constant in variable
-        // Calculate age in hours using TIMESTAMPDIFF since we don't have an age_hours column
-        $stmt = $db->prepare("SELECT *, 
-                              TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
-                              FROM coins 
-                              WHERE TIMESTAMPDIFF(HOUR, date_added, NOW()) <= ? 
-                              ORDER BY date_added DESC");
-        $stmt->bind_param("i", $maxAge);
-        $stmt->execute();
+        error_log("[getNewCryptocurrencies] MAX_COIN_AGE: $maxAge");
         
-        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        // Calculate age in hours using TIMESTAMPDIFF since we don't have an age_hours column
+        $query = "SELECT *, 
+                 TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
+                 FROM coins 
+                 WHERE date_added >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+                 ORDER BY date_added DESC";
+                 
+        error_log("[getNewCryptocurrencies] Query: $query");
+        
+        $stmt = $db->prepare($query);
+        if (!$stmt) {
+            error_log("[getNewCryptocurrencies] Prepare failed: " . $db->error);
+            throw new Exception("Prepare failed: " . $db->error);
+        }
+        
+        $stmt->bind_param("i", $maxAge);
+        $executed = $stmt->execute();
+        if (!$executed) {
+            error_log("[getNewCryptocurrencies] Execute failed: " . $stmt->error);
+            throw new Exception("Execute failed: " . $stmt->error);
+        }
+        
+        $result = $stmt->get_result();
+        $data = $result->fetch_all(MYSQLI_ASSOC);
+        
+        error_log("[getNewCryptocurrencies] Found " . count($data) . " coins");
+        if (!empty($data)) {
+            error_log("[getNewCryptocurrencies] First coin: " . json_encode($data[0]));
+        }
+        
+        return $data;
     } catch (Exception $e) {
         error_log("[getNewCryptocurrencies] " . $e->getMessage());
         return [];
@@ -955,14 +979,90 @@ function executeBuy($coinId, $amount, $price) {
     // Calculate total value
     $totalValue = $amount * $price;
     
-    // Insert trade record using the actual table structure
+    // First, we need to get the correct coin_id for the cryptocurrencies table
+    // If the coinId is numeric, it's from the coins table and we need to get the symbol
+    $cryptoCoinId = $coinId;
+    $symbol = null;
+    
+    if (is_numeric($coinId)) {
+        // Get the symbol from the coins table
+        $symbolStmt = $db->prepare("SELECT symbol FROM coins WHERE id = ?");
+        if (!$symbolStmt) {
+            error_log("[executeBuy] Failed to prepare symbol query: " . $db->error);
+            return false;
+        }
+        
+        $symbolStmt->bind_param("i", $coinId);
+        $symbolStmt->execute();
+        $symbolResult = $symbolStmt->get_result();
+        
+        if ($symbolResult && $symbolResult->num_rows > 0) {
+            $row = $symbolResult->fetch_assoc();
+            $symbol = $row['symbol'];
+            
+            // Now get the corresponding ID from the cryptocurrencies table
+            $cryptoStmt = $db->prepare("SELECT id FROM cryptocurrencies WHERE symbol = ? LIMIT 1");
+            if (!$cryptoStmt) {
+                error_log("[executeBuy] Failed to prepare crypto query: " . $db->error);
+                $symbolStmt->close();
+                return false;
+            }
+            
+            $cryptoStmt->bind_param("s", $symbol);
+            $cryptoStmt->execute();
+            $cryptoResult = $cryptoStmt->get_result();
+            
+            if ($cryptoResult && $cryptoResult->num_rows > 0) {
+                $cryptoRow = $cryptoResult->fetch_assoc();
+                $cryptoCoinId = $cryptoRow['id'];
+            } else {
+                // If no matching cryptocurrency found, create one
+                $cryptoCoinId = "COIN_" . $symbol;
+                $insertStmt = $db->prepare("INSERT IGNORE INTO cryptocurrencies 
+                                           (id, symbol, name, created_at, price) 
+                                           VALUES (?, ?, ?, NOW(), ?)");
+                if ($insertStmt) {
+                    $name = $symbol; // Use symbol as name if we don't have the actual name
+                    $insertStmt->bind_param("sssd", $cryptoCoinId, $symbol, $name, $price);
+                    $insertStmt->execute();
+                    $insertStmt->close();
+                }
+            }
+            
+            if (isset($cryptoStmt)) $cryptoStmt->close();
+            $symbolStmt->close();
+        } else {
+            error_log("[executeBuy] Could not find symbol for coin ID: " . $coinId);
+            if (isset($symbolStmt)) $symbolStmt->close();
+            return false;
+        }
+    }
+    
+    // Now insert the trade with the correct cryptocurrency ID
     $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) 
                          VALUES (?, 'buy', ?, ?, ?, NOW())");
-    $stmt->bind_param("sddd", $coinId, $amount, $price, $totalValue);
+    $stmt->bind_param("sddd", $cryptoCoinId, $amount, $price, $totalValue);
     
     if ($stmt->execute()) {
         $tradeId = $stmt->insert_id;
         $stmt->close();
+        
+        // Update the portfolio table
+        $portfolioStmt = $db->prepare("INSERT INTO portfolio (user_id, coin_id, amount, avg_buy_price, last_updated) 
+                                     VALUES (1, ?, ?, ?, NOW()) 
+                                     ON DUPLICATE KEY UPDATE 
+                                     amount = amount + VALUES(amount),
+                                     avg_buy_price = ((amount * avg_buy_price) + (VALUES(amount) * ?)) / (amount + VALUES(amount)),
+                                     last_updated = NOW()");
+        
+        if ($portfolioStmt) {
+            $portfolioStmt->bind_param("sddd", $cryptoCoinId, $amount, $price, $price);
+            $portfolioStmt->execute();
+            $portfolioStmt->close();
+            error_log("[executeBuy] Updated portfolio for coin: $cryptoCoinId, amount: $amount, price: $price");
+        } else {
+            error_log("[executeBuy] Failed to update portfolio: " . $db->error);
+        }
         
         // Log the trade using TradingLogger
         require_once __DIR__ . '/TradingLogger.php';
@@ -1004,31 +1104,49 @@ function executeBuy($coinId, $amount, $price) {
  * @return array Result with success status, message, profit_loss and profit_percentage
  */
 /**
- * Get user's current balance for a specific coin
+ * Get user's current balance for a specific coin from the portfolio table
  * @param string|int $coinId The coin ID to check balance for
- * @return float The current balance of the specified coin
+ * @param int $userId Optional user ID (defaults to current user)
+ * @return array Returns an array with amount, avg_buy_price and other portfolio data
  */
 function getUserCoinBalance($coinId) {
     $db = getDBConnection();
-    if (!$db) return 0;
+    if (!$db) return ['amount' => 0, 'avg_buy_price' => 0];
     
-    // Calculate the difference between buys and sells for this coin
-    $query = "SELECT 
-                SUM(CASE WHEN trade_type = 'buy' THEN amount ELSE 0 END) - 
-                SUM(CASE WHEN trade_type = 'sell' THEN amount ELSE 0 END) as balance 
-              FROM trades 
-              WHERE coin_id = ?";
-              
-    $stmt = $db->prepare($query);
-    $stmt->bind_param("s", $coinId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($result && $row = $result->fetch_assoc()) {
-        return (float)($row['balance'] ?? 0);
+    // First try exact match with COIN_ prefix
+    $stmt = $db->prepare("SELECT coin_id, amount, avg_buy_price FROM portfolio WHERE coin_id = ?");
+    if ($stmt) {
+        $fullCoinId = 'COIN_' . strtoupper($coinId);
+        $stmt->bind_param("s", $fullCoinId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result && $row = $result->fetch_assoc()) {
+            return [
+                'amount' => (float)$row['amount'],
+                'avg_buy_price' => (float)$row['avg_buy_price'],
+                'coin_id' => $row['coin_id']
+            ];
+        }
     }
     
-    return 0;
+    // If not found, try case-insensitive search
+    $stmt = $db->prepare("SELECT coin_id, amount, avg_buy_price FROM portfolio WHERE UPPER(coin_id) LIKE UPPER(CONCAT('%', ?, '%')) LIMIT 1");
+    if ($stmt) {
+        $stmt->bind_param("s", $coinId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        if ($result && $row = $result->fetch_assoc()) {
+            return [
+                'amount' => (float)$row['amount'],
+                'avg_buy_price' => (float)$row['avg_buy_price'],
+                'coin_id' => $row['coin_id']
+            ];
+        }
+    }
+    
+    return ['amount' => 0, 'avg_buy_price' => 0];
 }
 
 function executeSell($coinId, $amount, $price, $buyTradeId = null) {
@@ -1040,9 +1158,18 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
         "profit_percentage" => 0
     ];
     
-    // Check if user has enough of this coin to sell
-    $userBalance = getUserCoinBalance($coinId);
+    // Get current portfolio balance
+    $portfolioData = getUserCoinBalance($coinId);
+    $userBalance = $portfolioData['amount'];
+    $avgBuyPrice = $portfolioData['avg_buy_price'];
+    $portfolioId = $portfolioData['coin_id'] ?? 'COIN_' . strtoupper($coinId);
     
+    // Special case for 'all' amount
+    if ($amount === 'all') {
+        $amount = $userBalance;
+    }
+    
+    // Check if user has enough to sell
     if ($userBalance < $amount) {
         return [
             "success" => false,
@@ -1052,21 +1179,9 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
         ];
     }
     
-    // Calculate total value
+    // Calculate values
     $totalValue = $amount * $price;
-    
-    // Calculate average buy price from previous buy trades
-    $stmt = $db->prepare("SELECT AVG(price) as avg_price, SUM(amount * price) / SUM(amount) as weighted_avg 
-                         FROM trades 
-                         WHERE coin_id = ? AND trade_type = 'buy'");
-    $stmt->bind_param("s", $coinId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $row = $result->fetch_assoc();
-    $buyPrice = $row['weighted_avg'] ?? $price; // Use weighted average price if available
-    $stmt->close();
-    
-    // Calculate profit/loss based on average buy price
+    $buyPrice = $avgBuyPrice > 0 ? $avgBuyPrice : $price;
     $profitLoss = ($price - $buyPrice) * $amount;
     $profitPercentage = $buyPrice > 0 ? (($price - $buyPrice) / $buyPrice) * 100 : 0;
     
@@ -1074,52 +1189,37 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
     $db->begin_transaction();
     
     try {
-        // Insert the sell trade
-        $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) 
-        VALUES (?, 'sell', ?, ?, ?, NOW())");
-        $stmt->bind_param("sddd", $coinId, $amount, $price, $totalValue);
-        $success = $stmt->execute();
-        $stmt->close();
+        // Insert trade record without user_id
+        $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) VALUES (?, 'sell', ?, ?, ?, NOW())");
+        $stmt->bind_param("sddd", $portfolioId, $amount, $price, $totalValue);
+        $stmt->execute();
         
-        if (!$success) {
-            throw new Exception("Failed to record sell trade");
+        // Update portfolio
+        $remainingAmount = $userBalance - $amount;
+        
+        if ($remainingAmount <= 0.00000001) { // Effectively zero
+            // Remove from portfolio
+            $stmt = $db->prepare("DELETE FROM portfolio WHERE coin_id = ?");
+            $stmt->bind_param("s", $portfolioId);
+        } else {
+            // Update remaining amount
+            $stmt = $db->prepare("UPDATE portfolio SET amount = ? WHERE coin_id = ?");
+            $stmt->bind_param("ds", $remainingAmount, $portfolioId);
         }
+        
+        $stmt->execute();
         
         // Commit transaction
         $db->commit();
         
-        // Log the trade using TradingLogger
-        require_once __DIR__ . '/TradingLogger.php';
-        $logger = new TradingLogger();
-        
-        // Prepare event data for logging
-        $eventData = [
-            'symbol' => $coinId,
-            'amount' => $amount,
-            'sell_price' => $price,
-            'buy_price' => $buyPrice,
-            'profit' => $profitLoss,
-            'profit_percentage' => $profitPercentage,
-            'currency' => 'USD',
-            'holding_time_seconds' => 0 // You could calculate this if you have the buy time
-        ];
-        
-        // Log the sell event
-        $logger->logEvent('new_coin_strategy', 'sell', $eventData);
-        
-        // Also log with the simple logger for backward compatibility
-        logEvent('Trade', "Sold {$amount} of coin {$coinId} at price {$price}");
-        
         return [
             "success" => true,
-            "message" => "Successfully sold {$amount} coins",
+            "message" => "Successfully sold $amount coins",
             "profit_loss" => $profitLoss,
             "profit_percentage" => $profitPercentage
         ];
     } catch (Exception $e) {
-        // Rollback transaction on error
         $db->rollback();
-        
         return [
             "success" => false,
             "message" => "Error executing sell: " . $e->getMessage(),
@@ -1130,14 +1230,140 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
 }
 
 /**
- * Format a number as currency with specified decimal places
+ * Format a currency value with the specified number of decimal places
  * 
- * @param float $amount The amount to format
- * @param int $decimals Number of decimal places
- * @return string Formatted currency string
+ * @param float $value The value to format
+ * @param int $decimals The number of decimal places
+ * @return string The formatted value
  */
-function formatCurrency($amount, $decimals = 2) {
-    return number_format((float)$amount, $decimals, '.', ',');
+function formatCurrency($value, $decimals = 2) {
+    return number_format($value, $decimals);
+}
+
+/**
+ * Get coin data from either the coins or cryptocurrencies table
+ * 
+ * @param mixed $coinId Either a numeric ID (for coins table) or a symbol (for cryptocurrencies table)
+ * @return array An array of coin data or empty array if not found
+ */
+function getCoinData($coinId) {
+    $db = getDBConnection();
+    $data = [];
+    
+    // Log what we're looking for
+    error_log("getCoinData looking for coin: $coinId");
+    
+    // Suppress any errors to ensure we don't break JSON output
+    try {
+        // First try direct ID match in coins table if numeric
+        if (is_numeric($coinId)) {
+            error_log("Looking for numeric ID $coinId in coins table");
+            $stmt = $db->prepare("SELECT id, symbol, name, current_price as price, price_change_24h, 
+                                    volume_24h as volume, market_cap, date_added, is_trending as trending 
+                                    FROM coins WHERE id = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param('i', $coinId);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                
+                if ($result && $result->num_rows > 0) {
+                    $data = $result->fetch_assoc();
+                    error_log("Found coin in coins table: " . json_encode($data));
+                    $stmt->close();
+                    return $data;
+                }
+                $stmt->close();
+            }
+        }
+        
+        // Try direct match in cryptocurrencies table by ID
+        error_log("Looking for ID $coinId in cryptocurrencies table");
+        $cryptoIdStmt = $db->prepare("SELECT id, symbol, name, price, price_change_24h, 
+                                    volume, market_cap, created_at, is_trending as trending 
+                                    FROM cryptocurrencies WHERE id = ? LIMIT 1");
+        if ($cryptoIdStmt) {
+            $cryptoIdStmt->bind_param('s', $coinId);
+            $cryptoIdStmt->execute();
+            $cryptoIdResult = $cryptoIdStmt->get_result();
+            
+            if ($cryptoIdResult && $cryptoIdResult->num_rows > 0) {
+                $data = $cryptoIdResult->fetch_assoc();
+                error_log("Found coin in cryptocurrencies table by ID: " . json_encode($data));
+                $cryptoIdStmt->close();
+                return $data;
+            }
+            $cryptoIdStmt->close();
+        }
+        
+        // Try by symbol in cryptocurrencies table
+        $symbol = is_numeric($coinId) ? null : $coinId;
+        
+        // If we have a numeric ID but no direct match, try to get its symbol
+        if (is_numeric($coinId) && $symbol === null) {
+            error_log("Getting symbol for numeric ID $coinId");
+            $symbolStmt = $db->prepare("SELECT symbol FROM coins WHERE id = ? LIMIT 1");
+            if ($symbolStmt) {
+                $symbolStmt->bind_param('i', $coinId);
+                $symbolStmt->execute();
+                $symbolResult = $symbolStmt->get_result();
+                
+                if ($symbolResult && $symbolResult->num_rows > 0) {
+                    $row = $symbolResult->fetch_assoc();
+                    $symbol = $row['symbol'];
+                    error_log("Found symbol $symbol for ID $coinId");
+                }
+                $symbolStmt->close();
+            }
+        }
+        
+        // Try by symbol in cryptocurrencies table
+        if ($symbol !== null) {
+            error_log("Looking for symbol $symbol in cryptocurrencies table");
+            $cryptoStmt = $db->prepare("SELECT id, symbol, name, price, price_change_24h, 
+                                        volume, market_cap, created_at, is_trending as trending 
+                                        FROM cryptocurrencies WHERE symbol = ? LIMIT 1");
+            if ($cryptoStmt) {
+                $cryptoStmt->bind_param('s', $symbol);
+                $cryptoStmt->execute();
+                $cryptoResult = $cryptoStmt->get_result();
+                
+                if ($cryptoResult && $cryptoResult->num_rows > 0) {
+                    $data = $cryptoResult->fetch_assoc();
+                    error_log("Found coin in cryptocurrencies table by symbol: " . json_encode($data));
+                    $cryptoStmt->close();
+                    return $data;
+                }
+                $cryptoStmt->close();
+            }
+            
+            // Try by symbol in coins table as last resort
+            error_log("Looking for symbol $symbol in coins table");
+            $coinSymbolStmt = $db->prepare("SELECT id, symbol, name, current_price as price, price_change_24h, 
+                                           volume_24h as volume, market_cap, date_added, is_trending as trending 
+                                           FROM coins WHERE symbol = ? LIMIT 1");
+            if ($coinSymbolStmt) {
+                $coinSymbolStmt->bind_param('s', $symbol);
+                $coinSymbolStmt->execute();
+                $coinSymbolResult = $coinSymbolStmt->get_result();
+                
+                if ($coinSymbolResult && $coinSymbolResult->num_rows > 0) {
+                    $data = $coinSymbolResult->fetch_assoc();
+                    error_log("Found coin in coins table by symbol: " . json_encode($data));
+                    $coinSymbolStmt->close();
+                    return $data;
+                }
+                $coinSymbolStmt->close();
+            }
+        }
+        
+        // If we got here, we didn't find anything
+        error_log("Could not find coin data for: $coinId");
+        
+    } catch (Exception $e) {
+        error_log("Error in getCoinData: " . $e->getMessage());
+    }
+    
+    return $data;
 }
 
 /**

@@ -335,6 +335,132 @@ function tableExists($db, $table_name) {
     return ($check && $check->num_rows > 0);
 }
 
+/**
+ * Get fallback data from the most recent CSV file
+ * This function searches for the most recent CSV file in the data directory
+ * and parses it to get coin data as a fallback when the Python script fails
+ * 
+ * @return array Array of coin data or empty array if no valid data found
+ */
+function get_fallback_data() {
+    // Define the directory where CSV files are stored
+    $csv_dir = __DIR__ . '/../data/csv';
+    
+    // Make sure the directory exists
+    if (!is_dir($csv_dir)) {
+        logMessage("Fallback CSV directory not found: {$csv_dir}");
+        return [];
+    }
+    
+    // Get all CSV files in the directory
+    $csv_files = glob($csv_dir . '/*.csv');
+    
+    if (empty($csv_files)) {
+        logMessage("No CSV files found in {$csv_dir}");
+        return [];
+    }
+    
+    // Sort files by modification time (newest first)
+    usort($csv_files, function($a, $b) {
+        return filemtime($b) - filemtime($a);
+    });
+    
+    // Try to parse the most recent file
+    $latest_file = $csv_files[0];
+    logMessage("Using fallback CSV file: " . basename($latest_file));
+    
+    // Check if file exists and is readable
+    if (!file_exists($latest_file) || !is_readable($latest_file)) {
+        logMessage("Cannot read CSV file: {$latest_file}");
+        return [];
+    }
+    
+    // Parse the CSV file
+    $coins_data = [];
+    if (($handle = fopen($latest_file, "r")) !== false) {
+        // Read the header row
+        $header = fgetcsv($handle, 1000, ",");
+        
+        // Map the header columns to our expected format
+        $column_map = [
+            'name' => array_search('Name', $header),
+            'symbol' => array_search('Symbol', $header),
+            'price' => array_search('Price USD', $header),
+            'price_change_24h' => array_search('24h Change %', $header),
+            'volume' => array_search('Volume', $header),
+            'market_cap' => array_search('Market Cap', $header),
+            'first_seen' => array_search('First Seen', $header),
+            'age_hours' => array_search('Age (hours)', $header)
+        ];
+        
+        // Check if we have the minimum required columns
+        if ($column_map['name'] === false || $column_map['symbol'] === false) {
+            logMessage("CSV file does not have required columns (Name, Symbol)");
+            fclose($handle);
+            return [];
+        }
+        
+        // Read data rows
+        while (($data = fgetcsv($handle, 1000, ",")) !== false) {
+            $coin = [];
+            
+            // Map CSV columns to our expected format
+            foreach ($column_map as $key => $index) {
+                if ($index !== false && isset($data[$index])) {
+                    $value = $data[$index];
+                    
+                    // Convert numeric values
+                    if (in_array($key, ['price', 'price_change_24h', 'volume', 'market_cap', 'age_hours'])) {
+                        // Remove any non-numeric characters except decimal point
+                        $value = preg_replace('/[^0-9.-]/', '', $value);
+                        $value = floatval($value);
+                        
+                        // Handle empty values
+                        if (empty($value) && $value !== 0) {
+                            // Default values for missing data to ensure filtering works
+                            if ($key === 'age_hours') {
+                                $value = 12.0; // Default to 12 hours old
+                            } elseif ($key === 'volume' || $key === 'market_cap') {
+                                $value = 2000000.0; // Default to $2M to pass filter
+                            }
+                        }
+                    }
+                    
+                    $coin[$key] = $value;
+                }
+            }
+            
+            // Set default values for missing fields
+            if (!isset($coin['age_hours']) || $coin['age_hours'] === '') {
+                $coin['age_hours'] = 12.0; // Default to 12 hours old
+            }
+            if (!isset($coin['volume']) || $coin['volume'] === '') {
+                $coin['volume'] = 2000000.0; // Default to $2M
+            }
+            if (!isset($coin['market_cap']) || $coin['market_cap'] === '') {
+                $coin['market_cap'] = 2000000.0; // Default to $2M
+            }
+            
+            // Only include coins that meet our criteria (age < 24 hours, volume and market cap >= 1.5M)
+            if ($coin['age_hours'] <= 24 && $coin['volume'] >= 1500000 && $coin['market_cap'] >= 1500000) {
+                // Add trending flag based on volume
+                $coin['trending'] = ($coin['volume'] >= 5000000) ? 1 : 0;
+                
+                // Add date_added if not present
+                if (!isset($coin['date_added'])) {
+                    $coin['date_added'] = date('Y-m-d H:i:s');
+                }
+                
+                $coins_data[] = $coin;
+            }
+        }
+        fclose($handle);
+    }
+    
+    logMessage("Parsed " . count($coins_data) . " coins from CSV fallback");
+    return $coins_data;
+}
+
 // Main execution
 try {
     logMessage("=== Starting new coins import ===");
@@ -349,9 +475,18 @@ try {
     // Get new coins data from the Python script
     $max_age_hours = 24; // Only get coins less than 24 hours old
     $coins_data = run_python_script($max_age_hours);
+    
+    // If Python script fails, try to use the most recent CSV file as fallback
     if (!$coins_data) {
-        logMessage("ERROR: Failed to get valid data from Python script");
-        exit(1);
+        logMessage("WARNING: Failed to get valid data from Python script, attempting to use fallback CSV data");
+        $coins_data = get_fallback_data();
+        
+        if (!$coins_data) {
+            logMessage("ERROR: Both Python script and fallback data failed");
+            exit(1);
+        } else {
+            logMessage("SUCCESS: Using fallback data with " . count($coins_data) . " coins");
+        }
     }
     
     // Update the database

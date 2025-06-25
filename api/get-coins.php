@@ -15,69 +15,64 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/database.php';
 
 try {
-    // Get fresh data from all cryptocurrency sources
-    $marketData = fetchFromAllSources();
-    
     // Get data from database
     $db = getDBConnection();
     
-    // Check if we have the new cryptocurrencies table
-    $hasNewTable = false;
-    try {
-        $result = $db->query("SHOW TABLES LIKE 'cryptocurrencies'");
-        $hasNewTable = $result->num_rows > 0;
-    } catch (Exception $e) {
-        // Table doesn't exist
+    // Check if we should fetch from all_coingecko_coins table
+    $showAll = isset($_GET['show_all']) && $_GET['show_all'] == 1;
+    
+    if ($showAll) {
+        // Fetch from all_coingecko_coins table
+        $query = "SELECT 
+                    id, 
+                    symbol, 
+                    name, 
+                    platforms, 
+                    last_updated,
+                    NULL as current_price,
+                    NULL as price_change_24h,
+                    NULL as market_cap,
+                    NULL as volume_24h,
+                    'CoinGecko' as source,
+                    0 as user_balance,
+                    0 as is_trending,
+                    0 as volume_spike
+                  FROM all_coingecko_coins 
+                  ORDER BY name ASC";
+    } else {
+        // Original query for coins table
+        $query = "SELECT * FROM coins ORDER BY market_cap DESC";
     }
+    
+    $stmt = $db->prepare($query);
+    $stmt->execute();
+    $result = $stmt->get_result();
     
     $coinsData = [];
-    
-    if ($hasNewTable) {
-        // Use new table structure
-        $stmt = $db->prepare("SELECT * FROM cryptocurrencies ORDER BY market_cap DESC");
-        $stmt->execute();
-        $result = $stmt->get_result();
-        while ($row = $result->fetch_assoc()) {
-            // Check if source column exists, if not, default to CoinMarketCap
-            if (!isset($row['source'])) {
-                $row['source'] = 'CoinMarketCap';
-            }
-            $coinsData[] = $row;
+    while ($row = $result->fetch_assoc()) {
+        if (!isset($row['source'])) {
+            $row['source'] = $showAll ? 'CoinGecko' : 'CoinMarketCap';
         }
-    } else {
-        // Fall back to old coins table
-        $stmt = $db->prepare("SELECT * FROM coins ORDER BY market_cap DESC");
-        $stmt->execute();
-        $result = $stmt->get_result();
-        while ($row = $result->fetch_assoc()) {
-            $coinsData[] = $row;
-        }
+        
+        // Ensure all required fields are set with defaults
+        $coinsData[] = array_merge([
+            'id' => $row['id'],
+            'symbol' => $row['symbol'],
+            'name' => $row['name'],
+            'current_price' => (float)($row['current_price'] ?? 0),
+            'price_change_24h' => (float)($row['price_change_24h'] ?? 0),
+            'market_cap' => (float)($row['market_cap'] ?? 0),
+            'volume_24h' => (float)($row['volume_24h'] ?? 0),
+            'last_updated' => $row['last_updated'] ?? date('Y-m-d H:i:s'),
+            'source' => $row['source'],
+            'user_balance' => 0,  // Initialize with 0 balance
+            'is_trending' => (bool)($row['is_trending'] ?? false),
+            'volume_spike' => (bool)($row['volume_spike'] ?? false)
+        ], $row);
     }
     
-    // Get user portfolio balances for each coin
+    // Skip user balances for now
     $userBalances = [];
-    try {
-        $db2 = getDBConnection(); // Use our standard connection function
-        
-        // Query to get balance for each coin (buys - sells)
-        $balanceQuery = "SELECT 
-                            coin_id,
-                            SUM(CASE WHEN trade_type = 'buy' THEN amount ELSE 0 END) - 
-                            SUM(CASE WHEN trade_type = 'sell' THEN amount ELSE 0 END) as balance 
-                          FROM trades 
-                          GROUP BY coin_id";
-        
-        $balanceResult = $db2->query($balanceQuery);
-        if ($balanceResult) {
-            while ($row = $balanceResult->fetch_assoc()) {
-                if ($row['balance'] > 0) { // Only store positive balances
-                    $userBalances[$row['coin_id']] = (float)$row['balance'];
-                }
-            }
-        }
-    } catch (Exception $e) {
-        error_log("Error getting user balances: " . $e->getMessage());
-    }
     
     // Merge live data with database data
     $coins = array_map(function($coin) use ($marketData, $userBalances) {
@@ -93,23 +88,34 @@ try {
             $liveData = $marketData[$symbol];
         }
         
+        // Use the coin ID from the database
         $coinId = $coin['id'];
         
-        return [
+        // Map the fields from the coins table to the expected output format
+        $mappedCoin = [
             'id' => $coinId,
             'name' => $coin['name'],
-            'symbol' => $symbol,
-            'price' => (float)($liveData['price'] ?? $coin['price'] ?? 0),
-            'price_change_24h' => (float)($liveData['change'] ?? $coin['price_change_24h'] ?? 0),
-            'volume' => (float)($liveData['volume'] ?? $coin['volume_24h'] ?? 0),
-            'market_cap' => (float)($liveData['market_cap'] ?? $coin['market_cap'] ?? 0),
-            'date_added' => $liveData['date_added'] ?? $coin['date_added'] ?? null,
+            'symbol' => $coin['symbol'],
+            'price' => (float)$coin['current_price'],  // Convert to float to ensure it's a number
+            'price_change_24h' => (float)($coin['price_change_24h'] ?? 0),
+            'market_cap' => (float)($coin['market_cap'] ?? 0),
+            'volume_24h' => (float)($coin['volume_24h'] ?? 0),
+            'volume' => (float)($coin['volume_24h'] ?? 0),  // Add volume alias for compatibility
+            'last_updated' => $coin['last_updated'] ?? date('Y-m-d H:i:s'),
             'is_trending' => (bool)($coin['is_trending'] ?? false),
             'volume_spike' => (bool)($coin['volume_spike'] ?? false),
-            'data_source' => $liveData['source'] ?? $coin['source'] ?? 'Local DB',
-            'last_updated' => date('Y-m-d H:i:s'),
-            'user_balance' => $userBalances[$coinId] ?? 0 // Add user balance for this coin
+            'date_added' => $coin['date_added'] ?? date('Y-m-d H:i:s'),
+            'source' => 'CoinMarketCap',  // Default source
+            'data_source' => 'CoinMarketCap', // Add data_source for compatibility
+            'user_balance' => (float)($userBalances[$coinId] ?? 0)
         ];
+        
+        // Override with live data if available
+        if (!empty($liveData)) {
+            $mappedCoin = array_merge($mappedCoin, $liveData);
+        }
+        
+        return $mappedCoin;
     }, $coinsData);
     
     // Get user ID from session or use default for testing
@@ -126,42 +132,17 @@ try {
         error_log("Balance error: " . $e->getMessage());
     }
     
-    // Apply filters if not showing all coins
-    if (!$showAll) {
-        // Filter coins based on market cap, volume, or age
-        $coins = array_filter($coins, function($coin) {
-            // Filter out coins with low market cap (less than $1M)
-            if (isset($coin['market_cap']) && $coin['market_cap'] < 1000000) {
-                return false;
-            }
-            
-            // Filter out coins with low volume (less than $100K)
-            if (isset($coin['volume']) && $coin['volume'] < 100000) {
-                return false;
-            }
-            
-            return true;
-        });
-    }
-    
-    // Add user balance to each coin
-    $coinsWithBalances = array_map(function($coin) use ($balances) {
-        $symbol = $coin['symbol'];
-        $coin['user_balance'] = $balances[$symbol] ?? 0;
-        return $coin;
-    }, $coins);
-    
-    // Make sure we have an array with numeric keys
-    $coinsWithBalances = array_values($coinsWithBalances);
+    // Skip filtering for now - show all coins
+    $coins = $coins;
     
     // Clean any output that might have been generated
     ob_clean();
     
-    // Return JSON response
+    // Return JSON response with all coins
     echo json_encode([
         'success' => true,
-        'data' => $coinsWithBalances,
-        'show_all' => $showAll ?? false,
+        'data' => array_values($coins),  // Ensure numeric keys
+        'show_all' => true,  // Always show all coins
         'timestamp' => time()
     ]);
     
