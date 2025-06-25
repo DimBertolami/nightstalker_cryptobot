@@ -119,7 +119,7 @@ try {
     } else {
         // Use getTrendingCoins() to get trending coins
         $coinsData = getTrendingCoins();
-        print_r($coinsData);
+        //print_r($coinsData);
         if (empty($coinsData)) {
             error_log("No trending coins found");
             // Fallback to new coins if no trending coins

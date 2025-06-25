@@ -374,6 +374,11 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
                                     <input type="number" class="form-control" id="monitoringInterval" name="monitoringInterval" value="3" min="1" max="30" required>
                                     <div class="form-text">How often to check prices during active monitoring.</div>
                                 </div>
+                                <div class="mb-3">
+                                <label for="sell_trigger_duration">Sell trigger duration (seconds):</label>
+                                <input type="number" id="sell_trigger_duration" name="sell_trigger_duration" min="5" max="300" value="30" required>
+                                <small>Enter a value between 5 and 300 seconds.</small>
+                                </div>
                                 <button type="submit" class="btn btn-primary" name="saveStrategy">Save Strategy Settings</button>
                             </form>
                         </div>

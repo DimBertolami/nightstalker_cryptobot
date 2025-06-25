@@ -29,15 +29,15 @@ try {
     }
     
     // Query portfolio data
-    //$query = "SELECT p.id, p.coin_id, p.amount, p.avg_buy_price, 
-    //          COALESCE(c.symbol, cr.symbol) as symbol, 
-    //          COALESCE(c.name, cr.name) as name,
-    //          COALESCE(c.current_price, cr.price) as current_price
-    //          FROM portfolio p
-    //          LEFT JOIN coins c ON c.id = p.coin_id
-    //          LEFT JOIN cryptocurrencies cr ON cr.id = p.coin_id
-    //          ORDER BY p.amount DESC";
-    $query = "SELECT * FROM portfolio";        
+    $query = "SELECT p.id, p.coin_id, p.amount, p.avg_buy_price, 
+              COALESCE(c.symbol, cr.symbol) as symbol, 
+              COALESCE(c.name, cr.name) as name,
+              COALESCE(c.current_price, cr.price) as current_price
+              FROM portfolio p
+              LEFT JOIN coins c ON c.id = p.coin_id
+              LEFT JOIN cryptocurrencies cr ON cr.id = p.coin_id
+              ORDER BY p.amount DESC";
+    //$query = "SELECT * FROM portfolio";        
     $result = $db->query($query);
     
     if (!$result) {

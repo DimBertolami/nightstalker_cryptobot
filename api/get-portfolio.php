@@ -56,7 +56,7 @@ try {
             SUM(CASE WHEN t.trade_type = 'sell' THEN t.amount ELSE 0 END) as total_sold,
             COUNT(*) as trade_count,
             GROUP_CONCAT(CONCAT(t.trade_type, ' ', t.amount, ' @ ', t.price, ' on ', t.trade_time) SEPARATOR ' | ') as trade_details
-        FROM trades t
+        FROM portfolio t
         WHERE t.user_id = ?
         GROUP BY t.coin_id
         ORDER BY balance DESC
