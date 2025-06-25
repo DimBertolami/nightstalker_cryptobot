@@ -176,6 +176,11 @@ try {
     error_log("Balance error: " . $e->getMessage());
     $_SESSION['error'] = "Could not load portfolio balances.";
 }
+
+// Remove coins with price exactly 0.00000000
+$coins = array_filter($coins, function($coin) {
+    return isset($coin['current_price']) && floatval($coin['current_price']) > 0;
+});
 ?>
 
 <style>
@@ -246,6 +251,16 @@ try {
         background-color: #17a2b8;
         color: white;
     }
+    
+    /* Portfolio buttons */
+    .sell-portfolio-btn {
+        min-width: 100px;
+        transition: all 0.2s;
+    }
+    .sell-portfolio-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
 </style>
 
 <div class="container-fluid">
@@ -277,10 +292,22 @@ try {
                     </div>
                 </div>
             </div>
-</div>
-
+        </div>
+    </div>
+    
     <div class="row">
         <div class="col-12">
+            <div class="card mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-wallet me-2"></i>My Portfolio
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="portfolioList" class="d-flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+            
             <div class="card shadow">
                 <div class="card-header bg-primary text-white">
                     <h5 class="card-title mb-0">
@@ -299,7 +326,6 @@ try {
                             <label class="form-check-label text-white" for="show-all-coins-toggle">Show All Coins (<?= $showAll ? 'All' : 'Filtered' ?>)</label>
                         </div>
                     </h5>
-                    </div>
                 </div>
                 
                 <?php if (empty($coins)): ?>

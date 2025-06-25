@@ -59,7 +59,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link <?= $current_page === 'nightstalker.php' ? 'active' : '' ?>" href="<?= BASE_URL ?>/nightstalker.php">
+                        <a class="nav-link <?= $current_page === 'dashboard/index.php' ? 'active' : '' ?>" href="<?= BASE_URL ?>/dashboard/index.php">
                             <i class="fas fa-chart-line me-1"></i>Dashboard
                         </a>
                     </li>
