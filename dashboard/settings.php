@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'minMarketCap' => intval($_POST['minMarketCap']),
             'minVolume' => intval($_POST['minVolume']),
             'monitoringInterval' => intval($_POST['monitoringInterval']),
-            'sellTriggerSeconds' => intval($_POST['sellTriggerSeconds'])
+            'sellTriggerSeconds' => intval($_POST['sell_trigger_duration'])
         ];
         
         // Validate strategy settings
@@ -254,21 +254,21 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
         <!-- Configuration Tabs -->
         <div class="row mb-4 justify-content-center" style="max-width: 900px; margin-left: auto; margin-right: auto;">
             <div class="col-md-4 px-1">
-                <div class="card bg-primary text-white tab-card" id="strategy-tab" onclick="showTab('strategy')">
+                <div class="card bg-dark color-yellow tab-card" id="strategy-tab" onclick="showTab('strategy')">
                     <div class="card-body py-3">
                         <h5 class="card-title mb-0 text-center">Strategy Configuration</h5>
                     </div>
                 </div>
             </div>
             <div class="col-md-4 px-1">
-                <div class="card bg-primary text-white tab-card" id="exchange-tab" onclick="showTab('exchange')">
+                <div class="card bg-dark color-yellow tab-card" id="exchange-tab" onclick="showTab('exchange')">
                     <div class="card-body py-3">
                         <h5 class="card-title mb-0 text-center">Exchange Configuration</h5>
                     </div>
                 </div>
             </div>
             <div class="col-md-4 px-1">
-                <div class="card bg-primary text-white tab-card" id="api-tab" onclick="showTab('api')">
+                <div class="card bg-dark color-yellow tab-card" id="api-tab" onclick="showTab('api')">
                     <div class="card-body py-3">
                         <h5 class="card-title mb-0 text-center">API Configuration</h5>
                     </div>
@@ -282,9 +282,9 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
             <!-- Strategy Configuration Content -->
             <div class="col-12 mb-4 tab-content" id="strategy-content">
                 <div class="card">
-                            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                            <div class="card-header bg-dark color-yellow text-white d-flex justify-content-between align-items-center">
                                 <div>
-                                    <h3 class="mb-0">Strategy Configuration</h3>
+                                    <h3 class="mb-0 color-yellow">Strategy Configuration</h3>
                                 </div>
                                 <div class="form-group mb-0">
                                     <select class="form-select form-select-sm" id="strategy-selector" onchange="switchStrategy(this.value)">
@@ -303,7 +303,7 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
                                     
                                     <form method="POST" action="" id="generalForm">
                                         <div class="mb-3 form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" id="testMode" name="testMode" <?php echo $settings['testMode'] ? 'checked' : ''; ?>>
+                                            <input class="form-check-input bg-dark color-yellow" type="checkbox" id="testMode" name="testMode" <?php echo $settings['testMode'] ? 'checked' : ''; ?>>
                                             <label class="form-check-label" for="testMode">Simulation Mode</label>
                                             <div class="form-text">When enabled, trades are simulated and no real money is used.</div>
                                         </div>

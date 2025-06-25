@@ -71,8 +71,14 @@ try {
         ], $row);
     }
     
-    // Skip user balances for now
+    // Get user ID and balances
+    $userId = $_SESSION['user_id'] ?? 1; // Default to user ID 1 for testing
     $userBalances = [];
+    try {
+        $userBalances = getUserBalance($userId);
+    } catch (Exception $e) {
+        error_log("Balance error: " . $e->getMessage());
+    }
     
     // Merge live data with database data
     $coins = array_map(function($coin) use ($marketData, $userBalances) {
@@ -107,7 +113,7 @@ try {
             'date_added' => $coin['date_added'] ?? date('Y-m-d H:i:s'),
             'source' => 'CoinMarketCap',  // Default source
             'data_source' => 'CoinMarketCap', // Add data_source for compatibility
-            'user_balance' => (float)($userBalances[$coinId] ?? 0)
+            'user_balance' => (float)($userBalances[$symbol]['balance'] ?? 0)
         ];
         
         // Override with live data if available
@@ -132,8 +138,23 @@ try {
         error_log("Balance error: " . $e->getMessage());
     }
     
-    // Skip filtering for now - show all coins
-    $coins = $coins;
+    // Filter out coins with zero price, volume, or market cap
+    $coins = array_filter($coins, function($coin) {
+        return $coin['price'] > 0 && $coin['volume_24h'] > 0 && $coin['market_cap'] > 0;
+    });
+    // Apply new coin strategy: remove coins older than maxCoinAge hours
+    $configFile = __DIR__ . '/../config/new_coin_strategy.json';
+    if (file_exists($configFile)) {
+        $strategy = json_decode(file_get_contents($configFile), true);
+        if (!empty($strategy['enabled']) && isset($strategy['maxCoinAge'])) {
+            $maxAge = intval($strategy['maxCoinAge']);
+            $threshold = time() - $maxAge * 3600;
+            $coins = array_filter($coins, function($coin) use ($threshold) {
+                $added = strtotime($coin['date_added'] ?? $coin['last_updated']);
+                return $added >= $threshold;
+            });
+        }
+    }
     
     // Clean any output that might have been generated
     ob_clean();

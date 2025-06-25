@@ -11,7 +11,8 @@
 }
 
 body {
-    background-color: #f5f7fa;
+    background-color: #022252;
+    color:#f39c12;
     font-family: 'Roboto', sans-serif;
     padding-top: 20px;
     padding-bottom: 60px;
@@ -23,6 +24,8 @@ body {
 
 /* Header */
 header {
+    background-color: #022252;
+    color: #f39c12;
     margin-bottom: 30px;
 }
 
@@ -46,16 +49,27 @@ header h1 {
 }
 
 .card-header {
-    background-color: var(--primary-color);
-    color: white;
+    background-color: var(--dark-color);
+    color: rgb(202, 182, 3);
     border-radius: 12px 12px 0 0 !important;
     font-weight: 600;
     padding: 15px 20px;
 }
 
 .card-body {
+    background-color: #022252;
+    color: #f39c12;
+    font-weight: 600;
+    font:bold;
     padding: 20px;
 }
+.card-body:input{
+    background-color: #022252;
+    color: #f39c12;
+    font-weight: 600;
+    font:bold;
+}
+
 
 /* Stats */
 .stat-card {
@@ -97,17 +111,21 @@ header h1 {
 
 /* Tables */
 .table {
+    background-color: #022252;
+    color: #f39c12;
     margin-bottom: 0;
 }
 
 .table th {
     font-weight: 600;
-    color: var(--primary-color);
+    color: #f39c12;
     border-top: none;
 }
 
 .table-hover tbody tr:hover {
     background-color: rgba(52, 152, 219, 0.05);
+    color: #f39c12;
+    font-weight: bold;
 }
 
 .table-responsive {

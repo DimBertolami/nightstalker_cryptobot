@@ -853,6 +853,14 @@ function getRecentTradesWithMarketData(int $limit = 100): array {
         } catch (Exception $e) {
             error_log("Error fetching market data: " . $e->getMessage());
         }
+        // Normalize marketData: strip suffixes for easier lookup by symbol
+        $normalizedMarketData = [];
+        foreach ($marketData as $key => $data) {
+            if (isset($data['symbol'])) {
+                $normalizedMarketData[$data['symbol']] = $data;
+            }
+        }
+        $marketData = $normalizedMarketData;
         
         return array_map(function($trade) use ($cryptoData, $marketData) {
             // Get symbol and name from crypto data
