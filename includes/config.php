@@ -15,7 +15,8 @@ define('MESSARI_API_KEY', 'KABFf3ComY+e1ZMnLZmlo6PuVeIwwTVAR0Xzkd93xelZ7TTB');
 define('MESSARI_API_URL', 'https://data.messari.io/api/v1');
 define('MESSARI_API_VERSION', 'v1');
 // CoinMarketCap Configuration
-define('CMC_API_KEY', '1758e18b-1744-4ad6-a2a9-908af2f33c8a');
+//define('CMC_API_KEY', '1758e18b-1744-4ad6-a2a9-908af2f33c8a');
+define('CMC_API_KEY', 'e2e746c1-169a-4778-90f7-a66458a6af00');
 define('CMC_API_URL', 'https://pro-api.coinmarketcap.com/v1/cryptocurrency');
 define('CMC_API_SYMBOLS', 'BTC,ETH,BNB,SOL');  // Specific coins you track
 
