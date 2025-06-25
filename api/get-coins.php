@@ -20,6 +20,73 @@ try {
     
     // Check if we should fetch from all_coingecko_coins table
     $showAll = isset($_GET['show_all']) && $_GET['show_all'] == 1;
+
+    // If 'show all' is enabled, attempt to fetch all coins directly from CoinGecko public API
+    if ($showAll) {
+        $list = null;
+        // Try cURL if available
+        if (function_exists('curl_init')) {
+            try {
+                $apiUrl = 'https://api.coingecko.com/api/v3/coins/list';
+                $ch = curl_init($apiUrl);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+                $json = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                if ($json !== false && $httpCode === 200) {
+                    $list = json_decode($json, true);
+                } else {
+                    throw new Exception("CoinGecko curl fetch failed (HTTP code {" . $httpCode . "})");
+                }
+            } catch (Exception $e) {
+                error_log('CoinGecko curl fetch failed: ' . $e->getMessage());
+            }
+        }
+        // Fallback to file_get_contents if cURL failed or not available
+        if ($list === null && ini_get('allow_url_fopen')) {
+            try {
+                $apiUrl = 'https://api.coingecko.com/api/v3/coins/list';
+                $json = @file_get_contents($apiUrl);
+                if ($json !== false) {
+                    $list = json_decode($json, true);
+                } else {
+                    throw new Exception("CoinGecko file_get_contents fetch failed");
+                }
+            } catch (Exception $e) {
+                error_log('CoinGecko file_get_contents fetch failed: ' . $e->getMessage());
+            }
+        }
+        // If fetch succeeded, return results
+        if (is_array($list)) {
+            $coinsData = [];
+            foreach ($list as $item) {
+                $coinsData[] = [
+                    'id' => $item['id'],
+                    'symbol' => strtoupper($item['symbol']),
+                    'name' => $item['name'],
+                    'current_price' => null,
+                    'price_change_24h' => null,
+                    'market_cap' => null,
+                    'volume_24h' => null,
+                    'last_updated' => null,
+                    'source' => 'CoinGecko',
+                    'user_balance' => 0,
+                    'is_trending' => false,
+                    'volume_spike' => false
+                ];
+            }
+            ob_clean();
+            echo json_encode([
+                'success' => true,
+                'data' => $coinsData,
+                'show_all' => true,
+                'timestamp' => time()
+            ]);
+            ob_end_flush();
+            exit;
+        }
+    }
     
     if ($showAll) {
         // Fetch from all_coingecko_coins table
