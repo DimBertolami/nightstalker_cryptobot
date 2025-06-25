@@ -48,19 +48,14 @@ try {
     
     // Get all trades for the user, including those with zero or negative balances for debugging
     $portfolioQuery = "
-        SELECT 
-            t.coin_id,
-            SUM(CASE WHEN t.trade_type = 'buy' THEN t.amount ELSE -t.amount END) as balance,
-            SUM(CASE WHEN t.trade_type = 'buy' THEN t.amount * t.price ELSE -t.amount * t.price END) as total_invested,
-            SUM(CASE WHEN t.trade_type = 'buy' THEN t.amount ELSE 0 END) as total_bought,
-            SUM(CASE WHEN t.trade_type = 'sell' THEN t.amount ELSE 0 END) as total_sold,
-            COUNT(*) as trade_count,
-            GROUP_CONCAT(CONCAT(t.trade_type, ' ', t.amount, ' @ ', t.price, ' on ', t.trade_time) SEPARATOR ' | ') as trade_details
-        FROM portfolio t
-        WHERE t.user_id = ?
-        GROUP BY t.coin_id
-        ORDER BY balance DESC
-    ";
+    SELECT 
+        t.coin_id,
+        t.amount,
+        t.avg_buy_price
+    FROM portfolio t
+    WHERE t.user_id = ?
+    ORDER BY t.amount DESC
+";
     
     // Execute the query to get user's portfolio
     $stmt = $db->prepare($portfolioQuery);
@@ -86,8 +81,8 @@ try {
     
     while ($row = $result->fetch_assoc()) {
         $coinId = $row['coin_id'];
-        $balance = (float)$row['balance'];
-        $totalInvestedForCoin = (float)$row['total_invested'];
+        $balance = (float)$row['amount'];
+        $totalInvestedForCoin = (float)$row['avg_buy_price'];
         
         // Get the latest price for this coin
         $priceQuery = "SELECT price FROM price_history WHERE coin_id = ? ORDER BY recorded_at DESC LIMIT 1";

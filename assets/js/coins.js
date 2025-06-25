@@ -235,7 +235,7 @@
              * Fetches coin data from the server and updates the table
              * @param {boolean} forceRefresh - If true, bypasses cache
              */
-            function fetchAndUpdateData(forceRefresh = false) {
+            function fetchAndUpdateData(forceRefresh = true) {
                 console.log('Fetching data...');
                 
                 // Show loading state
@@ -283,7 +283,7 @@
                             throw new Error('Empty response from server');
                         }
                         
-                        //console.log('Response data:', response);
+                        console.log('Response data:', response);
                         
                         if (response.success !== true) {
                             throw new Error(response.message || 'API request failed');
@@ -298,15 +298,15 @@
                         
                         if (coins.length > 0) {
                             // 1. Log sample first
-                            //console.log('First coin sample:', coins[0]);
+                            console.log('First coin sample:', coins[0]);
                             
                             // 2. Clear table immediately
-                            //console.log('Clearing existing table data');
-                            //coinsTable.clear().draw(false);
+                            console.log('Clearing existing table data');
+                            coinsTable.clear().draw(false);
                             
                             // 3. Update timestamp
                             const updateTime = new Date().toLocaleTimeString();
-                            //console.log('Updating table at:', updateTime);
+                            console.log('Updating table at:', updateTime);
                             $('#last-updated').text('Last updated: ' + updateTime);
                             
                             try {
@@ -329,14 +329,14 @@
                                 
                                 // 5. Draw and complete
                                 coinsTable.draw(true);
-                                //console.log('Table update complete - added', coins.length, 'coins');
+                                console.log('Table update complete - added', coins.length, 'coins');
                                 
                                 // Update the portfolio display after a short delay to avoid race conditions
-                                //console.log('Scheduling portfolio update');
-                                //setTimeout(() => {
-                                //    console.log('Starting portfolio update');
-                                //    updatePortfolioDisplay();
-                                //}, 100);
+                                console.log('Scheduling portfolio update');
+                                setTimeout(() => {
+                                    console.log('Starting portfolio update');
+                                    updatePortfolioDisplay();
+                                }, 100);
                                 
                             } catch (error) {
                                 console.error('Error updating table:', error);
@@ -354,7 +354,7 @@
                         } else {
                             console.warn('No coins data available');
                             // Clear the table if no data
-                            //coinsTable.clear().draw();
+                            coinsTable.clear().draw();
                             
                             // Show a message to the user
                             const message = 'No coins data available. Try refreshing the page.';
@@ -408,21 +408,19 @@
                 });
             }
             
-            // Function to update the portfolio display
+            // Function to update the portfolio display with sell buttons
             function updatePortfolioDisplay() {
                 console.log('Updating portfolio display...');
-                const $portfolioContainer = $('#portfolioContainer');
-                const $portfolioLoading = $portfolioContainer.find('.loading');
-                const $portfolioError = $portfolioContainer.find('.error');
-                const $portfolioList = $portfolioContainer.find('#portfolioList');
-                const $totalValue = $portfolioContainer.find('#portfolioTotalValue');
-                const $totalInvested = $portfolioContainer.find('#portfolioTotalInvested');
-                const $totalProfitLoss = $portfolioContainer.find('#portfolioTotalProfitLoss');
+                
+                // Find the portfolio list container
+                const $portfolioList = $('#portfolioList');
+                if ($portfolioList.length === 0) {
+                    console.error('portfolioList element not found!');
+                    return;
+                }
                 
                 // Show loading state
-                $portfolioLoading.show();
-                $portfolioError.hide();
-                $portfolioList.empty();
+                $portfolioList.html('<div class="text-center py-3"><i class="fas fa-spinner fa-spin me-2"></i>Loading portfolio...</div>');
                 
                 // Fetch portfolio data from the server
                 $.ajax({
@@ -432,139 +430,90 @@
                     cache: false,
                     success: function(response) {
                         console.log('Portfolio API Response:', response);
-                        $portfolioLoading.hide();
                         
-                        if (response.success && response.portfolio && response.portfolio.length > 0) {
-                            // Clear previous data
-                            $portfolioList.empty();
-                            
-                            // Calculate totals if not provided
-                            let totalValue = 0;
-                            let totalInvested = 0;
-                            let totalProfitLoss = 0;
-                            
-                            // First pass to calculate totals
-                            response.portfolio.forEach(function(item) {
-                                totalValue += parseFloat(item.current_value || 0);
-                                totalInvested += parseFloat(item.total_invested || 0);
-                                totalProfitLoss += parseFloat(item.profit_loss || 0);
-                            });
-                            
-                            // Sort coins by current value (highest first)
-                            response.portfolio.sort((a, b) => 
-                                (b.current_value || 0) - (a.current_value || 0)
-                            );
-                            
-                            // Populate portfolio items
-                            response.portfolio.forEach(function(item) {
-                                const profitLoss = parseFloat(item.profit_loss || 0);
-                                const profitLossPercent = parseFloat(item.profit_loss_percent || 0);
-                                const profitLossClass = profitLoss >= 0 ? 'text-success' : 'text-danger';
-                                const profitLossSign = profitLoss >= 0 ? '+' : '';
-                                
-                                // Format values
-                                const amount = parseFloat(item.amount || 0).toFixed(8);
-                                const value = parseFloat(item.current_value || 0).toFixed(2);
-                                const invested = parseFloat(item.total_invested || 0).toFixed(2);
-                                const plValue = Math.abs(profitLoss).toFixed(2);
-                                const plPercent = Math.abs(profitLossPercent).toFixed(2);
-                                
-                                const $item = $(
-                                    '<div class="portfolio-item ' + (amount <= 0 ? 'zero-balance' : '') + '">' +
-                                    '  <div class="d-flex justify-content-between align-items-center p-2 border-bottom">' +
-                                    '    <div class="d-flex flex-column">' +
-                                    '      <span class="font-weight-bold">' + (item.symbol || item.coin_id) + '</span>' +
-                                    '      <small class="text-muted">' + (item.name || item.coin_id) + '</small>' +
-                                    '    </div>' +
-                                    '    <div class="text-right">' +
-                                    '      <div class="font-weight-bold">' + amount + ' ' + (item.symbol || '') + '</div>' +
-                                    '      <div class="' + profitLossClass + '">' +
-                                    '        ' + (profitLoss !== 0 ? (profitLossSign + plValue + ' (' + profitLossSign + plPercent + '%)') : '$0.00 (0.00%)') +
-                                    '      </div>' +
-                                    '      <div>$' + value + '</div>' +
-                                    '    </div>' +
-                                    '  </div>' +
-                                    '</div>'
-                                );
-                                
-                                // Add tooltip with more details
-                                $item.tooltip({
-                                    title: 'Bought: ' + parseFloat(item.total_bought || 0).toFixed(8) + 
-                                          ' | Sold: ' + parseFloat(item.total_sold || 0).toFixed(8) +
-                                          ' | Avg. Buy: $' + (item.total_bought > 0 ? (item.total_invested / item.total_bought).toFixed(8) : '0'),
-                                    placement: 'left',
-                                    trigger: 'hover'
-                                });
-                                
-                                $portfolioList.append($item);
-                            });
-                            
-                            // Update summary with calculated or provided totals
-                            const totals = response.totals || {
-                                total_value: totalValue,
-                                total_invested: totalInvested,
-                                total_profit_loss: totalProfitLoss,
-                                total_profit_loss_percent: totalInvested > 0 ? (totalProfitLoss / totalInvested) * 100 : 0
-                            };
-                            
-                            const profitLossClass = totals.total_profit_loss >= 0 ? 'text-success' : 'text-danger';
-                            const profitLossSign = totals.total_profit_loss >= 0 ? '+' : '';
-                            
-                            $totalValue.text('$' + (totals.total_value || 0).toFixed(2));
-                            $totalInvested.text('$' + (totals.total_invested || 0).toFixed(2));
-                            $totalProfitLoss.html(
-                                '<span class="' + profitLossClass + '">' +
-                                profitLossSign + Math.abs(totals.total_profit_loss || 0).toFixed(2) + ' (' +
-                                profitLossSign + Math.abs(totals.total_profit_loss_percent || 0).toFixed(2) + '%)' +
-                                '</span>'
-                            );
-                        } else {
-                            $portfolioList.html('<div class="text-center py-4 text-muted">' +
-                                '<i class="fas fa-wallet fa-3x mb-2"></i><br>' +
-                                'No coins found<br>' +
-                                '<small class="text-muted">Start trading to see your assets here</small>' +
-                                '</div>');
-                                
-                            $totalValue.text('$0.00');
-                            $totalInvested.text('$0.00');
-                            $totalProfitLoss.html('<span class="text-muted">$0.00 (0.00%)</span>');
+                        // Clear previous content
+                        $portfolioList.empty();
+                        
+                        if (!response.success || !response.portfolio || response.portfolio.length === 0) {
+                            $portfolioList.html('<div class="text-muted p-2">No coins in portfolio.</div>');
+                            return;
                         }
+                        
+                        // Filter out coins with zero or negative balance
+                        const validCoins = response.portfolio.filter(coin => {
+                            return parseFloat(coin.amount || 0) > 0;
+                        });
+                        
+                        if (validCoins.length === 0) {
+                            $portfolioList.html('<div class="text-muted p-2">No coins with balance found.</div>');
+                            return;
+                        }
+                        
+                        // Sort coins by balance (highest first)
+                        validCoins.sort((a, b) => parseFloat(b.amount || 0) - parseFloat(a.amount || 0));
+                        
+                        // Create and append sell buttons
+                        validCoins.forEach(coin => {
+                            const symbol = (coin.symbol || coin.coin_id.replace('COIN_', '')).trim();
+                            const amount = parseFloat(coin.amount || 0).toFixed(2);
+                            const coinId = coin.coin_id;
+                            
+                            console.log(`Adding portfolio item: ${symbol} (${amount})`);
+                            
+                            const $button = $(`
+                                <button class="btn btn-sm btn-outline-danger me-2 mb-2 sell-portfolio-btn" 
+                                        data-coin="${coinId}"
+                                        data-symbol="${symbol}">
+                                    ${symbol} (${amount})
+                                </button>
+                            `);
+                            
+                            $button.on('click', function(e) {
+                                e.preventDefault();
+                                console.log(`Sell button clicked: ${symbol} (${amount})`);
+                                if (confirm(`Sell all ${amount} ${symbol}?`)) {
+                                    console.log(`Initiating sell for ${amount} ${symbol}`);
+                                    sellCoin(coinId, 'all');
+                                }
+                            });
+                            
+                            $portfolioList.append($button);
+                        });
+                        
+                        console.log('Finished rendering portfolio buttons');
                     },
                     error: function(xhr, status, error) {
-                        console.error('Error fetching portfolio:', error, xhr);
-                        $portfolioLoading.hide();
-                        $portfolioError.show().html(
-                            'Failed to load portfolio. ' +
-                            '<a href="#" class="alert-link" onclick="app.updatePortfolioDisplay(); return false;">Try again</a>.'
-                        );
-                        
-                        $totalValue.text('$0.00');
-                        $totalInvested.text('$0.00');
-                        $totalProfitLoss.html('<span class="text-muted">$0.00 (0.00%)</span>');
+                        console.error('Error loading portfolio:', status, error);
+                        $portfolioList.html(`
+                            <div class="alert alert-danger">
+                                Error loading portfolio: ${status}<br>
+                                <button class="btn btn-sm btn-outline-secondary mt-2" onclick="updatePortfolioDisplay()">
+                                    <i class="fas fa-sync-alt me-1"></i> Retry
+                                </button>
+                            </div>
+                        `);
                     }
                 });
             }
-            
+
             // Buy coin via AJAX
             function buyCoin(coinId, amount) {
                 // Prevent duplicate submissions
                 if (isProcessingTrade) {
                     console.log('Trade already in progress, please wait...');
-                    //alert('A trade is already in progress. Please wait for it to complete.');
+                    alert('A trade is already in progress. Please wait for it to complete.');
                     return;
                 }
                 
                 // Set flag to indicate trade is in progress
                 isProcessingTrade = true;
                 
-                //console.log(`Buying ${amount} of ${coinId}`);
+                console.log(`Buying ${amount} of ${coinId}`);
                 
                 // Disable buy/sell buttons during the trade
                 $('.buy-btn, .sell-btn').prop('disabled', true);
                 
-                // Debug log
-                console.log(`Buying ${amount} of coin ID: ${coinId}`);
-                
+                // Make the API call
                 fetch('/NS/api/trade.php', {
                     method: 'POST',
                     headers: {
@@ -572,7 +521,7 @@
                     },
                     body: JSON.stringify({
                         action: 'buy',
-                        coinId: coinId.toString(), // Ensure coinId is sent as a string
+                        coinId: coinId.toString(),
                         amount: amount
                     })
                 })
@@ -587,9 +536,9 @@
                 })
                 .then(data => {
                     if (data.success) {
-                        // Show toast notification instead of alert
+                        // Show toast notification
                         showToast(`Successfully bought ${amount} ${coinId}`, 'success');
-                        // Refresh data instead of reloading the page
+                        // Refresh data
                         fetchAndUpdateData();
                         updatePortfolioDisplay();
                     } else {
@@ -598,11 +547,10 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    //alert('Trade failed: ' + error.message);
+                    showToast('Trade failed: ' + error.message, 'error');
                 })
                 .finally(() => {
-                    // Always reset processing flag and re-enable buttons
-                    // regardless of success or failure
+                    // Reset processing flag and re-enable buttons
                     isProcessingTrade = false;
                     $('.buy-btn, .sell-btn').prop('disabled', false);
                 });
@@ -613,19 +561,19 @@
                 // Prevent duplicate submissions
                 if (isProcessingTrade) {
                     console.log('Trade already in progress, please wait...');
-                    //alert('A trade is already in progress. Please wait for it to complete.');
+                    alert('A trade is already in progress. Please wait for it to complete.');
                     return;
                 }
                 
                 // Set flag to indicate trade is in progress
                 isProcessingTrade = true;
                 
-                // Debug log - show what we're trying to sell
-                console.log(`Selling ${amount} of coin ID: ${coinId}`);
+                console.log(`Selling ${amount} of ${coinId}`);
                 
                 // Disable buy/sell buttons during the trade
                 $('.buy-btn, .sell-btn').prop('disabled', true);
                 
+                // Make the API call
                 fetch('/NS/api/trade.php', {
                     method: 'POST',
                     headers: {
@@ -633,7 +581,7 @@
                     },
                     body: JSON.stringify({
                         action: 'sell',
-                        coinId: coinId.toString(), // Ensure coinId is sent as a string
+                        coinId: coinId.toString(),
                         amount: amount
                     })
                 })
@@ -648,9 +596,9 @@
                 })
                 .then(data => {
                     if (data.success) {
-                        // Show toast notification instead of alert
+                        // Show toast notification
                         showToast(`Successfully sold ${amount} ${coinId}`, 'success');
-                        // Refresh data instead of reloading the page
+                        // Refresh data
                         fetchAndUpdateData();
                         updatePortfolioDisplay();
                     } else {
@@ -659,11 +607,10 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    //alert('Trade failed: ' + error.message);
+                    showToast('Trade failed: ' + error.message, 'error');
                 })
                 .finally(() => {
-                    // Always reset processing flag and re-enable buttons
-                    // regardless of success or failure
+                    // Reset processing flag and re-enable buttons
                     isProcessingTrade = false;
                     $('.buy-btn, .sell-btn').prop('disabled', false);
                 });

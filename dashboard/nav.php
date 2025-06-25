@@ -3,7 +3,7 @@
 $navItems = [
     [
         'title' => 'Dashboard',
-        'url' => 'http://localhost/NS/dashboard/',
+        'url' => 'http://localhost/NS/dashboard/index.php',
         'icon' => 'bi-speedometer2'
     ],
     [
@@ -24,7 +24,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="http://localhost/NS/dashboard/">
+        <a class="navbar-brand" href="http://localhost/NS/dashboard/index.php">
             <i class="bi bi-graph-up me-2"></i>
             Night Stalker
         </a>
@@ -34,7 +34,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav me-auto">
                 <?php foreach ($navItems as $item): ?>
-                    <?php $isActive = ($currentPage == basename($item['url'])) || ($currentPage == 'index.php' && $item['url'] == '/NS/dashboard/'); ?>
+                    <?php $isActive = ($currentPage == basename($item['url'])) || ($currentPage == 'index.php' && $item['url'] == '/NS/dashboard/index.php'); ?>
                     <li class="nav-item">
                         <a class="nav-link <?php echo $isActive ? 'active' : ''; ?>" href="<?php echo $item['url']; ?>">
                             <i class="bi <?php echo $item['icon']; ?> me-1"></i>
