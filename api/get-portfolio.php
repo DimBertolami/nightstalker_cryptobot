@@ -1,63 +1,110 @@
 <?php
-// Set JSON content type header
-header('Content-Type: application/json');
-
-// Enable error reporting for debugging
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// Start output buffering to catch any unexpected output
+// Start output buffering at the very beginning
+while (ob_get_level()) ob_end_clean();
 ob_start();
+
+// Set error handling before any other code
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/../../logs/php-error.log');
+
+// Function to send JSON response and exit
+function sendJsonResponse($data, $statusCode = 200) {
+    // Clear any previous output
+    while (ob_get_level()) ob_end_clean();
+    
+    http_response_code($statusCode);
+    header('Content-Type: application/json');
+    
+    $json = json_encode($data);
+    if ($json === false) {
+        // JSON encoding failed, send error
+        $json = json_encode([
+            'success' => false,
+            'message' => 'JSON encoding error: ' . json_last_error_msg(),
+            'data' => null
+        ]);
+    }
+    
+    echo $json;
+    exit;
+}
+
+// Handle any uncaught exceptions
+set_exception_handler(function($e) {
+    error_log("Uncaught Exception: " . $e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
+    sendJsonResponse([
+        'success' => false,
+        'message' => 'An unexpected error occurred',
+        'error' => $e->getMessage(),
+        'file' => $e->getFile(),
+        'line' => $e->getLine()
+    ], 500);
+});
+
+// Set error handler
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
+}, E_ALL);
+
+// Set JSON content type header
+header('Content-Type: application/json; charset=utf-8');
 
 // Include required files
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/database.php';
 
-// Log script execution
-error_log("=== get-portfolio.php started at " . date('Y-m-d H:i:s') . " ===");
-error_log("Session data: " . print_r($_SESSION, true));
-error_log("GET params: " . print_r($_GET, true));
-error_log("POST params: " . print_r($_POST, true));
+// Default response
+$response = [
+    'success' => false,
+    'message' => 'An error occurred',
+    'portfolio' => [],
+    'debug' => []
+];
 
 try {
     // Get user ID from session or use default for testing
     $userId = $_SESSION['user_id'] ?? 1; // Default to user ID 1 for testing
     
-    // Get user portfolio
-    $db = getDBConnection();
-    
-    // Debug: Log the user ID being used
-    error_log("Fetching portfolio for user ID: " . $userId);
-    
-    // First, check if the user has any trades
-    $checkTradesQuery = "SELECT COUNT(*) as trade_count FROM trades WHERE user_id = ?";
-    $checkStmt = $db->prepare($checkTradesQuery);
-    if (!$checkStmt) {
-        throw new Exception("Prepare check trades failed: " . $db->error);
+    // Get database connection
+    require_once __DIR__ . '/../includes/database.php';
+    $db = connectToDatabase();
+    if (!$db || $db->connect_error) {
+        throw new Exception("Database connection failed: " . ($db->connect_error ?? 'Unknown error'));
     }
     
-    $checkStmt->bind_param('i', $userId);
-    if (!$checkStmt->execute()) {
-        throw new Exception("Execute check trades failed: " . $checkStmt->error);
+    // Verify required tables exist
+    $requiredTables = ['portfolio', 'price_history'];
+    foreach ($requiredTables as $table) {
+        $result = $db->query("SHOW TABLES LIKE '$table'");
+        if ($result->num_rows === 0) {
+            throw new Exception("Required table '$table' does not exist");
+        }
     }
     
-    $checkResult = $checkStmt->get_result();
-    $tradesCount = $checkResult->fetch_assoc()['trade_count'];
-    error_log("User $userId has $tradesCount trades in the database");
+    // Debug info
+    $response['debug'] = [
+        'user_id' => $userId,
+        'server' => $_SERVER['SERVER_NAME'] ?? 'unknown',
+        'request_time' => date('Y-m-d H:i:s'),
+        'php_version' => phpversion(),
+        'memory_usage' => memory_get_usage(true) / 1024 / 1024 . 'MB'
+    ];
     
-    // Get all trades for the user, including those with zero or negative balances for debugging
+    // Get portfolio data
     $portfolioQuery = "
-    SELECT 
-        t.coin_id,
-        t.amount,
-        t.avg_buy_price
-    FROM portfolio t
-    WHERE t.user_id = ?
-    ORDER BY t.amount DESC
-";
+        SELECT 
+            t.coin_id,
+            t.amount,
+            t.avg_buy_price,
+            COALESCE((SELECT price FROM price_history WHERE coin_id = t.coin_id ORDER BY recorded_at DESC LIMIT 1), 0) as current_price
+        FROM portfolio t
+        WHERE t.user_id = ? AND t.amount > 0
+        ORDER BY t.amount DESC
+    ";
     
-    // Execute the query to get user's portfolio
     $stmt = $db->prepare($portfolioQuery);
     if (!$stmt) {
         throw new Exception("Prepare failed: " . $db->error);
@@ -77,197 +124,51 @@ try {
     $portfolio = [];
     $totalValue = 0;
     $totalInvested = 0;
-    $totalProfitLoss = 0;
     
     while ($row = $result->fetch_assoc()) {
-        $coinId = $row['coin_id'];
-        $balance = (float)$row['amount'];
-        $totalInvestedForCoin = (float)$row['avg_buy_price'];
+        $amount = (float)$row['amount'];
+        $currentPrice = (float)$row['current_price'];
+        $avgBuyPrice = (float)$row['avg_buy_price'];
+        $currentValue = $amount * $currentPrice;
+        $investedValue = $amount * $avgBuyPrice;
         
-        // Get the latest price for this coin
-        $priceQuery = "SELECT price FROM price_history WHERE coin_id = ? ORDER BY recorded_at DESC LIMIT 1";
-        $priceStmt = $db->prepare($priceQuery);
-        $priceStmt->bind_param('s', $coinId);
-        $priceStmt->execute();
-        $priceResult = $priceStmt->get_result();
-        
-        $currentPrice = 0;
-        if ($priceResult && $priceResult->num_rows > 0) {
-            $priceData = $priceResult->fetch_assoc();
-            $currentPrice = (float)$priceData['price'];
-        }
-        
-        $currentValue = $balance * $currentPrice;
-        $profitLoss = $currentValue - $totalInvestedForCoin;
-        $profitLossPercent = $totalInvestedForCoin > 0 ? ($profitLoss / $totalInvestedForCoin) * 100 : 0;
-        
-        $portfolioItem = [
-            'coin_id' => $coinId,
-            'name' => $coinId,  // Using coin_id as name since we don't have a name mapping
-            'symbol' => substr($coinId, 0, 8),  // Use first 8 chars of coin_id as symbol
+        $portfolio[] = [
+            'coin_id' => $row['coin_id'],
+            'symbol' => str_replace('COIN_', '', $row['coin_id']),
+            'amount' => $amount,
             'current_price' => $currentPrice,
-            'amount' => $balance,
-            'total_invested' => $totalInvestedForCoin,
-            'total_bought' => (float)$row['total_bought'],
-            'total_sold' => (float)$row['total_sold'],
-            'trade_count' => (int)$row['trade_count'],
             'current_value' => $currentValue,
-            'profit_loss' => $profitLoss,
-            'profit_loss_percent' => $profitLossPercent
+            'avg_buy_price' => $avgBuyPrice,
+            'invested_value' => $investedValue,
+            'profit_loss' => $currentValue - $investedValue,
+            'profit_loss_percent' => $avgBuyPrice > 0 ? (($currentPrice - $avgBuyPrice) / $avgBuyPrice) * 100 : 0
         ];
         
-        $portfolio[] = $portfolioItem;
         $totalValue += $currentValue;
-        $totalInvested += $totalInvestedForCoin;
-        $totalProfitLoss += $profitLoss;
+        $totalInvested += $investedValue;
     }
     
-    // Calculate total profit/loss percentage
-    $totalProfitLossPercent = $totalInvested > 0 ? ($totalProfitLoss / $totalInvested) * 100 : 0;
-    
-    // Prepare the response
+    // Success response
     $response = [
         'success' => true,
+        'message' => 'Portfolio loaded successfully',
         'portfolio' => $portfolio,
-        'totals' => [
+        'summary' => [
             'total_value' => $totalValue,
             'total_invested' => $totalInvested,
-            'total_profit_loss' => $totalProfitLoss,
-            'total_profit_loss_percent' => $totalProfitLossPercent
-        ],
-        'timestamp' => time(),
-        'debug' => [
-            'user_id' => $userId,
-            'trades_count' => $tradesCount,
-            'portfolio_items' => count($portfolio),
-            'server' => $_SERVER['SERVER_NAME']
+            'total_profit_loss' => $totalValue - $totalInvested,
+            'total_profit_loss_percent' => $totalInvested > 0 ? (($totalValue - $totalInvested) / $totalInvested) * 100 : 0,
+            'item_count' => count($portfolio)
         ]
     ];
-    
-    // Clean any output that might have been generated
-    ob_clean();
-    
-    // Output the response
-    echo json_encode($response, JSON_PRETTY_PRINT);
-    
-    // Log the response for debugging
-    error_log("Portfolio API Response: " . json_encode($response, JSON_PRETTY_PRINT));
-    
-    // End output buffering and flush
-    ob_end_flush();
-    exit;
-    
-    error_log("Executing portfolio query: " . $portfolioQuery);
-    
-    $stmt = $db->prepare($portfolioQuery);
-    if (!$stmt) {
-        throw new Exception("Prepare failed: " . $db->error);
-    }
-    
-    // Bind the user_id parameter
-    $stmt->bind_param('i', $userId);
-    if (!$stmt->execute()) {
-        throw new Exception("Execute failed: " . $stmt->error);
-    }
-    
-    $portfolioResult = $stmt->get_result();
-    if ($portfolioResult === false) {
-        throw new Exception("Get result failed: " . $db->error);
-    }
-    
-    // Debug: Log the query and result count
-    $numRows = $portfolioResult ? $portfolioResult->num_rows : 0;
-    error_log("Portfolio query executed. Rows found: " . $numRows);
-    
-    $portfolio = [];
-    $totalValue = 0;
-    $totalInvested = 0;
-    $totalProfitLoss = 0;
-    
-    if ($portfolioResult && $numRows > 0) {
-        while ($row = $portfolioResult->fetch_assoc()) {
-            error_log("Processing portfolio row: " . print_r($row, true));
-            
-            $amount = (float)$row['amount'];
-            $currentPrice = (float)$row['current_price'];
-            $currentValue = $amount * $currentPrice;
-            $coinInvested = (float)$row['total_invested'];
-            $profitLoss = $currentValue - $coinInvested;
-            $profitLossPercent = $coinInvested > 0 ? ($profitLoss / $coinInvested) * 100 : 0;
-            
-            // Add to totals
-            $totalValue += $currentValue;
-            $totalInvested += $coinInvested;
-            $totalProfitLoss += $profitLoss;
-            
-            $portfolioItem = [
-                'coin_id' => $row['coin_id'],
-                'name' => $row['name'] ?: 'Unknown',
-                'symbol' => $row['symbol'] ?: 'UNKNOWN',
-                'amount' => $amount,
-                'price' => $currentPrice,
-                'value' => $currentValue,
-                'total_invested' => $coinInvested,  // Changed from $totalInvested to $coinInvested
-                'profit_loss' => $profitLoss,
-                'profit_loss_percent' => $profitLossPercent,
-                'current_value' => $currentValue
-            ];
-            
-            $portfolio[] = $portfolioItem;
-            
-            error_log("Added to portfolio: " . json_encode($portfolioItem));
-        }
-    } else {
-        error_log("No portfolio items found or empty result set");
-    }
-    
-    // Calculate totals
-    $totalProfitLossPercent = $totalInvested > 0 ? ($totalProfitLoss / $totalInvested) * 100 : 0;
-    
-    $response = [
-        'success' => true,
-        'portfolio' => $portfolio,
-        'totals' => [
-            'total_value' => $totalValue,
-            'total_invested' => $totalInvested,
-            'total_profit_loss' => $totalProfitLoss,
-            'total_profit_loss_percent' => $totalProfitLossPercent
-        ],
-        'timestamp' => time(),
-        'debug' => [
-            'user_id' => $userId,
-            'trades_count' => $tradesCount,
-            'portfolio_items' => count($portfolio),
-            'query' => $portfolioQuery,
-            'query_params' => [$userId],
-            'server' => $_SERVER['SERVER_NAME']
-        ]
-    ];
-    
-    // Clean any output that might have been generated
-    ob_clean();
-    
-    // Output the response
-    echo json_encode($response, JSON_PRETTY_PRINT);
-    
-    // Log the response for debugging
-    error_log("Portfolio API Response: " . json_encode($response, JSON_PRETTY_PRINT));
-    
-    // End output buffering and flush
-    ob_end_flush();
-    exit;
     
 } catch (Exception $e) {
-    // Clean any output that might have been generated
-    ob_clean();
-    
-    http_response_code(400);
-    echo json_encode([
+    error_log("Error in get-portfolio.php: " . $e->getMessage());
+    $response = [
         'success' => false,
-        'message' => 'Failed to get portfolio data: ' . $e->getMessage()
-    ]);
-    
-    // End output buffering and flush
-    ob_end_flush();
-    exit;
+        'message' => 'Error: ' . $e->getMessage()
+    ];
 }
+
+// Send the JSON response
+sendJsonResponse($response);

@@ -4,31 +4,22 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
 
-// Initialize showAll flag with default value
-$showAll = false;
-
 // Set title before including header
-$title = "Crypto Stalker - an early tsunami detection system but for crypto";
+$hideZeroValues = !isset($_GET['show_zero_values']) || $_GET['show_zero_values'] != '1';
+$showAllAges = isset($_GET['show_all_ages']) && $_GET['show_all_ages'] == '1';
+$showAll = isset($_GET['show_all']) ? (bool)$_GET['show_all'] : '1';
+
+$title = "Nightstalker - a tsunami prediction system, trained to identify new cryptocurrencies clearly showing growth potential";
 
 // Add custom CSS for new coin highlighting and real-time updates
 $customCSS = <<<EOT
 <style>
-    div{
-        background-color: #061e36;
-        color: rgb(241, 207, 10);
-        font-weight: bold;
-    }
-    
     @keyframes blink {
         0% { opacity: 1; }
         50% { opacity: 0.5; }
         100% { opacity: 1; }
     }
-    .text-field{
-        background-color: #061e36;
-        color: rgb(241, 207, 10);
-        font-weight: bold;
-    }
+    
     .new-coin {
         animation: blink 1s infinite;
         font-weight: bold;
@@ -60,13 +51,6 @@ $customCSS = <<<EOT
     
     /* Portfolio item styles */
     .portfolio-item {
-        background-color: #061e36;
-        color: rgb(241, 207, 10);
-        font-weight: bold;
-        portfolio-padding: 1px;
-        portfolio-border-radius: 1px;
-        portfolio-border: 1px solid #320755;
-        portfolio-box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         transition: all 0.3s ease;
     }
     
@@ -101,15 +85,7 @@ EOT;
 require_once __DIR__ . '/includes/header.php';
 
 // Verify authentication
-//requireAuth();
-
-// Initialize live data array
-$liveData = [
-    'price' => 0,
-    'volume' => 0,
-    'market_cap' => 0,
-    'age_hours' => 0
-];
+//quireAuth();
 
 // Get live market data
 try {
@@ -119,7 +95,7 @@ try {
     }
     
     // Debug: Log market data structure
-    error_log("Market data structure: " . print_r($marketData, true));
+    //error_log("Market data structure: " . print_r($marketData, true));
 
     // Process the show_all parameter if it's set via AJAX
     $showAll = isset($_GET['show_all']) ? (bool)$_GET['show_all'] : false;
@@ -128,32 +104,82 @@ try {
     error_log("showAll: " . ($showAll ? 'true' : 'false'));
     
     if ($showAll) {
+        // Toggle show all coins
+        echo "<script>
+            document.getElementById('show-all-coins-toggle').addEventListener('change', function() {
+                const url = new URL(window.location.href);
+                if (this.checked) {
+                    url.searchParams.set('show_all', '1');
+                } else {
+                    url.searchParams.delete('show_all');
+                }
+                window.location.href = url.toString();
+            });
+            
+            // Toggle show all ages
+            document.getElementById('show-all-ages-toggle').addEventListener('change', function() {
+                const url = new URL(window.location.href);
+                if (this.checked) {
+                    url.searchParams.set('show_all_ages', '1');
+                } else {
+                    url.searchParams.delete('show_all_ages');
+                }
+                window.location.href = url.toString();
+            });
+            
+            // Toggle show zero values
+            document.getElementById('show-zero-values-toggle').addEventListener('change', function() {
+                const url = new URL(window.location.href);
+                if (this.checked) {
+                    url.searchParams.set('show_zero_values', '1');
+                } else {
+                    url.searchParams.delete('show_zero_values');
+                }
+                window.location.href = url.toString();
+            });
+        </script>";
+        
         // Show all coins, but still sort by market cap (highest first) and limit to 1000 for performance
         $db = getDBConnection();
         if (!$db) {
             throw new Exception("Database connection failed");
         }
         
-        $coinsQuery = "SELECT *, TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
-                      FROM coins 
-                      ORDER BY market_cap DESC 
+        $coinsQuery = "SELECT 
+                        cg.id, 
+                        cg.symbol, 
+                        cg.name, 
+                        cc.price as current_price, 
+                        cc.volume as volume_24h, 
+                        cc.market_cap,
+                        cc.price_change_24h,
+                        cg.last_updated,
+                        c.is_trending,
+                        c.volume_spike
+                      FROM all_coingecko_coins cg
+                      LEFT JOIN cryptocurrencies cc ON cg.id = cc.coin_id
+                      LEFT JOIN coins c ON cg.symbol = c.symbol
+                      WHERE cc.price > 0 
+                      AND cc.volume > 0 
+                      AND cc.market_cap > 0
+                      ORDER BY cc.market_cap DESC 
                       LIMIT 1000";
                       
         $stmt = $db->prepare($coinsQuery);
         $stmt->execute();
-        $coinsResult = $stmt->get_result();
-        $coinsData = $coinsResult ? $coinsResult->fetch_all(MYSQLI_ASSOC) : [];
+        $coinsData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Log how many coins were returned
+        error_log("Fetched " . count($coinsData) . " coins with non-zero values");
     } else {
         // Use getTrendingCoins() to get trending coins
         $coinsData = getTrendingCoins();
-        //print_r($coinsData);
+        //print_r($coinsData);        
         if (empty($coinsData)) {
             error_log("No trending coins found");
             // Fallback to new coins if no trending coins
             $coinsData = getNewCryptocurrencies();
             error_log("Falling back to " . count($coinsData) . " new coins");
-        } else {
-            error_log("Found " . count($coinsData) . " trending coins");
         }
         
         // Sort by volume_24h DESC (highest volume first)
@@ -167,59 +193,40 @@ try {
 echo "</pre>";
 
     // Merge live data with database data
-    $coins = array_map(function($coin) use ($marketData) {
-        if (!is_array($coin)) {
-            $coin = [];
+    $coins = array_filter(array_map(function($coin) use ($marketData, $showAllAges) {
+        $symbol = $coin['symbol'];
+        $liveData = $marketData[$symbol] ?? null;
+        
+        $currentPrice = (float)($liveData['price'] ?? $coin['current_price'] ?? 0);
+        $volume24h = (float)($liveData['volume'] ?? $coin['volume_24h'] ?? 0);
+        $marketCap = (float)($liveData['market_cap'] ?? $coin['market_cap'] ?? 0);
+        $ageHours = (int)((time() - strtotime($coin['last_updated'])) / 3600);
+        
+        // Skip coins with zero price, volume, or market cap if hideZeroValues is true
+        if ($hideZeroValues && ($currentPrice <= 0 || $volume24h <= 0 || $marketCap <= 0)) {
+            return null;
         }
         
-        $symbol = $coin['symbol'] ?? '';
-        $liveData = is_array($marketData) && isset($marketData[$symbol]) ? $marketData[$symbol] : [];
-        
-        // Ensure we have valid price data with proper null checks
-        $currentPrice = 0.0;
-        if (is_array($liveData) && isset($liveData['price']) && is_numeric($liveData['price'])) {
-            $currentPrice = (float)$liveData['price'];
-        } elseif (isset($coin['current_price']) && is_numeric($coin['current_price'])) {
-            $currentPrice = (float)$coin['current_price'];
-        }
-        
-        // Safely get numeric values with defaults
-        $priceChange24h = 0.0;
-        if (isset($liveData['change']) && is_numeric($liveData['change'])) {
-            $priceChange24h = (float)$liveData['change'];
-        } elseif (isset($coin['price_change_24h']) && is_numeric($coin['price_change_24h'])) {
-            $priceChange24h = (float)$coin['price_change_24h'];
-        }
-        
-        $volume24h = 0.0;
-        if (is_array($liveData) && isset($liveData['volume']) && is_numeric($liveData['volume'])) {
-            $volume24h = (float)$liveData['volume'];
-        } elseif (isset($coin['volume_24h']) && is_numeric($coin['volume_24h'])) {
-            $volume24h = (float)$coin['volume_24h'];
-        }
-        
-        $marketCap = 0.0;
-        if (isset($liveData['market_cap']) && is_numeric($liveData['market_cap'])) {
-            $marketCap = (float)$liveData['market_cap'];
-        } elseif (isset($coin['market_cap']) && is_numeric($coin['market_cap'])) {
-            $marketCap = (float)$coin['market_cap'];
+        // Skip coins older than 24 hours if not showing all ages
+        if (!$showAllAges && $ageHours > 24) {
+            return null;
         }
         
         return [
-            'id' => isset($coin['id']) ? (int)$coin['id'] : 0,
-            'name' => $coin['name'] ?? 'Unknown',
-            'symbol' => $symbol,
-            'current_price' => $currentPrice,
-            'price_change_24h' => $priceChange24h,
-            'volume_24h' => $volume24h,
-            'market_cap' => $marketCap,
-            'date_added' => $liveData['date_added'] ?? $coin['date_added'] ?? null,
-            'age_hours' => (isset($coin['age_hours']) && is_numeric($coin['age_hours'])) ? (int)$coin['age_hours'] : 0,
-            'is_trending' => !empty($coin['is_trending']),
-            'volume_spike' => !empty($coin['volume_spike']),
-            'last_updated' => $coin['last_updated'] ?? null
+            'id' => $coin['id'],
+            'name' => $coin['name'],
+            'symbol' => $coin['symbol'],
+            'current_price' => (float)$currentPrice,
+            'price_change_24h' => (float)($liveData['change'] ?? $coin['price_change_24h'] ?? 0),
+            'volume_24h' => (float)$volume24h,
+            'market_cap' => (float)$marketCap,
+            'date_added' => $liveData['date_added'] ?? null,
+            'age_hours' => (int)((time() - strtotime($coin['last_updated'])) / 3600),
+            'is_trending' => (bool)($coin['is_trending'] ?? false),
+            'volume_spike' => (bool)($coin['volume_spike'] ?? false),
+            'last_updated' => $coin['last_updated']
         ];
-    }, $coinsData);
+    }, $coinsData));
 
 } catch (Exception $e) {
     error_log("Market data error: " . $e->getMessage());
@@ -237,26 +244,13 @@ try {
     error_log("Balance error: " . $e->getMessage());
     $_SESSION['error'] = "Could not load portfolio balances.";
 }
-
-// Remove coins with price exactly 0.00000000
-$coins = array_filter($coins, function($coin) {
-    return isset($coin['current_price']) && floatval($coin['current_price']) > 0;
-});
 ?>
 
 <style>
     /* Table styles */
     #coins-table {
-        background-color: #061e36;
-        color: rgb(241, 207, 10);
-        border-left: 4px solid #17a2b8;
         width: 100%;
         margin: 20px 0;
-    }
-    #coins-table FILTER{
-        background-color: #061e36;
-        color: rgb(241, 207, 10);
-        border-left: 4px solid #17a2b8;
     }
     #coins-table th {
         background: #343a40;
@@ -265,9 +259,6 @@ $coins = array_filter($coins, function($coin) {
         white-space: nowrap;
     }
     #coins-table td {
-        background-color: #061e36;
-        color: rgb(241, 207, 10);
-        border-left: 4px solid #17a2b8;
         padding: 8px 12px;
         border-bottom: 1px solid #dee2e6;
         vertical-align: middle;
@@ -320,18 +311,8 @@ $coins = array_filter($coins, function($coin) {
         color: #212529;
     }
     .badge-volume-spike {
-        background-color:rgb(20, 5, 63);
-        color: rgb(241, 207, 10);
-    }
-    
-    /* Portfolio buttons */
-    .sell-portfolio-btn {
-        min-width: 100px;
-        transition: all 0.2s;
-    }
-    .sell-portfolio-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        background-color: #17a2b8;
+        color: white;
     }
 </style>
 
@@ -339,7 +320,7 @@ $coins = array_filter($coins, function($coin) {
     <div class="row mb-4">
         <div class="col-md-12">
             <h1 class="mt-4">
-                <i class="fas fa-coins"></i> <?php echo $showAll ? 'All Coins' : 'New Coins'; ?>
+                <i class="fas fa-coins"></i> <?php echo $showAll ? 'All Coins' : 'New High-Value Coins (<24h old)'; ?>
                 <small class="text-muted">Live Market Data</small>
             </h1>
             
@@ -351,29 +332,39 @@ $coins = array_filter($coins, function($coin) {
             <?php endif; ?>
             
             <!-- User Balances Display -->
-            <div class="alert portfolio-alert">
+            <div class="alert alert-dark">
                 <div class="d-flex align-items-center">
                     <strong>Your Portfolio:</strong>
                     <div id="portfolio-loading" class="ms-2"></div>
-                    <div id="portfolio" class="ms-2 d-flex flex-wrap gap-2">
+                    <div id="portfolio" class="ms-2">
                         <!-- Portfolio items will be loaded here via JavaScript -->
-                        <span class="text-muted">Loading portfolio...</span>
+                        <span class="text-muted"><!-- Add this where you want the portfolio to appear -->
+                            <div class="card mb-4">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Your Portfolio</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="portfolio-buttons" class="d-flex flex-wrap gap-2">
+                                        <!-- Portfolio buttons will appear here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </span>
                     </div>
                     <div id="total-portfolio-value" class="ms-auto fw-bold">
                         Total: $0.00
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
-    
+</div>
+
     <div class="row">
         <div class="col-12">
             <div class="card shadow">
                 <div class="card-header bg-primary text-white">
                     <h5 class="card-title mb-0">
                         <i class="fas fa-coins me-2"></i>
-                        <?php echo isset($_GET['show_all']) ? 'All Coins' : 'High-Value Coins'; ?>
+                        <?php echo isset($_GET['show_all']) ? 'All Coins' : 'New High-Value Coins (<24h old)'; ?>
                         <span id="last-update"></span>
                         <button id="refresh-btn" class="btn btn-sm btn-light">
                             <i class="fas fa-sync-alt"></i> Refresh
@@ -386,13 +377,22 @@ $coins = array_filter($coins, function($coin) {
                             <input class="form-check-input" type="checkbox" id="show-all-coins-toggle" <?= $showAll ? 'checked' : '' ?>>
                             <label class="form-check-label text-white" for="show-all-coins-toggle">Show All Coins (<?= $showAll ? 'All' : 'Filtered' ?>)</label>
                         </div>
+                        <div class="form-check form-switch d-inline-block ms-3">
+                            <input class="form-check-input" type="checkbox" id="show-all-ages-toggle" <?= $showAllAges ? 'checked' : '' ?>>
+                            <label class="form-check-label text-white" for="show-all-ages-toggle">Show All Ages (<?= $showAllAges ? 'All' : '<24h' ?>)</label>
+                        </div>
+                        <div class="form-check form-switch d-inline-block ms-3">
+                            <input class="form-check-input" type="checkbox" id="show-zero-values-toggle" <?= !$hideZeroValues ? 'checked' : '' ?>>
+                            <label class="form-check-label text-white" for="show-zero-values-toggle">Show Zero Values (<?= !$hideZeroValues ? 'Yes' : 'No' ?>)</label>
+                        </div>
                     </h5>
+                    </div>
                 </div>
                 
                 <?php if (empty($coins)): ?>
                     <div class="card-body">
                         <div class="alert alert-warning">
-                            No data found.
+                            No cryptocurrency data found. Please try again later.
                         </div>
                     </div>
                 <?php else: ?>
@@ -442,17 +442,17 @@ $coins = array_filter($coins, function($coin) {
                                             </div>
                                         </div>
                                     </td>
-                                    <td>$<?= $coin['current_price'] !== null ? number_format((float)$coin['current_price'], $coin['current_price'] >= 1 ? 2 : 8) : 'N/A' ?></td>
+                                    <td>$<?= number_format($coin['current_price'], $coin['current_price'] >= 1 ? 2 : 8) ?></td>
                                     <td class="<?= $priceChangeClass ?>">
                                         <?php if ($coin['price_change_24h'] >= 0): ?>
                                             <i class="fas fa-caret-up"></i>
                                         <?php else: ?>
                                             <i class="fas fa-caret-down"></i>
                                         <?php endif; ?>
-                                        <?= $coin['price_change_24h'] !== null ? number_format(abs((float)$coin['price_change_24h']), 2) : '0.00' ?>%
+                                        <?= number_format(abs($coin['price_change_24h']), 2) ?>%
                                     </td>
-                                    <td>$<?= isset($coin['volume_24h']) ? number_format((float)$coin['volume_24h']) : '0' ?></td>
-                                    <td>$<?= isset($coin['market_cap']) ? number_format((float)$coin['market_cap']) : '0' ?></td>
+                                    <td>$<?= number_format($coin['volume_24h'] ?? 0) ?></td>
+                                    <td>$<?= number_format($coin['market_cap']) ?></td>
                                     <td class="<?= $ageClass ?>">
                                         <?= $ageDisplay ?>
                                         <?php if ($isNew): ?>

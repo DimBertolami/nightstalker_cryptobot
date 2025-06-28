@@ -60,62 +60,6 @@ async function refreshData() {
     }
 }
 
-// Function to handle buying a coin
-function buyCoin(coinId, amount) {
-    console.log(`Buying ${amount} of ${coinId}`);
-    // AJAX call to trading API would go here
-    fetch('/NS/api/trade.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            action: 'buy',
-            coinId: coinId,
-            amount: amount
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(`Successfully bought ${amount} ${coinId}`);
-            location.reload();
-        } else {
-            alert(`Error: ${data.message}`);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Trade failed');
-    });
-}
+// buyCoin function has been moved to coins.js to prevent duplicate execution
 
-// Function to handle selling a coin
-function sellCoin(coinId, amount) {
-    console.log(`Selling ${amount} of ${coinId}`);
-    // AJAX call to trading API would go here
-    fetch('/NS/api/trade.php', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            action: 'sell',
-            coinId: coinId,
-            amount: amount
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(`Successfully sold ${amount} ${coinId}`);
-            location.reload();
-        } else {
-            alert(`Error: ${data.message}`);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Trade failed');
-    });
-}
+// sellCoin function has been moved to coins.js to prevent duplicate execution

@@ -81,7 +81,32 @@
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error('AJAX error fetching default exchange:', error);
+                        console.error('AJAX error fetching default exchange:', {
+                            status: status,
+                            error: error,
+                            statusCode: xhr.status,
+                            statusText: xhr.statusText,
+                            response: xhr.responseText
+                        });
+                        
+                        let errorMessage = 'Failed to load exchange settings';
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            if (response && response.message) {
+                                errorMessage = response.message;
+                            } else if (xhr.status === 0) {
+                                errorMessage = 'Network error: Could not connect to server';
+                            }
+                        } catch (e) {
+                            console.error('Error parsing error response:', e);
+                        }
+                        
+                        showToast(errorMessage, 'error');
+                        
+                        // If we have a 401 Unauthorized, redirect to login
+                        if (xhr.status === 401) {
+                            window.location.href = '/login.php';
+                        }
                     }
                 });
             }
@@ -374,35 +399,85 @@
                         }
                     },
                     error: function(xhr, status, error) {
-                        console.error('AJAX Error:', {
+                        // Log detailed error information
+                        const errorDetails = {
                             status: status,
                             error: error,
-                            response: xhr.responseText,
                             statusCode: xhr.status,
-                            statusText: xhr.statusText
-                        });
+                            statusText: xhr.statusText,
+                            url: xhr.responseURL || window.location.href,
+                            method: xhr.config?.method || 'GET',
+                            timestamp: new Date().toISOString()
+                        };
                         
-                        let errorMessage = 'Failed to fetch data';
+                        // Log the error with more context
+                        console.error('Failed to fetch market data:', errorDetails);
+                        
+                        // Try to extract a user-friendly error message
+                        let errorMessage = 'Failed to load market data';
+                        let showRetry = true;
+                        
                         try {
-                            const response = JSON.parse(xhr.responseText);
-                            if (response && response.message) {
-                                errorMessage = response.message;
-                            } else if (xhr.status === 0) {
-                                errorMessage = 'Network error: Could not connect to server';
-                            } else if (xhr.status === 500) {
-                                errorMessage = 'Server error: Please try again later';
+                            // Try to parse JSON response if available
+                            if (xhr.responseText) {
+                                const response = JSON.parse(xhr.responseText);
+                                if (response?.message) {
+                                    errorMessage = response.message;
+                                    // If we have a specific error code, handle it
+                                    if (response.code === 'RATE_LIMITED') {
+                                        errorMessage = 'Rate limit exceeded. Please wait before trying again.';
+                                        showRetry = false;
+                                    }
+                                }
+                            }
+                            
+                            // Handle specific HTTP status codes
+                            if (xhr.status === 0) {
+                                errorMessage = 'Network error: Could not connect to the server';
+                            } else if (xhr.status === 401) {
+                                errorMessage = 'Session expired. Redirecting to login...';
+                                showRetry = false;
+                                setTimeout(() => window.location.href = '/login.php', 1500);
+                                return;
+                            } else if (xhr.status === 403) {
+                                errorMessage = 'Access denied. Please check your permissions.';
+                            } else if (xhr.status === 404) {
+                                errorMessage = 'Market data endpoint not found';
+                            } else if (xhr.status >= 500) {
+                                errorMessage = 'Server error. Our team has been notified.';
                             }
                         } catch (e) {
-                            console.error('Error parsing error response:', e);
+                            console.error('Error processing error response:', e);
                         }
                         
+                        // Show error to user
+                        const errorHtml = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                ${errorMessage}
+                                ${showRetry ? `
+                                    <button class="btn btn-sm btn-outline-light ms-3" onclick="fetchAndUpdateData(true)">
+                                        <i class="fas fa-sync-alt me-1"></i> Retry
+                                    </button>
+                                ` : ''}
+                            </div>
+                        `;
+                        
+                        // Only show the error in the table if it's empty
+                        if (coinsTable.data().count() === 0) {
+                            coinsTable.clear();
+                            coinsTable.row.add({
+                                'symbol': '<i class="fas fa-exclamation-triangle text-warning"></i>',
+                                'name': errorMessage,
+                                'price': 'Error',
+                                'price_change_24h': '',
+                                'volume_24h': '',
+                                'market_cap': ''
+                            }).draw();
+                        }
+                        
+                        // Also show a toast notification
                         showToast(errorMessage, 'error');
-                        $loading.hide();
-                        
-                        // If we have a 401 Unauthorized, redirect to login
-                        if (xhr.status === 401) {
-                            window.location.href = '/login.php';
-                        }
                     },
                     complete: function() {
                         // Always hide loading indicator when the request is complete
@@ -412,7 +487,7 @@
             }
             
             // Function to update the portfolio display with sell buttons
-            function updatePortfolioDisplay() {
+            window.updatePortfolioDisplay = function() {
                 console.log('Updating portfolio display...');
                 
                 // Find the portfolio container and total element
@@ -502,15 +577,98 @@
                         console.log('Finished rendering portfolio buttons');
                     },
                     error: function(xhr, status, error) {
-                        console.error('Error loading portfolio:', status, error);
-                        $portfolio.html(`
+                        // Log detailed error information
+                        const errorDetails = {
+                            status: status,
+                            error: error,
+                            statusCode: xhr.status,
+                            statusText: xhr.statusText,
+                            url: xhr.responseURL || window.location.href,
+                            timestamp: new Date().toISOString(),
+                            responseText: xhr.responseText ? xhr.responseText.substring(0, 500) : '' // Log first 500 chars of response
+                        };
+                        
+                        console.error('Failed to load portfolio:', errorDetails);
+                        
+                        // Try to extract a user-friendly error message
+                        let errorMessage = 'Failed to load portfolio data';
+                        let showRetry = true;
+                        let isHtmlResponse = false;
+                        
+                        try {
+                            // Check if response is HTML (starts with <)
+                            if (xhr.responseText && xhr.responseText.trim().startsWith('<')) {
+                                isHtmlResponse = true;
+                                
+                                // Try to extract error message from HTML
+                                const tempDiv = document.createElement('div');
+                                tempDiv.innerHTML = xhr.responseText;
+                                const errorText = tempDiv.textContent || tempDiv.innerText || '';
+                                
+                                if (errorText.includes('Database Error') || errorText.includes('SQL syntax')) {
+                                    errorMessage = 'Database error occurred. Please try again later.';
+                                } else if (errorText.includes('Fatal error') || errorText.includes('Parse error')) {
+                                    errorMessage = 'Server error. Our team has been notified.';
+                                } else if (errorText.includes('CoinGecko') && errorText.includes('429')) {
+                                    errorMessage = 'Rate limit reached. Please wait before trying again.';
+                                    showRetry = false;
+                                    setTimeout(() => updatePortfolioDisplay(), 30000); // Retry after 30 seconds
+                                } else {
+                                    errorMessage = 'Server returned an error page. Please try again.';
+                                }
+                            } 
+                            // Try to parse JSON response if available
+                            else if (xhr.responseText) {
+                                try {
+                                    const response = JSON.parse(xhr.responseText);
+                                    if (response?.message) {
+                                        errorMessage = response.message;
+                                    }
+                                } catch (e) {
+                                    console.error('Failed to parse JSON response:', e);
+                                }
+                            }
+                            
+                            // Handle specific HTTP status codes
+                            if (xhr.status === 0) {
+                                errorMessage = 'Network error: Could not connect to the server';
+                            } else if (xhr.status === 401) {
+                                errorMessage = 'Session expired. Redirecting to login...';
+                                showRetry = false;
+                                setTimeout(() => window.location.href = '/login.php', 1500);
+                                return;
+                            } else if (xhr.status === 403) {
+                                errorMessage = 'Access denied. Please check your permissions.';
+                            } else if (xhr.status === 404) {
+                                errorMessage = 'Portfolio data endpoint not found';
+                            } else if (xhr.status === 429) {
+                                errorMessage = 'Too many requests. Please wait before trying again.';
+                                showRetry = false;
+                                setTimeout(() => updatePortfolioDisplay(), 30000); // Retry after 30 seconds
+                            } else if (xhr.status >= 500) {
+                                errorMessage = 'Server error. Our team has been notified.';
+                            }
+                        } catch (e) {
+                            console.error('Error processing error response:', e);
+                        }
+                        
+                        // Show error to user with retry option
+                        const errorHtml = `
                             <div class="alert alert-danger">
-                                Error loading portfolio: ${status}<br>
-                                <button class="btn btn-sm btn-outline-secondary mt-2" onclick="updatePortfolioDisplay()">
-                                    <i class="fas fa-sync-alt me-1"></i> Retry
-                                </button>
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                ${errorMessage}
+                                ${showRetry ? `
+                                    <button class="btn btn-sm btn-outline-light ms-3" onclick="updatePortfolioDisplay()">
+                                        <i class="fas fa-sync-alt me-1"></i> Retry
+                                    </button>
+                                ` : ''}
                             </div>
-                        `);
+                        `;
+                        
+                        $portfolio.html(errorHtml);
+                        
+                        // Also show a toast notification
+                        showToast(errorMessage, 'error');
                     }
                 });
             }

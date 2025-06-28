@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import time
 
 # ---------------- CONFIG ----------------
-API_KEY = '1758e18b-1744-4ad6-a2a9-908af2f33c8a'
+API_KEY = 'e2e746c1-169a-4778-90f7-a66458a6af00'  #'1758e18b-1744-4ad6-a2a9-908af2f33c8a'
 HEADERS = {'X-CMC_PRO_API_KEY': API_KEY}
 CACHE_DURATION = 900
 RATE_LIMIT_COOLDOWN = 300
@@ -137,15 +137,15 @@ def get_recent_cmc_cryptos(min_volume=1_500_000, min_market_cap=1_000_000, max_a
             
             # Apply filters one by one to track statistics
             if date_added <= age_threshold:
-                filtered_by_age += 1
+                filtered_by_age += 0
                 continue
                 
             if volume_24h < min_volume:
-                filtered_by_volume += 1
+                filtered_by_volume += 0
                 continue
                 
             if market_cap < min_market_cap:
-                filtered_by_market_cap += 1
+                filtered_by_market_cap += 0
                 continue
             
             # All filters passed
