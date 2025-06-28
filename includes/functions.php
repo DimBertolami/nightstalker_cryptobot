@@ -1170,7 +1170,13 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
     $portfolioData = getUserCoinBalance($coinId);
     $userBalance = $portfolioData['amount'];
     $avgBuyPrice = $portfolioData['avg_buy_price'];
-    $portfolioId = $portfolioData['coin_id'] ?? 'COIN_' . strtoupper($coinId);
+    
+    // Handle both prefixed and non-prefixed coin IDs
+    $cleanCoinId = strtoupper(str_replace('COIN_', '', $coinId));
+    $portfolioId = $portfolioData['coin_id'] ?? $cleanCoinId;
+    
+    // Log for debugging
+    error_log("Sell - Original ID: $coinId, Clean ID: $cleanCoinId, Portfolio ID: $portfolioId");
     
     // Special case for 'all' amount
     if ($amount === 'all') {
@@ -1198,21 +1204,23 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
     
     try {
         // Insert trade record without user_id
+        // Use the clean coin ID (without COIN_ prefix) for the trades table
         $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) VALUES (?, 'sell', ?, ?, ?, NOW())");
-        $stmt->bind_param("sddd", $portfolioId, $amount, $price, $totalValue);
+        $stmt->bind_param("sddd", $cleanCoinId, $amount, $price, $totalValue);
         $stmt->execute();
         
         // Update portfolio
         $remainingAmount = $userBalance - $amount;
         
+        // First try with the exact portfolio ID, then try with clean ID if needed
         if ($remainingAmount <= 0.00000001) { // Effectively zero
-            // Remove from portfolio
-            $stmt = $db->prepare("DELETE FROM portfolio WHERE coin_id = ?");
-            $stmt->bind_param("s", $portfolioId);
+            // Try to delete with the exact portfolio ID first
+            $stmt = $db->prepare("DELETE FROM portfolio WHERE coin_id IN (?, ?)");
+            $stmt->bind_param("ss", $portfolioId, $cleanCoinId);
         } else {
-            // Update remaining amount
-            $stmt = $db->prepare("UPDATE portfolio SET amount = ? WHERE coin_id = ?");
-            $stmt->bind_param("ds", $remainingAmount, $portfolioId);
+            // Update remaining amount - try with both ID formats
+            $stmt = $db->prepare("UPDATE portfolio SET amount = ? WHERE coin_id IN (?, ?)");
+            $stmt->bind_param("dss", $remainingAmount, $portfolioId, $cleanCoinId);
         }
         
         $stmt->execute();

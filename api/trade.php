@@ -216,20 +216,27 @@ try {
             }
         }
         
-        // Check portfolio
+        // Check portfolio - handle both COIN_ prefixed and non-prefixed coin IDs
         $portfolioStmt = $db->prepare("SELECT p.coin_id, p.amount, p.avg_buy_price, 
-                                     COALESCE(c.symbol, cr.symbol) as symbol, 
-                                     COALESCE(c.name, cr.name) as name,
-                                     COALESCE(c.current_price, cr.price) as price
+                                     COALESCE(c.symbol, cr.symbol, p.coin_id) as symbol, 
+                                     COALESCE(c.name, cr.name, p.coin_id) as name,
+                                     COALESCE(c.current_price, cr.price, 
+                                     (SELECT price FROM cryptocurrencies WHERE symbol = p.coin_id LIMIT 1)) as price
                                      FROM portfolio p
-                                     LEFT JOIN coins c ON c.symbol = SUBSTRING(p.coin_id, 6)
-                                     LEFT JOIN cryptocurrencies cr ON cr.id = p.coin_id
-                                     WHERE p.coin_id = ?");
+                                     LEFT JOIN coins c ON c.symbol = CASE 
+                                         WHEN p.coin_id LIKE 'COIN_%' THEN SUBSTRING(p.coin_id, 6)
+                                         ELSE p.coin_id
+                                     END
+                                     LEFT JOIN cryptocurrencies cr ON cr.id = p.coin_id OR cr.symbol = p.coin_id
+                                     WHERE p.coin_id = ? OR 
+                                     (p.coin_id LIKE 'COIN_%' AND SUBSTRING(p.coin_id, 6) = ?) OR
+                                     (p.coin_id = ? AND ? LIKE 'COIN_%' AND p.coin_id = SUBSTRING(?, 6))");
         if (!$portfolioStmt) {
             returnJsonError('Database prepare error: ' . $db->error, 500);
         }
         
-        $portfolioStmt->bind_param('s', $coinId);
+        // Bind parameters for the query - we need to pass the coinId multiple times for the different conditions
+        $portfolioStmt->bind_param('sssss', $coinId, $coinId, $coinId, $coinId, $coinId);
         $portfolioStmt->execute();
         $portfolioResult = $portfolioStmt->get_result();
         

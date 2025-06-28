@@ -47,12 +47,21 @@ function initDB() {
         }
         
         // First check if tables exist
-        $requiredTables = ['cryptocurrencies', 'price_history', 'system_logs', 'trades', 'coins'];
+        $requiredTables = ['cryptocurrencies', 'price_history', 'system_logs', 'trades', 'coins', 'all_coingecko_coins'];
         $existingTables = [];
         
+        // Get all tables in the database
+        $result = $db->query("SHOW TABLES");
+        $tables = [];
+        if ($result) {
+            while($row = $result->fetch_row()) {
+                $tables[] = $row[0];
+            }
+        }
+        
+        // Check which required tables exist
         foreach ($requiredTables as $table) {
-            $result = $db->query("SHOW TABLES LIKE '$table'");
-            if ($result && $result->num_rows > 0) {
+            if (in_array($table, $tables)) {
                 $existingTables[] = $table;
             }
         }
