@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Night Stalker - Trading Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+        .balance-card { transition: all 0.3s; }
+        .balance-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .order-form { background: #f8f9fa; border-radius: 10px; padding: 20px; }
+        .nav-tabs .nav-link.active { font-weight: bold; }
+        .loading { display: none; text-align: center; padding: 20px; }
+        .loading-spinner { width: 3rem; height: 3rem; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="display-5">Night Stalker Trading</h1>
+                <p class="lead">Real-time trading dashboard</p>
+                <hr>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Balances -->
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Wallet Balances</h5>
+                        <div>
+                            <select id="exchange-select" class="form-select form-select-sm" style="width: 150px; display: inline-block;">
+                                <option value="binance">Binance</option>
+                                <option value="bitvavo">Bitvavo</option>
+                                <option value="kraken">Kraken</option>
+                            </select>
+                            <button id="refresh-balances" class="btn btn-sm btn-outline-primary ms-2">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="loading-balances" class="loading">
+                            <div class="spinner-border text-primary loading-spinner" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p>Loading balances...</p>
+                        </div>
+                        <div id="balances-container" class="list-group list-group-flush">
+                            <!-- Balances will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Form -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" id="orderTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="market-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#market-order" type="button" role="tab">Market Order</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="limit-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#limit-order" type="button" role="tab">Limit Order</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="stop-tab" data-bs-toggle="tab" 
+                                    data-bs-target="#stop-order" type="button" role="tab">Stop Order</button>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="orderTabsContent">
+                            <!-- Market Order -->
+                            <div class="tab-pane fade show active" id="market-order" role="tabpanel">
+                                <form id="market-order-form" class="order-form">
+                                    <input type="hidden" name="type" value="market">
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Trading Pair</label>
+                                            <select name="symbol" class="form-select" required>
+                                                <option value="BTC/USDT">BTC/USDT</option>
+                                                <option value="ETH/USDT">ETH/USDT</option>
+                                                <option value="BNB/USDT">BNB/USDT</option>
+                                                <option value="SOL/USDT">SOL/USDT</option>
+                                                <option value="XRP/USDT">XRP/USDT</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Side</label>
+                                            <div class="btn-group w-100" role="group">
+                                                <input type="radio" class="btn-check" name="side" id="market-buy" value="buy" checked>
+                                                <label class="btn btn-outline-success" for="market-buy">Buy</label>
+                                                
+                                                <input type="radio" class="btn-check" name="side" id="market-sell" value="sell">
+                                                <label class="btn btn-outline-danger" for="market-sell">Sell</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="market-amount" class="form-label">Amount</label>
+                                        <div class="input-group">
+                                            <input type="number" step="0.00000001" class="form-control" id="market-amount" name="amount" required>
+                                            <span class="input-group-text">BTC</span>
+                                        </div>
+                                    </div>
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-primary">Place Market Order</button>
+                                    </div>
+                                </form>
+                            </div>
+                            
+                            <!-- Limit Order -->
+                            <div class="tab-pane fade" id="limit-order" role="tabpanel">
+                                <form id="limit-order-form" class="order-form">
+                                    <input type="hidden" name="type" value="limit">
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Trading Pair</label>
+                                            <select name="symbol" class="form-select" required>
+                                                <option value="BTC/USDT">BTC/USDT</option>
+                                                <option value="ETH/USDT">ETH/USDT</option>
+                                                <option value="BNB/USDT">BNB/USDT</option>
+                                                <option value="SOL/USDT">SOL/USDT</option>
+                                                <option value="XRP/USDT">XRP/USDT</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Side</label>
+                                            <div class="btn-group w-100" role="group">
+                                                <input type="radio" class="btn-check" name="side" id="limit-buy" value="buy" checked>
+                                                <label class="btn btn-outline-success" for="limit-buy">Buy</label>
+                                                
+                                                <input type="radio" class="btn-check" name="side" id="limit-sell" value="sell">
+                                                <label class="btn btn-outline-danger" for="limit-sell">Sell</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="limit-price" class="form-label">Price</label>
+                                        <div class="input-group">
+                                            <input type="number" step="0.00000001" class="form-control" id="limit-price" name="price" required>
+                                            <span class="input-group-text">USDT</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="limit-amount" class="form-label">Amount</label>
+                                        <div class="input-group">
+                                            <input type="number" step="0.00000001" class="form-control" id="limit-amount" name="amount" required>
+                                            <span class="input-group-text">BTC</span>
+                                        </div>
+                                    </div>
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-primary">Place Limit Order</button>
+                                    </div>
+                                </form>
+                            </div>
+                            
+                            <!-- Stop Order -->
+                            <div class="tab-pane fade" id="stop-order" role="tabpanel">
+                                <form id="stop-order-form" class="order-form">
+                                    <input type="hidden" name="type" value="stop_loss">
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Trading Pair</label>
+                                            <select name="symbol" class="form-select" required>
+                                                <option value="BTC/USDT">BTC/USDT</option>
+                                                <option value="ETH/USDT">ETH/USDT</option>
+                                                <option value="BNB/USDT">BNB/USDT</option>
+                                                <option value="SOL/USDT">SOL/USDT</option>
+                                                <option value="XRP/USDT">XRP/USDT</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Side</label>
+                                            <div class="btn-group w-100" role="group">
+                                                <input type="radio" class="btn-check" name="side" id="stop-buy" value="buy">
+                                                <label class="btn btn-outline-success" for="stop-buy">Buy Stop</label>
+                                                
+                                                <input type="radio" class="btn-check" name="side" id="stop-sell" value="sell" checked>
+                                                <label class="btn btn-outline-danger" for="stop-sell">Sell Stop</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="stop-price" class="form-label">Stop Price</label>
+                                        <div class="input-group">
+                                            <input type="number" step="0.00000001" class="form-control" id="stop-price" name="stopPrice" required>
+                                            <span class="input-group-text">USDT</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="stop-amount" class="form-label">Amount</label>
+                                        <div class="input-group">
+                                            <input type="number" step="0.00000001" class="form-control" id="stop-amount" name="amount" required>
+                                            <span class="input-group-text">BTC</span>
+                                        </div>
+                                    </div>
+                                    <div class="d-grid">
+                                        <button type="submit" class="btn btn-primary">Place Stop Order</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Open Orders -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Open Orders</h5>
+                        <button id="refresh-orders" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="loading-orders" class="loading">
+                            <div class="spinner-border text-primary loading-spinner" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p>Loading orders...</p>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Symbol</th>
+                                        <th>Type</th>
+                                        <th>Side</th>
+                                        <th>Price</th>
+                                        <th>Amount</th>
+                                        <th>Filled</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="orders-container">
+                                    <!-- Orders will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+        <div id="toast" class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body"></div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Initialize Select2
+            $('.select2').select2({
+                theme: 'bootstrap-5',
+                width: '100%'
+            });
+
+            // Initialize tooltips
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            // Initialize toast
+            var toastEl = document.getElementById('toast');
+            var toast = new bootstrap.Toast(toastEl, { autohide: true, delay: 5000 });
+            
+            // Show toast message
+            function showToast(message, type = 'success') {
+                var toast = bootstrap.Toast.getOrCreateInstance(toastEl);
+                var $toast = $(toastEl);
+                $toast.removeClass('bg-success bg-danger bg-warning bg-info');
+                $toast.addClass('bg-' + type);
+                $toast.find('.toast-body').text(message);
+                toast.show();
+            }
+
+            // Load balances
+            function loadBalances() {
+                var exchange = $('#exchange-select').val();
+                $('#loading-balances').show();
+                $('#balances-container').html('');
+                
+                $.ajax({
+                    url: 'api/trading/balance.php',
+                    data: { 
+                        exchange: exchange,
+                        show_zero: false,
+                        force_update: true
+                    },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success && response.balances) {
+                            var html = '';
+                            response.balances.forEach(function(balance) {
+                                var changeClass = balance.change_24h >= 0 ? 'text-success' : 'text-danger';
+                                var changeIcon = balance.change_24h >= 0 ? '▲' : '▼';
+                                
+                                html += `
+                                    <div class="list-group-item balance-card">
+                                        <div class="d-flex w-100 justify-content-between">
+                                            <div>
+                                                <h6 class="mb-1">${balance.currency}</h6>
+                                                <small class="text-muted">Available: ${parseFloat(balance.available_balance).toFixed(8)}</small>
+                                            </div>
+                                            <div class="text-end">
+                                                <h6 class="mb-1">${parseFloat(balance.total_balance).toFixed(8)}</h6>
+                                                <small class="${changeClass}">
+                                                    ${changeIcon} ${Math.abs(balance.change_24h || 0).toFixed(2)}%
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            
+                            if (html === '') {
+                                html = '<div class="list-group-item text-muted text-center">No balances found</div>';
+                            }
+                            
+                            $('#balances-container').html(html);
+                        } else {
+                            showToast(response.error || 'Failed to load balances', 'danger');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        showToast('Error loading balances: ' + error, 'danger');
+                    },
+                    complete: function() {
+                        $('#loading-balances').hide();
+                    }
+                });
+            }
+
+            // Load open orders
+            function loadOpenOrders() {
+                var exchange = $('#exchange-select').val();
+                $('#loading-orders').show();
+                $('#orders-container').html('');
+                
+                // This would be replaced with an actual API call
+                // For now, we'll simulate a response
+                setTimeout(function() {
+                    // Simulated response
+                    var response = {
+                        success: true,
+                        orders: [
+                            {
+                                id: '12345',
+                                symbol: 'BTC/USDT',
+                                type: 'limit',
+                                side: 'buy',
+                                price: '42000.00',
+                                amount: '0.05',
+                                filled: '0.02',
+                                status: 'open',
+                                created_at: new Date().toISOString()
+                            },
+                            {
+                                id: '12346',
+                                symbol: 'ETH/USDT',
+                                type: 'stop_loss',
+                                side: 'sell',
+                                price: '3800.00',
+                                amount: '0.5',
+                                filled: '0.0',
+                                status: 'open',
+                                created_at: new Date(Date.now() - 3600000).toISOString()
+                            }
+                        ]
+                    };
+                    
+                    if (response.success && response.orders) {
+                        var html = '';
+                        response.orders.forEach(function(order) {
+                            var sideClass = order.side === 'buy' ? 'text-success' : 'text-danger';
+                            var filledPercent = (parseFloat(order.filled) / parseFloat(order.amount) * 100).toFixed(2);
+                            
+                            html += `
+                                <tr>
+                                    <td>${new Date(order.created_at).toLocaleString()}</td>
+                                    <td>${order.symbol}</td>
+                                    <td><span class="badge bg-secondary">${order.type}</span></td>
+                                    <td class="${sideClass}">${order.side.toUpperCase()}</td>
+                                    <td>${parseFloat(order.price).toFixed(2)}</td>
+                                    <td>${parseFloat(order.amount).toFixed(8)}</td>
+                                    <td>
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar" role="progressbar" 
+                                                style="width: ${filledPercent}%" 
+                                                aria-valuenow="${filledPercent}" 
+                                                aria-valuemin="0" 
+                                                aria-valuemax="100">
+                                                ${filledPercent}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><span class="badge bg-info">${order.status}</span></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-danger cancel-order" data-order-id="${order.id}">
+                                            Cancel
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        
+                        if (html === '') {
+                            html = '<tr><td colspan="9" class="text-center text-muted py-3">No open orders</td></tr>';
+                        }
+                        
+                        $('#orders-container').html(html);
+                    } else {
+                        showToast(response.error || 'Failed to load orders', 'danger');
+                    }
+                    
+                    $('#loading-orders').hide();
+                }, 500);
+            }
+
+            // Submit order form
+            function submitOrderForm(form, orderType) {
+                var formData = $(form).serializeArray().reduce(function(obj, item) {
+                    obj[item.name] = item.value;
+                    return obj;
+                }, {});
+                
+                // Add exchange
+                formData.exchange = $('#exchange-select').val();
+                
+                // Show loading state
+                var $submitBtn = $(form).find('button[type="submit"]');
+                var originalText = $submitBtn.html();
+                $submitBtn.prop('disabled', true).html(
+                    '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Placing Order...'
+                );
+                
+                // Submit order
+                $.ajax({
+                    url: 'api/trading/order.php',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(formData),
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success) {
+                            showToast(`${orderType} order placed successfully!`, 'success');
+                            $(form)[0].reset();
+                            loadOpenOrders();
+                            loadBalances();
+                        } else {
+                            showToast(response.error || 'Failed to place order', 'danger');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        showToast('Error: ' + (xhr.responseJSON?.error || error), 'danger');
+                    },
+                    complete: function() {
+                        $submitBtn.prop('disabled', false).html(originalText);
+                    }
+                });
+                
+                return false;
+            }
+
+            // Event Listeners
+            $('#refresh-balances, #exchange-select').on('change click', function() {
+                loadBalances();
+            });
+            
+            $('#refresh-orders').on('click', function() {
+                loadOpenOrders();
+            });
+            
+            // Form submissions
+            $('#market-order-form').on('submit', function(e) {
+                e.preventDefault();
+                return submitOrderForm(this, 'Market');
+            });
+            
+            $('#limit-order-form').on('submit', function(e) {
+                e.preventDefault();
+                return submitOrderForm(this, 'Limit');
+            });
+            
+            $('#stop-order-form').on('submit', function(e) {
+                e.preventDefault();
+                return submitOrderForm(this, 'Stop');
+            });
+            
+            // Cancel order
+            $(document).on('click', '.cancel-order', function() {
+                if (!confirm('Are you sure you want to cancel this order?')) {
+                    return;
+                }
+                
+                var orderId = $(this).data('order-id');
+                var $btn = $(this);
+                $btn.prop('disabled', true).html('Canceling...');
+                
+                // This would be an API call to cancel the order
+                setTimeout(function() {
+                    showToast('Order canceled successfully', 'success');
+                    loadOpenOrders();
+                    loadBalances();
+                }, 1000);
+            });
+            
+            // Load initial data
+            loadBalances();
+            loadOpenOrders();
+            
+            // Auto-refresh every 30 seconds
+            setInterval(loadBalances, 30000);
+            setInterval(loadOpenOrders, 30000);
+        });
+    </script>
+</body>
+</html>

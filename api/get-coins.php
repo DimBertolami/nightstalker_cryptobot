@@ -56,18 +56,26 @@ try {
     // Check if we should fetch from all_coingecko_coins table
     $showAll = isset($_GET['show_all']) && $_GET['show_all'] == 1;
 
-    // If 'show all' is enabled, fetch all coins from our local database
+    // If 'show all' is enabled, fetch all coins from all_coingecko_coins table
     if ($showAll) {
-        // First, try to get all coins from the database
+        // First, try to get all coins from the all_coingecko_coins table
         $query = "SELECT 
-                    c.*, 
-                    'CoinMarketCap' as `source`,
+                    c.id,
+                    c.symbol,
+                    c.name,
+                    c.platforms,
+                    c.last_updated,
+                    NULL as current_price,
+                    NULL as price_change_24h,
+                    NULL as market_cap,
+                    NULL as volume_24h,
+                    'CoinGecko' as `source`,
                     0 as `user_balance`,
                     IFNULL(tc.coin_id, 0) as `is_trending`,
                     0 as `volume_spike`
-                  FROM `coins` c
+                  FROM `all_coingecko_coins` c
                   LEFT JOIN `trending_coins` tc ON c.id = tc.coin_id
-                  ORDER BY c.market_cap DESC
+                  ORDER BY c.name ASC
                   LIMIT 1000";
         
         $stmt = $db->prepare($query);
@@ -84,18 +92,18 @@ try {
         
         while ($row = $result->fetch_assoc()) {
             $coinsData[] = array_merge([
-                'id' => $row['id'],
-                'symbol' => $row['symbol'],
-                'name' => $row['name'],
-                'current_price' => (float)($row['current_price'] ?? 0),
-                'price_change_24h' => (float)($row['price_change_24h'] ?? 0),
-                'market_cap' => (float)($row['market_cap'] ?? 0),
-                'volume_24h' => (float)($row['volume_24h'] ?? 0),
-                'last_updated' => $row['last_updated'] ?? date('Y-m-d H:i:s'),
-                'source' => 'CoinMarketCap',
+                'id' => $row['id'] ?? '',
+                'symbol' => strtoupper($row['symbol'] ?? ''),
+                'name' => $row['name'] ?? '',
+                'current_price' => null,
+                'price_change_24h' => null,
+                'market_cap' => null,
+                'volume_24h' => null,
+                'last_updated' => $row['last_updated'] ?? null,
+                'source' => 'CoinGecko',
                 'user_balance' => 0,
                 'is_trending' => !empty($row['is_trending']),
-                'volume_spike' => !empty($row['volume_spike'])
+                'volume_spike' => false
             ]);
         }
         
@@ -108,8 +116,6 @@ try {
         ]);
         ob_end_flush();
         exit;
-
-        // This block intentionally left blank
     }
     
     if ($showAll) {
