@@ -56,224 +56,90 @@ try {
     // Check if we should fetch from all_coingecko_coins table
     $showAll = isset($_GET['show_all']) && $_GET['show_all'] == 1;
 
-    // If 'show all' is enabled, attempt to fetch all coins directly from CoinGecko public API
+    // If 'show all' is enabled, fetch all coins from our local database
     if ($showAll) {
-        $list = [];
-        $useCached = false;
-        $cacheDir = __DIR__ . '/../../cache';
+        // First, try to get all coins from the database
+        $query = "SELECT 
+                    c.*, 
+                    'CoinMarketCap' as `source`,
+                    0 as `user_balance`,
+                    IFNULL(tc.coin_id, 0) as `is_trending`,
+                    0 as `volume_spike`
+                  FROM `coins` c
+                  LEFT JOIN `trending_coins` tc ON c.id = tc.coin_id
+                  ORDER BY c.market_cap DESC
+                  LIMIT 1000";
         
-        // Ensure cache directory exists and is writable
-        try {
-            if (!is_dir($cacheDir)) {
-                if (!@mkdir($cacheDir, 0755, true)) {
-                    $error = error_get_last();
-                    throw new Exception("Failed to create cache directory: " . ($error['message'] ?? 'Unknown error'));
-                }
-                // Set proper permissions after creation
-                @chmod($cacheDir, 0755);
-                error_log("Created cache directory: $cacheDir");
-            }
-            
-            // Verify directory is writable
-            if (!is_writable($cacheDir)) {
-                if (!@chmod($cacheDir, 0755)) {
-                    throw new Exception("Failed to set permissions on cache directory");
-                }
-                if (!is_writable($cacheDir)) {
-                    throw new Exception("Cache directory is not writable after chmod");
-                }
-            }
-        } catch (Exception $e) {
-            error_log("Cache directory error: " . $e->getMessage());
-            // Fall back to system temp directory
-            $cacheDir = sys_get_temp_dir() . '/night_stalker_cache';
-            if (!is_dir($cacheDir)) {
-                @mkdir($cacheDir, 0755, true);
-            }
-            $cacheFile = $cacheDir . '/coingecko_coins_cache.json';
-            error_log("Falling back to temp directory: $cacheDir");
+        $stmt = $db->prepare($query);
+        if ($stmt === false) {
+            throw new Exception("Failed to prepare query: " . $db->error);
         }
         
-        $cacheFile = $cacheDir . '/coingecko_coins_cache.json';
-        $cacheTime = 3600; // 1 hour cache
+        if (!$stmt->execute()) {
+            throw new Exception("Query execution failed: " . $stmt->error);
+        }
         
-        // If we have a valid cache file and it's fresh enough, use it
-        if (file_exists($cacheFile) && (time() - filemtime($cacheFile) < $cacheTime)) {
-            $cachedData = @file_get_contents($cacheFile);
-            if ($cachedData !== false) {
-                $list = json_decode($cachedData, true);
-                if (json_last_error() === JSON_ERROR_NONE && !empty($list)) {
-                    $useCached = true;
-                    error_log("Using cached CoinGecko data");
-                } else {
-                    error_log("Invalid or empty cache data: " . json_last_error_msg());
-                }
-            }
-        }
-
-        // If we don't have cached data, try to fetch from API
-        if (!$useCached) {
-            $apiUrl = 'https://api.coingecko.com/api/v3/coins/list';
-            $userAgent = 'NightStalkerBot/1.0 (https://yourdomain.com; support@yourdomain.com)';
-            
-            // Try to get from database first
-            try {
-                $stmt = $db->prepare("SELECT * FROM `all_coingecko_coins` LIMIT 1");
-                if ($stmt && $stmt->execute()) {
-                    $dbData = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-                    if (!empty($dbData)) {
-                        $list = $dbData;
-                        $useCached = true;
-                        error_log("Using database fallback for CoinGecko data");
-                    }
-                }
-            } catch (Exception $e) {
-                error_log("Database fallback error: " . $e->getMessage());
-            }
-
-            // Only try API if we don't have database data
-            if (!$useCached && function_exists('curl_init')) {
-                try {
-                    $rateLimitFile = $cacheDir . '/coingecko_rate_limit.txt';
-                    $rateLimitTime = file_exists($rateLimitFile) ? (int)file_get_contents($rateLimitFile) : 0;
-                    $currentTime = time();
-                    
-                    // Respect rate limit cooldown (60 seconds)
-                    if ($currentTime < $rateLimitTime + 60) {
-                        error_log("Rate limit cooldown active, using database data");
-                        $useCached = true;
-                    } else {
-                        $ch = curl_init($apiUrl);
-                        
-                        curl_setopt_array($ch, [
-                            CURLOPT_RETURNTRANSFER => true,
-                            CURLOPT_TIMEOUT => 30,
-                            CURLOPT_SSL_VERIFYPEER => true,
-                            CURLOPT_HTTPHEADER => [
-                                'Accept: application/json',
-                                'Content-Type: application/json',
-                                'User-Agent: ' . $userAgent
-                            ],
-                            CURLOPT_ENCODING => 'gzip, deflate',
-                            CURLOPT_FOLLOWLOCATION => true,
-                            CURLOPT_MAXREDIRS => 3
-                        ]);
-                        
-                        error_log("Fetching fresh data from CoinGecko API...");
-                        $json = curl_exec($ch);
-                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                        $curlError = curl_error($ch);
-                        
-                        // Handle rate limiting
-                        if ($httpCode === 429) {
-                            // Set rate limit cooldown
-                            file_put_contents($rateLimitFile, $currentTime);
-                            error_log("Rate limited by CoinGecko API. Will retry after cooldown.");
-                            $useCached = true;
-                        }
-                        
-                        curl_close($ch);
-                    }
-                    
-                    if (isset($json) && $httpCode === 200 && $json !== false) {
-                        $list = json_decode($json, true);
-                        // Cache the successful response
-                        if (!is_dir(dirname($cacheFile))) {
-                            mkdir(dirname($cacheFile), 0755, true);
-                        }
-                        file_put_contents($cacheFile, $json);
-                    } else {
-                        throw new Exception(sprintf(
-                            'CoinGecko API error: %s (HTTP %d)', 
-                            $curlError ?: 'No error message',
-                            $httpCode
-                        ));
-                    }
-                } catch (Exception $e) {
-                    error_log('CoinGecko API request failed: ' . $e->getMessage());
-                }
-            }
-            
-            // Fallback to file_get_contents if cURL failed or not available
-            if ($list === null && ini_get('allow_url_fopen')) {
-                try {
-                    $context = stream_context_create([
-                        'http' => [
-                            'timeout' => 15,
-                            'header' => "Accept: application/json\r\n"
-                        ]
-                    ]);
-                    
-                    $apiUrl = 'https://api.coingecko.com/api/v3/coins/list';
-                    $json = @file_get_contents($apiUrl, false, $context);
-                    
-                    if ($json !== false) {
-                        $list = json_decode($json, true);
-                        // Cache the successful response
-                        if (!is_dir(dirname($cacheFile))) {
-                            mkdir(dirname($cacheFile), 0755, true);
-                        }
-                        file_put_contents($cacheFile, $json);
-                    } else {
-                        throw new Exception('Failed to fetch data from CoinGecko API');
-                    }
-                } catch (Exception $e) {
-                    error_log('CoinGecko fallback fetch failed: ' . $e->getMessage());
-                }
-            }
-        }
-        // If fetch succeeded, return results
-        if (is_array($list)) {
-            $coinsData = [];
-            foreach ($list as $item) {
-                $coinsData[] = [
-                    'id' => $item['id'],
-                    'symbol' => strtoupper($item['symbol']),
-                    'name' => $item['name'],
-                    'current_price' => null,
-                    'price_change_24h' => null,
-                    'market_cap' => null,
-                    'volume_24h' => null,
-                    'last_updated' => null,
-                    'source' => 'CoinGecko',
-                    'user_balance' => 0,
-                    'is_trending' => false,
-                    'volume_spike' => false
-                ];
-            }
-            ob_clean();
-            echo json_encode([
-                'success' => true,
-                'data' => $coinsData,
-                'show_all' => true,
-                'timestamp' => time()
+        $result = $stmt->get_result();
+        $coinsData = [];
+        
+        while ($row = $result->fetch_assoc()) {
+            $coinsData[] = array_merge([
+                'id' => $row['id'],
+                'symbol' => $row['symbol'],
+                'name' => $row['name'],
+                'current_price' => (float)($row['current_price'] ?? 0),
+                'price_change_24h' => (float)($row['price_change_24h'] ?? 0),
+                'market_cap' => (float)($row['market_cap'] ?? 0),
+                'volume_24h' => (float)($row['volume_24h'] ?? 0),
+                'last_updated' => $row['last_updated'] ?? date('Y-m-d H:i:s'),
+                'source' => 'CoinMarketCap',
+                'user_balance' => 0,
+                'is_trending' => !empty($row['is_trending']),
+                'volume_spike' => !empty($row['volume_spike'])
             ]);
-            ob_end_flush();
-            exit;
         }
+        
+        ob_clean();
+        echo json_encode([
+            'success' => true,
+            'data' => $coinsData,
+            'show_all' => true,
+            'timestamp' => time()
+        ]);
+        ob_end_flush();
+        exit;
+
+        // This block intentionally left blank
     }
     
     if ($showAll) {
-        // Fetch from all_coingecko_coins table with proper escaping
+        // First, try to get all coins from the database
         $query = "SELECT 
-                    `id`, 
-                    `symbol`, 
-                    `name`, 
-                    `platforms`, 
-                    `last_updated`,
-                    NULL as `current_price`,
-                    NULL as `price_change_24h`,
-                    NULL as `market_cap`,
-                    NULL as `volume_24h`,
-                    'CoinGecko' as `source`,
+                    c.*, 
+                    'CoinMarketCap' as `source`,
                     0 as `user_balance`,
-                    0 as `is_trending`,
+                    IFNULL(tc.coin_id, 0) as `is_trending`,
                     0 as `volume_spike`
-                  FROM `all_coingecko_coins` 
-                  ORDER BY `name` ASC";
+                  FROM `coins` c
+                  LEFT JOIN `trending_coins` tc ON c.id = tc.coin_id
+                  ORDER BY c.market_cap DESC
+                  LIMIT 1000";
+        
+        // Log the query for debugging
+        error_log("Show All query: " . $query);
     } else {
-        // Original query for coins table with proper escaping
-        $query = "SELECT * FROM `coins` ORDER BY `market_cap` DESC";
+        // Original query for coins table with proper escaping and trending status
+        $query = "SELECT 
+                    c.*, 
+                    'CoinMarketCap' as `source`,
+                    0 as `user_balance`,
+                    IFNULL(tc.coin_id, 0) as `is_trending`,
+                    0 as `volume_spike`
+                  FROM `coins` c
+                  LEFT JOIN `trending_coins` tc ON c.id = tc.coin_id
+                  WHERE c.volume_24h > 0
+                  ORDER BY c.volume_24h DESC, c.market_cap DESC
+                  LIMIT 200";
     }
     
     $stmt = $db->prepare($query);
