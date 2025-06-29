@@ -118,57 +118,137 @@ try {
         throw new Exception("Failed to fetch live market data");
     }
     
-    // Debug: Log market data structure
-    error_log("Market data structure: " . print_r($marketData, true));
-
-    // Process the show_all parameter if it's set via AJAX
+    // Process the show_all parameter
     $showAll = isset($_GET['show_all']) ? (bool)$_GET['show_all'] : false;
     
-    // Debug: Log the showAll flag
-    error_log("showAll: " . ($showAll ? 'true' : 'false'));
-    
-    if ($showAll) {
-        // Show all coins, but still sort by market cap (highest first) and limit to 1000 for performance
-        $db = getDBConnection();
-        if (!$db) {
-            throw new Exception("Database connection failed");
-        }
-        
-        $coinsQuery = "SELECT *, TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
-                      FROM coins 
-                      ORDER BY market_cap DESC 
-                      LIMIT 1000";
-                      
-        $stmt = $db->prepare($coinsQuery);
-        $stmt->execute();
-        $coinsResult = $stmt->get_result();
-        $coinsData = $coinsResult ? $coinsResult->fetch_all(MYSQLI_ASSOC) : [];
-    } else {
-        // Use getTrendingCoins() to get trending coins
-        $coinsData = getTrendingCoins();
-        //print_r($coinsData);
-        if (empty($coinsData)) {
-            error_log("No trending coins found");
-            // Fallback to new coins if no trending coins
-            $coinsData = getNewCryptocurrencies();
-            error_log("Falling back to " . count($coinsData) . " new coins");
-        } else {
-            error_log("Found " . count($coinsData) . " trending coins");
-        }
-        
-        // Sort by volume_24h DESC (highest volume first)
-        usort($coinsData, function($a, $b) {
-            return $b['volume_24h'] <=> $a['volume_24h'];
-        });
+    // Get filter values with defaults
+    $maxAge = null;
+    if (isset($_GET['max_age']) && is_numeric($_GET['max_age'])) {
+        $maxAge = max(1, (int)$_GET['max_age']); // Ensure at least 1 hour
     }
     
-    // Initialize $coins variable before using it
-    $coins = []; 
-echo "</pre>";
-
+    $minMarketCap = null;
+    if (isset($_GET['min_marketcap']) && is_numeric($_GET['min_marketcap'])) {
+        $minMarketCap = max(0, (float)$_GET['min_marketcap']); // Ensure non-negative
+    }
+    
+    $minVolume = null;
+    if (isset($_GET['min_volume']) && is_numeric($_GET['min_volume'])) {
+        $minVolume = max(0, (float)$_GET['min_volume']); // Ensure non-negative
+    }
+    
+    // Initialize coins array
+    $coins = [];
+    
+    // Get database connection
+    $db = getDBConnection();
+    if (!$db) {
+        throw new Exception("Database connection failed");
+    }
+    
+    // Log filter values for debugging
+    error_log("Filters - showAll: " . ($showAll ? 'true' : 'false') . 
+             ", maxAge: " . ($maxAge ?? 'null') . 
+             ", minMarketCap: " . ($minMarketCap ?? 'null') . 
+             ", minVolume: " . ($minVolume ?? 'null'));
+    
+    // Always use filtered query to ensure consistent behavior
+    // Use filtered query if any filter is active or showAll is true
+    $query = "SELECT c.*, TIMESTAMPDIFF(HOUR, c.date_added, NOW()) as age_hours ";
+    $from = "FROM coins c ";
+    $where = "WHERE 1=1 ";
+    $order = "";
+    $limit = "";
+    $params = [];
+    $types = "";
+    
+    // Add filters
+    if ($maxAge !== null) {
+        $where .= "AND c.date_added >= DATE_SUB(NOW(), INTERVAL ? HOUR) ";
+        $params[] = $maxAge;
+        $types .= "i";
+    }
+    
+    if ($minMarketCap !== null) {
+        $where .= "AND c.market_cap >= ? ";
+        $params[] = $minMarketCap;
+        $types .= "d";
+    }
+    
+    if ($minVolume !== null) {
+        $where .= "AND c.volume_24h >= ? ";
+        $params[] = $minVolume;
+        $types .= "d";
+    }
+    
+    if ($showAll) {
+        // For show all, just order by market cap
+        $order = "ORDER BY c.market_cap DESC ";
+        $limit = "LIMIT 1000";
+    } else {
+        // For filtered view, include trending coins
+        $from .= "LEFT JOIN trending_coins tc ON c.id = tc.coin_id ";
+        // Only apply trending/volume condition if no specific filters are set
+        if ($minMarketCap === null && $minVolume === null && $maxAge === null) {
+            $where .= "AND (tc.coin_id IS NOT NULL OR c.volume_24h > 0) ";
+        }
+        $order = "ORDER BY c.volume_24h DESC, c.market_cap DESC ";
+        $limit = "LIMIT 200";
+    }
+    
+    // Build final query
+    $query = "$query $from $where $order $limit";
+    
+    // Debug logging
+    error_log("=== DEBUG FILTERS ===");
+    error_log("Show All: " . ($showAll ? 'true' : 'false'));
+    error_log("Max Age: " . ($maxAge ?? 'null'));
+    error_log("Min Market Cap: " . ($minMarketCap ?? 'null'));
+    error_log("Min Volume: " . ($minVolume ?? 'null'));
+    error_log("SQL Query: " . $query);
+    error_log("Params: " . print_r($params, true));
+    error_log("Param types: " . $types);
+    
+    // Log the full URL with parameters
+    $currentUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
+    error_log("Current URL: " . $currentUrl);
+    
+    // Prepare and execute query
+    $stmt = $db->prepare($query);
+    
+    // Bind parameters if any
+    if (!empty($params)) {
+        $stmt->bind_param($types, ...$params);
+    }
+    
+    if (!$stmt->execute()) {
+        throw new Exception("Query execution failed: " . $stmt->error);
+    }
+    
+    $result = $stmt->get_result();
+    if (!$result) {
+        throw new Exception("Failed to get result set: " . $db->error);
+    }
+    
+    // Process results
+    while ($row = $result->fetch_assoc()) {
+        // Ensure all required fields are present
+        $row['volume_24h'] = $row['volume_24h'] ?? 0;
+        $row['price_change_percentage_24h'] = $row['price_change_percentage_24h'] ?? 0;
+        $row['market_cap'] = $row['market_cap'] ?? 0;
+        
+        $coins[] = $row;
+    }
+    
+    // Initialize coins array if not set
+    if (!isset($coins) || !is_array($coins)) {
+        $coins = [];
+    }
+    
     // Merge live data with database data
     $coins = array_map(function($coin) use ($marketData) {
         if (!is_array($coin)) {
+            error_log("Invalid coin data found, skipping");
             $coin = [];
         }
         
@@ -219,7 +299,7 @@ echo "</pre>";
             'volume_spike' => !empty($coin['volume_spike']),
             'last_updated' => $coin['last_updated'] ?? null
         ];
-    }, $coinsData);
+    }, $coins);
 
 } catch (Exception $e) {
     error_log("Market data error: " . $e->getMessage());
@@ -374,11 +454,35 @@ $coins = array_filter($coins, function($coin) {
                     <h5 class="card-title mb-0">
                         <i class="fas fa-coins me-2"></i>
                         <?php echo isset($_GET['show_all']) ? 'All Coins' : 'High-Value Coins'; ?>
-                        <span id="last-update"></span>
-                        <button id="refresh-btn" class="btn btn-sm btn-light">
-                            <i class="fas fa-sync-alt"></i> Refresh
-                        </button>
-                        <div class="form-check form-switch d-inline-block" id="auto-refresh">
+                        <div class="d-flex align-items-center">
+                            <button id="refresh-data" class="btn btn-sm btn-primary me-2">
+                                <i class="fas fa-sync-alt"></i> Refresh Data
+                            </button>
+                            <div class="input-group input-group-sm ms-2" style="width: 200px;">
+                                <span class="input-group-text">Age < 24h</span>
+                                <div class="input-group-text">
+                                    <input class="form-check-input mt-0 filter-toggle" type="checkbox" id="filter-age" data-target="age">
+                                </div>
+                            </div>
+                            <div class="input-group input-group-sm ms-2" style="width: 300px;">
+                                <span class="input-group-text">Market Cap ></span>
+                                <input type="number" class="form-control form-control-sm filter-input" id="filter-marketcap" placeholder="1M" data-type="marketcap" disabled>
+                                <span class="input-group-text">USD</span>
+                                <div class="input-group-text">
+                                    <input class="form-check-input mt-0 filter-toggle" type="checkbox" id="filter-marketcap-toggle" data-target="marketcap">
+                                </div>
+                            </div>
+                            <div class="input-group input-group-sm ms-2" style="width: 300px;">
+                                <span class="input-group-text">24h Volume ></span>
+                                <input type="number" class="form-control form-control-sm filter-input" id="filter-volume" placeholder="1M" data-type="volume" disabled>
+                                <span class="input-group-text">USD</span>
+                                <div class="input-group-text">
+                                    <input class="form-check-input mt-0 filter-toggle" type="checkbox" id="filter-volume-toggle" data-target="volume">
+                                </div>
+                            </div>
+                        </div>
+                        <div id="last-updated" class="text-muted small"></div>
+                        <div class="form-check form-switch d-inline-block">
                             <input class="form-check-input" type="checkbox" id="auto-refresh-toggle" checked>
                             <label class="form-check-label text-white" for="auto-refresh-toggle">Auto-refresh</label>
                         </div>

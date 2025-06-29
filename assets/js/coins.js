@@ -37,27 +37,168 @@
             let autoRefreshInterval;
             let isAutoRefreshEnabled = true;
             let showAllCoins = false; // Default: show filtered coins
+            let filters = {
+                maxAge: 24, // hours
+                minMarketCap: 0,
+                minVolume: 0
+            };
             let isProcessingTrade = false; // Track if a trade is in progress
             let defaultExchangeId = ''; // New variable to store default exchange ID
             let app = {}; // Main application object to hold methods
             
-            // Handle show all coins toggle
-            $('#show-all-coins-toggle').on('change', function() {
-                showAllCoins = $(this).is(':checked');
-                console.log('Show all coins:', showAllCoins);
+            // Function to update URL parameters without page reload
+            function updateUrlParams(params) {
+                const url = new URL(window.location);
+                Object.keys(params).forEach(key => {
+                    if (params[key] === null || params[key] === '' || params[key] === false) {
+                        url.searchParams.delete(key);
+                    } else {
+                        url.searchParams.set(key, params[key]);
+                    }
+                });
+                window.history.pushState({}, '', url);
+            }
+
+            // Function to read URL parameters and update filters
+            function updateFiltersFromUrl() {
+                const params = new URLSearchParams(window.location.search);
                 
-                // Show loading indicator
+                // Update showAllCoins
+                showAllCoins = params.get('show_all') === '1';
+                
+                // Update filters from URL
+                if (params.has('max_age')) {
+                    const maxAge = parseInt(params.get('max_age'));
+                    if (!isNaN(maxAge)) {
+                        filters.maxAge = maxAge;
+                        $('#filter-age').prop('checked', true);
+                    }
+                }
+                
+                if (params.has('min_marketcap')) {
+                    const minMarketCap = parseFloat(params.get('min_marketcap'));
+                    if (!isNaN(minMarketCap)) {
+                        filters.minMarketCap = minMarketCap;
+                        $('#filter-marketcap').val(minMarketCap);
+                    }
+                }
+                
+                if (params.has('min_volume')) {
+                    const minVolume = parseFloat(params.get('min_volume'));
+                    if (!isNaN(minVolume)) {
+                        filters.minVolume = minVolume;
+                        $('#filter-volume').val(minVolume);
+                    }
+                }
+                
+                // Update UI
+                $('#show-all-coins-toggle').prop('checked', showAllCoins);
+            }
+            
+            // Initialize filters from URL on page load
+            updateFiltersFromUrl();
+            
+            // Handle popstate (back/forward button)
+            window.addEventListener('popstate', function() {
+                updateFiltersFromUrl();
+                fetchAndUpdateData();
+            });
+
+            // Handle filter changes
+            function applyFilters() {
                 const $loading = $('#loading');
                 $loading.show();
+                
+                const params = {
+                    show_all: showAllCoins ? '1' : '0'
+                };
+                
+                // Update filters from UI with validation
+                if ($('#filter-age').is(':checked')) {
+                    params.max_age = 24; // Always use 24h for age filter
+                    console.log('Setting max age filter: 24h');
+                } else {
+                    params.max_age = null;
+                }
+                
+                // Handle market cap filter
+                if ($('#filter-marketcap-toggle').is(':checked')) {
+                    const marketCapVal = parseFloat($('#filter-marketcap').val().replace(/[^0-9.]/g, ''));
+                    if (!isNaN(marketCapVal) && marketCapVal > 0) {
+                        filters.minMarketCap = marketCapVal;
+                        params.min_marketcap = marketCapVal;
+                        console.log('Setting min market cap filter:', marketCapVal);
+                    }
+                } else {
+                    params.min_marketcap = null;
+                }
+                
+                // Handle volume filter
+                if ($('#filter-volume-toggle').is(':checked')) {
+                    const volumeVal = parseFloat($('#filter-volume').val().replace(/[^0-9.]/g, ''));
+                    if (!isNaN(volumeVal) && volumeVal > 0) {
+                        filters.minVolume = volumeVal;
+                        params.min_volume = volumeVal;
+                        console.log('Setting min volume filter:', volumeVal);
+                    }
+                } else {
+                    params.min_volume = null;
+                }
+                
+                // Log the parameters being sent
+                console.log('Applying filters with params:', params);
+                
+                // Update URL
+                updateUrlParams(params);
                 
                 // Clear the current table data
                 if ($.fn.DataTable.isDataTable('#coins-table')) {
                     coinsTable.clear().draw();
                 }
                 
-                // Fetch and update data with the new filter
-                fetchAndUpdateData();
+                // Force a fresh data fetch
+                fetchAndUpdateData(true);
+            }
+            
+            // Handle show all coins toggle
+            $('#show-all-coins-toggle').on('change', function() {
+                showAllCoins = $(this).is(':checked');
+                applyFilters();
             });
+            
+            // Handle filter toggle changes
+            $('.filter-toggle').on('change', function() {
+                const target = $(this).data('target');
+                const $input = $(`#filter-${target}`);
+                
+                if (target === 'age') {
+                    // For age filter, just apply the filters
+                    applyFilters();
+                } else {
+                    // For marketcap and volume, enable/disable the input
+                    if ($(this).is(':checked')) {
+                        $input.prop('disabled', false).focus();
+                        if (!$input.val()) {
+                            // Set default values if empty
+                            $input.val(target === 'marketcap' ? '1000000' : '1000000');
+                        }
+                        applyFilters();
+                    } else {
+                        $input.prop('disabled', true).val('');
+                        applyFilters();
+                    }
+                }
+            });
+            
+            // Handle filter changes with debounce to prevent rapid firing
+            let filterTimeout;
+            function handleFilterChange() {
+                clearTimeout(filterTimeout);
+                filterTimeout = setTimeout(applyFilters, 500); // 500ms debounce
+            }
+            
+            // Bind filter inputs
+            $('.filter-input').on('input', handleFilterChange);
             
             // Update the toggle state based on URL parameter on page load
             const initialUrlParams = new URLSearchParams(window.location.search);
