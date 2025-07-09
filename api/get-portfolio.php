@@ -15,7 +15,10 @@ ini_set('log_errors', 1);
 ini_set('error_log', '/opt/lampp/htdocs/NS/logs/php-error.log');
 
 // Include configuration
-require_once '../includes/config.php';
+require_once __DIR__ . '/../includes/config.php';
+
+// Debug: Log included files
+error_log('Included config file: ' . __DIR__ . '/../includes/config.php');
 
 // Direct database connection to avoid circular dependencies
 function getDBConnection() {
@@ -89,32 +92,24 @@ try {
         $portfolio = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
-    // If no portfolio data, create mock data for testing
+    // If no portfolio data, return empty array
     if (empty($portfolio)) {
-        // Get some coins to use for mock portfolio
-        $coinQuery = "SELECT id, symbol, name, current_price FROM coins LIMIT 5";
-        $stmt = $db->prepare($coinQuery);
-        $stmt->execute();
-        $coins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Return empty portfolio
+        $response = [
+            'success' => true,
+            'message' => 'Portfolio is empty',
+            'portfolio' => [],
+            'summary' => [
+                'total_value' => 0,
+                'total_invested' => 0,
+                'total_profit_loss' => 0,
+                'total_profit_loss_percent' => 0,
+                'item_count' => 0
+            ]
+        ];
         
-        if (!empty($coins)) {
-            foreach ($coins as $index => $coin) {
-                // Create mock portfolio entry
-                $amount = rand(1, 100) / 10; // Random amount between 0.1 and 10
-                $avgBuyPrice = $coin['current_price'] * (rand(80, 120) / 100); // Random price ±20% of current
-                
-                $portfolio[] = [
-                    'id' => $index + 1,
-                    'user_id' => $userId,
-                    'coin_id' => $coin['id'],
-                    'symbol' => $coin['symbol'],
-                    'name' => $coin['name'],
-                    'amount' => $amount,
-                    'avg_buy_price' => $avgBuyPrice,
-                    'current_price' => $coin['current_price']
-                ];
-            }
-        }
+        echo json_encode($response);
+        exit();
     }
     
     // Calculate total value and profit/loss
