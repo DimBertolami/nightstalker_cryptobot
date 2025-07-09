@@ -614,9 +614,10 @@ function fetchFromAllSources() {
 /**
  * Get user's cryptocurrency balances
  */
-function getUserBalance(int $userId = 1): array {
+function getUserBalance($userId = 1): array {
     try {
-        $db = getDBConnection();
+        $db = getDbConnection();
+        
         if (!$db) {
             throw new Exception("Database connection failed");
         }
@@ -630,9 +631,9 @@ function getUserBalance(int $userId = 1): array {
                 HAVING balance > 0");
         
         $stmt->execute();
-        $result = $stmt->get_result();
+        $trades = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        if ($result->num_rows === 0) {
+        if (empty($trades)) {
             return [];
         }
         
@@ -640,14 +641,13 @@ function getUserBalance(int $userId = 1): array {
         $cryptoData = [];
         $cryptoStmt = $db->prepare("SELECT id, symbol, name FROM cryptocurrencies");
         $cryptoStmt->execute();
-        $cryptoResult = $cryptoStmt->get_result();
-        while ($row = $cryptoResult->fetch_assoc()) {
+        $cryptoResult = $cryptoStmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($cryptoResult as $row) {
             $cryptoData[$row['id']] = $row;
         }
-        $cryptoStmt->close();
         
         $balances = [];
-        while ($row = $result->fetch_assoc()) {
+        foreach ($trades as $row) {
             $coinId = $row['coin_id'];
             $symbol = $cryptoData[$coinId]['symbol'] ?? 'UNKNOWN';
             $name = $cryptoData[$coinId]['name'] ?? 'Unknown';
@@ -663,7 +663,7 @@ function getUserBalance(int $userId = 1): array {
         return $balances;
         
     } catch (Exception $e) {
-        error_log("[getUserBalance] Error: " . $e->getMessage());
+        error_log("Error getting user balance: " . $e->getMessage());
         return [];
     }
 }
@@ -689,11 +689,10 @@ function getRecentTrades(int $limit = 100): array {
                 FROM trades t
                 ORDER BY t.trade_time DESC
                 LIMIT ?");
-        $stmt->bind_param("i", $limit);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $stmt->execute([$limit]);
+        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        if ($result->num_rows === 0) {
+        if (empty($result)) {
             return [];
         }
         
@@ -701,14 +700,13 @@ function getRecentTrades(int $limit = 100): array {
         $cryptoData = [];
         $cryptoStmt = $db->prepare("SELECT id, symbol, name FROM cryptocurrencies");
         $cryptoStmt->execute();
-        $cryptoResult = $cryptoStmt->get_result();
-        while ($row = $cryptoResult->fetch_assoc()) {
+        $cryptoResult = $cryptoStmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($cryptoResult as $row) {
             $cryptoData[$row['id']] = $row;
         }
-        $cryptoStmt->close();
         
         $trades = [];
-        while ($row = $result->fetch_assoc()) {
+        foreach ($result as $row) {
             $coinId = $row['coin_id'];
             $symbol = $cryptoData[$coinId]['symbol'] ?? 'UNKNOWN';
             
@@ -755,28 +753,31 @@ function getNewCryptocurrencies(): array {
                  
         error_log("[getNewCryptocurrencies] Query: $query");
         
-        $stmt = $db->prepare($query);
-        if (!$stmt) {
-            error_log("[getNewCryptocurrencies] Prepare failed: " . $db->error);
-            throw new Exception("Prepare failed: " . $db->error);
+        try {
+            $stmt = $db->prepare($query);
+            if (!$stmt) {
+                error_log("[getNewCryptocurrencies] Prepare failed");
+                throw new Exception("Prepare failed");
+            }
+            
+            $executed = $stmt->execute([$maxAge]);
+            if (!$executed) {
+                error_log("[getNewCryptocurrencies] Execute failed");
+                throw new Exception("Execute failed");
+            }
+            
+            $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            error_log("[getNewCryptocurrencies] Found " . count($data) . " coins");
+            if (!empty($data)) {
+                error_log("[getNewCryptocurrencies] First coin: " . json_encode($data[0]));
+            }
+            
+            return $data;
+        } catch (PDOException $e) {
+            error_log("[getNewCryptocurrencies] PDO Error: " . $e->getMessage());
+            throw new Exception("Database error: " . $e->getMessage());
         }
-        
-        $stmt->bind_param("i", $maxAge);
-        $executed = $stmt->execute();
-        if (!$executed) {
-            error_log("[getNewCryptocurrencies] Execute failed: " . $stmt->error);
-            throw new Exception("Execute failed: " . $stmt->error);
-        }
-        
-        $result = $stmt->get_result();
-        $data = $result->fetch_all(MYSQLI_ASSOC);
-        
-        error_log("[getNewCryptocurrencies] Found " . count($data) . " coins");
-        if (!empty($data)) {
-            error_log("[getNewCryptocurrencies] First coin: " . json_encode($data[0]));
-        }
-        
-        return $data;
     } catch (Exception $e) {
         error_log("[getNewCryptocurrencies] " . $e->getMessage());
         return [];
@@ -793,6 +794,10 @@ function getTrendingCoins(): array {
             throw new Exception("Database connection failed");
         }
 
+        if (!defined('MIN_VOLUME_THRESHOLD')) {
+            define('MIN_VOLUME_THRESHOLD', 1000000);
+        }
+        
         $minVolume = MIN_VOLUME_THRESHOLD;
         $stmt = $db->prepare("SELECT *, 
                               TIMESTAMPDIFF(HOUR, date_added, NOW()) as age_hours 
@@ -800,10 +805,9 @@ function getTrendingCoins(): array {
                               WHERE volume_24h >= ? 
                               AND is_trending = TRUE 
                               ORDER BY volume_24h DESC");
-        $stmt->bind_param("d", $minVolume);
-        $stmt->execute();
         
-        return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->execute([$minVolume]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         error_log("[getTrendingCoins] " . $e->getMessage());
         return [];
@@ -1047,8 +1051,7 @@ function executeBuy($coinId, $amount, $price) {
     }
     
     // Now insert the trade with the correct cryptocurrency ID
-    $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) 
-                         VALUES (?, 'buy', ?, ?, ?, NOW())");
+    $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) VALUES (?, 'buy', ?, ?, ?, NOW())");
     $stmt->bind_param("sddd", $cryptoCoinId, $amount, $price, $totalValue);
     
     if ($stmt->execute()) {
@@ -1129,11 +1132,12 @@ function getUserCoinBalance($coinId) {
         $stmt->execute();
         $result = $stmt->get_result();
         
-        if ($result && $row = $result->fetch_assoc()) {
+        if ($result && $result->num_rows > 0) {
+            $data = $result->fetch_assoc();
             return [
-                'amount' => (float)$row['amount'],
-                'avg_buy_price' => (float)$row['avg_buy_price'],
-                'coin_id' => $row['coin_id']
+                'amount' => (float)$data['amount'],
+                'avg_buy_price' => (float)$data['avg_buy_price'],
+                'coin_id' => $data['coin_id']
             ];
         }
     }
@@ -1145,11 +1149,12 @@ function getUserCoinBalance($coinId) {
         $stmt->execute();
         $result = $stmt->get_result();
         
-        if ($result && $row = $result->fetch_assoc()) {
+        if ($result && $result->num_rows > 0) {
+            $data = $result->fetch_assoc();
             return [
-                'amount' => (float)$row['amount'],
-                'avg_buy_price' => (float)$row['avg_buy_price'],
-                'coin_id' => $row['coin_id']
+                'amount' => (float)$data['amount'],
+                'avg_buy_price' => (float)$data['avg_buy_price'],
+                'coin_id' => $data['coin_id']
             ];
         }
     }

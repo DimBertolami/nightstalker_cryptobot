@@ -4,48 +4,38 @@ require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/TradingLogger.php';
 require_once __DIR__ . '/../includes/auth.php';
 
-// Check if user is logged in
+// Start session and check authentication
 session_start();
 requireAuth();
 
 // Initialize the trading logger
 $logger = new TradingLogger();
 
-// Get trading statistics
-$stats = $logger->getStats('new_coin_strategy');
+// Get selected exchange from session or default to binance
+if (isset($_GET['exchange'])) {
+    $_SESSION['selected_exchange'] = $_GET['exchange'];
+}
+$selectedExchange = $_SESSION['selected_exchange'] ?? 'binance';
+
+// Include the header template
+$pageTitle = 'Trading Dashboard';
+include __DIR__ . '/../includes/header.php';
+$stats = $logger->getStats($selectedStrategy);
 
 // Get recent trading events
-$recentEvents = $logger->getRecentEvents('new_coin_strategy', 50);
+$recentEvents = $logger->getRecentEvents($selectedStrategy, 50);
 
 // Get performance metrics for different time periods
-$dayPerformance = $logger->getPerformance('new_coin_strategy', 'day');
-$weekPerformance = $logger->getPerformance('new_coin_strategy', 'week');
-$monthPerformance = $logger->getPerformance('new_coin_strategy', 'month');
-$allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
+$dayPerformance = $logger->getPerformance($selectedStrategy, 'day');
+$weekPerformance = $logger->getPerformance($selectedStrategy, 'week');
+$monthPerformance = $logger->getPerformance($selectedStrategy, 'month');
+$allTimePerformance = $logger->getPerformance($selectedStrategy, 'all');
 
-// Format currency values
-function formatCurrency($value, $decimals = 2) {
-    return number_format($value, $decimals);
-}
+// These functions are now imported from functions.php
+// No need to define them here anymore
 
-// Format percentage values
-function formatPercentage($value) {
-    return number_format($value, 2) . '%';
-}
-
-// Format time duration
-function formatDuration($seconds) {
-    if ($seconds < 60) {
-        return $seconds . "s";
-    } elseif ($seconds < 3600) {
-        return floor($seconds / 60) . "m " . ($seconds % 60) . "s";
-    } else {
-        $hours = floor($seconds / 3600);
-        $minutes = floor(($seconds % 3600) / 60);
-        $secs = $seconds % 60;
-        return $hours . "h " . $minutes . "m " . $secs . "s";
-    }
-}
+// formatDuration is now imported from functions.php
+// No need to define it here anymore
 
 // Check if there's an active trade
 $activeTrade = !empty($stats['active_trade_symbol']);
@@ -82,14 +72,10 @@ $activeTrade = !empty($stats['active_trade_symbol']);
     
     <div class="container mt-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Trading Dashboard</h2>
-            <div>
-                <span class="badge bg-secondary">Last updated: <?php echo date('Y-m-d H:i:s'); ?></span>
-                <?php if ($activeTrade): ?>
-                    <span class="badge bg-success ms-2">Active Trade</span>
-                <?php else: ?>
-                    <span class="badge bg-warning ms-2">Searching</span>
-                <?php endif; ?>
+            <h1 class="h3">Trading Dashboard</h1>
+            <div class="d-flex align-items-center">
+                <span class="text-muted me-3">Last updated: <?php echo date('Y-m-d H:i'); ?></span>
+                <button id="refresh-btn" class="btn btn-sm btn-primary">Refresh</button>
             </div>
         </div>
 
@@ -109,13 +95,13 @@ $activeTrade = !empty($stats['active_trade_symbol']);
                     </div>
                     <div class="col-md-3">
                         <div class="stat-card">
-                            <div class="stat-value"><?php echo formatCurrency($stats['active_trade_buy_price'], 8); ?></div>
+                            <div class="stat-value"><?php echo formatCurrency($stats['buy_price'], 8); ?></div>
                             <div class="stat-label">Buy Price</div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="stat-card">
-                            <div class="stat-value" id="current-price">Loading...</div>
+                            <div class="stat-value"><?php echo formatCurrency($stats['current_price'], 8); ?></div>
                             <div class="stat-label">Current Price</div>
                         </div>
                     </div>
@@ -131,7 +117,7 @@ $activeTrade = !empty($stats['active_trade_symbol']);
                         <div class="stat-card">
                             <div class="stat-value" id="holding-time">
                                 <?php 
-                                    $holdingTime = time() - strtotime($stats['active_trade_time']);
+                                    $holdingTime = isset($stats['holding_time_seconds']) ? $stats['holding_time_seconds'] : 0;
                                     echo formatDuration($holdingTime);
                                 ?>
                             </div>
@@ -140,12 +126,15 @@ $activeTrade = !empty($stats['active_trade_symbol']);
                     </div>
                     <div class="col-md-6">
                         <div class="stat-card">
-                            <div class="stat-value" id="price-updates">Monitoring</div>
-                            <div class="stat-label">Price Updates (20x/min)</div>
+                            <div class="stat-value" id="time-to-sell">
+                                <?php 
+                                    $timeToSell = isset($stats['time_to_sell_seconds']) ? $stats['time_to_sell_seconds'] : 0;
+                                    echo formatDuration($timeToSell);
+                                ?>
+                            </div>
+                            <div class="stat-label">Time to Sell</div>
                         </div>
                     </div>
-                </div>
-                <div class="row mt-4">
                     <div class="col-12">
                         <div class="price-chart-container">
                             <canvas id="price-chart"></canvas>
@@ -175,19 +164,37 @@ $activeTrade = !empty($stats['active_trade_symbol']);
                     </div>
                     <div class="card-body">
                         <div class="stat-card">
-                            <div class="stat-value <?php echo ($stats['total_profit'] ?? 0) > 0 ? 'positive' : (($stats['total_profit'] ?? 0) < 0 ? 'negative' : 'neutral'); ?>">
-                                <?php echo formatCurrency($stats['total_profit'] ?? 0, 2); ?>
+                            <div class="stat-value <?php echo ($allTimePerformance['total_profit'] ?? 0) > 0 ? 'positive' : (($allTimePerformance['total_profit'] ?? 0) < 0 ? 'negative' : 'neutral'); ?>">
+                                <?php echo formatCurrency($allTimePerformance['total_profit'] ?? 0, 2); ?> EUR
                             </div>
-                            <div class="stat-label">Total Profit/Loss</div>
+                            <div class="stat-label">Total Profit</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-value">
-                                <?php echo ($stats['trades_executed'] ?? 0); ?>
+                                <?php echo $allTimePerformance['buy_count'] ?? 0; ?> / <?php echo $allTimePerformance['sell_count'] ?? 0; ?>
                             </div>
-                            <div class="stat-label">Trades Executed</div>
+                            <div class="stat-label">Buys / Sells</div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-value <?php echo ($stats['win_rate'] ?? 0) > 50 ? 'positive' : (($stats['win_rate'] ?? 0) < 50 ? 'negative' : 'neutral'); ?>">
+                            <div class="stat-value">
+                                <?php echo $stats['total_trades'] ?? 0; ?>
+                            </div>
+                            <div class="stat-label">Total Trades</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">
+                                <?php echo $stats['profitable_trades'] ?? 0; ?>
+                            </div>
+                            <div class="stat-label">Profitable Trades</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">
+                                <?php echo $stats['loss_making_trades'] ?? 0; ?>
+                            </div>
+                            <div class="stat-label">Loss-Making Trades</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">
                                 <?php echo formatPercentage($stats['win_rate'] ?? 0); ?>
                             </div>
                             <div class="stat-label">Win Rate</div>
@@ -198,89 +205,24 @@ $activeTrade = !empty($stats['active_trade_symbol']);
                             </div>
                             <div class="stat-label">Avg. Profit/Loss</div>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Performance Metrics -->
-        <div class="row">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header">
-                        <i class="bi bi-calendar3"></i> Performance Metrics
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Period</th>
-                                        <th>Trades</th>
-                                        <th>Buys</th>
-                                        <th>Sells</th>
-                                        <th>Profit/Loss</th>
-                                        <th>ROI</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td><strong>Today</strong></td>
-                                        <td><?php echo $dayPerformance['buys'] + $dayPerformance['sells']; ?></td>
-                                        <td><?php echo $dayPerformance['buys']; ?></td>
-                                        <td><?php echo $dayPerformance['sells']; ?></td>
-                                        <td class="<?php echo $dayPerformance['total_profit'] > 0 ? 'positive' : ($dayPerformance['total_profit'] < 0 ? 'negative' : 'neutral'); ?>">
-                                            <?php echo formatCurrency($dayPerformance['total_profit'], 2); ?>
-                                        </td>
-                                        <td class="<?php echo $dayPerformance['roi_percentage'] > 0 ? 'positive' : ($dayPerformance['roi_percentage'] < 0 ? 'negative' : 'neutral'); ?>">
-                                            <?php echo formatPercentage($dayPerformance['roi_percentage']); ?>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>This Week</strong></td>
-                                        <td><?php echo $weekPerformance['buys'] + $weekPerformance['sells']; ?></td>
-                                        <td><?php echo $weekPerformance['buys']; ?></td>
-                                        <td><?php echo $weekPerformance['sells']; ?></td>
-                                        <td class="<?php echo $weekPerformance['total_profit'] > 0 ? 'positive' : ($weekPerformance['total_profit'] < 0 ? 'negative' : 'neutral'); ?>">
-                                            <?php echo formatCurrency($weekPerformance['total_profit'], 2); ?>
-                                        </td>
-                                        <td class="<?php echo $weekPerformance['roi_percentage'] > 0 ? 'positive' : ($weekPerformance['roi_percentage'] < 0 ? 'negative' : 'neutral'); ?>">
-                                            <?php echo formatPercentage($weekPerformance['roi_percentage']); ?>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>This Month</strong></td>
-                                        <td><?php echo $monthPerformance['buys'] + $monthPerformance['sells']; ?></td>
-                                        <td><?php echo $monthPerformance['buys']; ?></td>
-                                        <td><?php echo $monthPerformance['sells']; ?></td>
-                                        <td class="<?php echo $monthPerformance['total_profit'] > 0 ? 'positive' : ($monthPerformance['total_profit'] < 0 ? 'negative' : 'neutral'); ?>">
-                                            <?php echo formatCurrency($monthPerformance['total_profit'], 2); ?>
-                                        </td>
-                                        <td class="<?php echo $monthPerformance['roi_percentage'] > 0 ? 'positive' : ($monthPerformance['roi_percentage'] < 0 ? 'negative' : 'neutral'); ?>">
-                                            <?php echo formatPercentage($monthPerformance['roi_percentage']); ?>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>All Time</strong></td>
-                                        <td><?php echo $allTimePerformance['buys'] + $allTimePerformance['sells']; ?></td>
-                                        <td><?php echo $allTimePerformance['buys']; ?></td>
-                                        <td><?php echo $allTimePerformance['sells']; ?></td>
-                                        <td class="<?php echo $allTimePerformance['total_profit'] > 0 ? 'positive' : ($allTimePerformance['total_profit'] < 0 ? 'negative' : 'neutral'); ?>">
-                                            <?php echo formatCurrency($allTimePerformance['total_profit'], 2); ?>
-                                        </td>
-                                        <td class="<?php echo $allTimePerformance['roi_percentage'] > 0 ? 'positive' : ($allTimePerformance['roi_percentage'] < 0 ? 'negative' : 'neutral'); ?>">
-                                            <?php echo formatPercentage($allTimePerformance['roi_percentage']); ?>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <?php if (!empty($allTimePerformance['best_trade'])): ?>
+                        <div class="stat-card">
+                            <div class="stat-value positive"><?php echo formatPercentage($allTimePerformance['best_trade']['profit_percentage']); ?></div>
+                            <div class="stat-label">Best Trade (<?php echo $allTimePerformance['best_trade']['symbol']; ?>)</div>
                         </div>
+                        <?php endif; ?>
+                        <?php if (!empty($allTimePerformance['worst_trade'])): ?>
+                        <div class="stat-card">
+                            <div class="stat-value negative"><?php echo formatPercentage($allTimePerformance['worst_trade']['profit_percentage']); ?></div>
+                            <div class="stat-label">Worst Trade (<?php echo $allTimePerformance['worst_trade']['symbol']; ?>)</div>
+                        </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Performance Chart Section -->
+        <!-- Trading Performance -->
         <div class="col-lg-12 mb-4">
             <div class="card shadow-sm h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -319,7 +261,36 @@ $activeTrade = !empty($stats['active_trade_symbol']);
                                     <th>Event</th>
                                     <th>Symbol</th>
                                     <th>Details</th>
-                                                </div>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($recentEvents as $event): ?>
+                                <tr>
+                                    <td><?php echo $event['event_time']; ?></td>
+                                    <td>
+                                        <span class="badge bg-<?php echo getEventBadgeClass($event['event_type']); ?>">
+                                            <?php echo ucfirst($event['event_type']); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <?php 
+                                        $eventData = json_decode($event['event_data'], true);
+                                        echo isset($eventData['symbol']) ? $eventData['symbol'] : 'N/A'; 
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($event['event_type'] == 'buy'): ?>
+                                            Buy Price: <?php echo formatCurrency($eventData['buy_price'], 8); ?>, 
+                                            Amount: <?php echo $eventData['amount']; ?>, 
+                                            Total: <?php echo formatCurrency($eventData['total'], 2); ?>
+                                        <?php elseif ($event['event_type'] == 'sell'): ?>
+                                            Sell Price: <?php echo formatCurrency($eventData['sell_price'], 8); ?>, 
+                                            Amount: <?php echo $eventData['amount']; ?>, 
+                                            Total: <?php echo formatCurrency($eventData['total'], 2); ?>, 
+                                            Profit: <span class="<?php echo ($eventData['profit'] ?? 0) > 0 ? 'positive' : 'negative'; ?>">
+                                                <?php echo formatCurrency($eventData['profit'] ?? 0, 2); ?> (<?php echo formatPercentage($eventData['profit_percentage'] ?? 0); ?>)
+                                            </span>
+                                            <div class="d-inline-flex align-items-center ms-2">
                                                 <div class="ms-2">
                                                     <?php if (isset($eventData['holding_time_seconds'])): ?>
                                                     <div class="custom-tooltip">
@@ -373,8 +344,11 @@ $activeTrade = !empty($stats['active_trade_symbol']);
     </a>
 
     <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="/NS/assets/js/trading.js"></script>
+
     <!-- Performance Chart Initialization -->
     <script>
         // Performance Chart
@@ -386,13 +360,13 @@ $activeTrade = !empty($stats['active_trade_symbol']);
                 datasets: [{
                     label: 'Profit/Loss',
                     data: [
-                        <?php echo $dayPerformance['total_profit']; ?>,
-                        <?php echo $weekPerformance['total_profit'] / 7; ?>,
-                        <?php echo $weekPerformance['total_profit'] / 7; ?>,
-                        <?php echo $weekPerformance['total_profit'] / 7; ?>,
-                        <?php echo $weekPerformance['total_profit'] / 7; ?>,
-                        <?php echo $weekPerformance['total_profit'] / 7; ?>,
-                        <?php echo $weekPerformance['total_profit'] / 7; ?>
+                        <?php echo $dayPerformance['total_profit'] ?? 0; ?>,
+                        <?php echo ($weekPerformance['total_profit'] ?? 0) / 7; ?>,
+                        <?php echo ($weekPerformance['total_profit'] ?? 0) / 7; ?>,
+                        <?php echo ($weekPerformance['total_profit'] ?? 0) / 7; ?>,
+                        <?php echo ($weekPerformance['total_profit'] ?? 0) / 7; ?>,
+                        <?php echo ($weekPerformance['total_profit'] ?? 0) / 7; ?>,
+                        <?php echo ($weekPerformance['total_profit'] ?? 0) / 7; ?>
                     ],
                     backgroundColor: 'rgba(54, 162, 235, 0.2)',
                     borderColor: 'rgba(54, 162, 235, 1)',

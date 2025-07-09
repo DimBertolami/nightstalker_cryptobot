@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
+require_once __DIR__ . '/includes/pdo_functions.php';
 
 // Verify authentication
 //if (!isLoggedIn()) {
@@ -17,10 +18,11 @@ require_once __DIR__ . '/includes/header.php';
 
 // Fetch data with error handling
 try {
-    $newCoins = getNewCryptocurrencies() ?? [];
-    $trendingCoins = getTrendingCoins() ?? [];
-    $recentTrades = getRecentTrades(10) ?? [];
-    $stats = getTradingStats() ?? [
+    // Use the PDO-compatible versions of these functions
+    $newCoins = getNewCryptocurrenciesPDO() ?? [];
+    $trendingCoins = getTrendingCoinsPDO() ?? [];
+    $recentTrades = getRecentTradesPDO(10) ?? [];
+    $stats = getTradingStatsPDO() ?? [
         'total_trades' => 0,
         'active_trades' => 0, 
         'total_profit' => 0,

@@ -175,12 +175,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $configContent = file_get_contents($configFile);
                 
                 // Replace settings in the file
-                $configContent = preg_replace('/\$testMode\s*=\s*(true|false)/', '$testMode = ' . ($newSettings['testMode'] ? 'true' : 'false'), $configContent);
-                $configContent = preg_replace('/\$buyAmount\s*=\s*[0-9.]+/', '$buyAmount = ' . $newSettings['buyAmount'], $configContent);
-                $configContent = preg_replace('/\$profitTarget\s*=\s*[0-9.]+/', '$profitTarget = ' . $newSettings['profitTarget'], $configContent);
-                $configContent = preg_replace('/\$stopLoss\s*=\s*-[0-9.]+/', '$stopLoss = ' . $newSettings['stopLoss'], $configContent);
-                $configContent = preg_replace('/\$maxHoldingTime\s*=\s*[0-9]+/', '$maxHoldingTime = ' . $newSettings['maxHoldingTime'], $configContent);
-                $configContent = preg_replace('/\$refreshInterval\s*=\s*[0-9]+/', '$refreshInterval = ' . $newSettings['refreshInterval'], $configContent);
+                $configContent = preg_replace('/\\$testMode\s*=\s*(true|false)/', '$testMode = ' . ($newSettings['testMode'] ? 'true' : 'false'), $configContent);
+                $configContent = preg_replace('/\\$buyAmount\s*=\s*[0-9.]+/', '$buyAmount = ' . $newSettings['buyAmount'], $configContent);
+                $configContent = preg_replace('/\\$profitTarget\s*=\s*[0-9.]+/', '$profitTarget = ' . $newSettings['profitTarget'], $configContent);
+                $configContent = preg_replace('/\\$stopLoss\s*=\s*-[0-9.]+/', '$stopLoss = ' . $newSettings['stopLoss'], $configContent);
+                $configContent = preg_replace('/\\$maxHoldingTime\s*=\s*[0-9]+/', '$maxHoldingTime = ' . $newSettings['maxHoldingTime'], $configContent);
+                $configContent = preg_replace('/\\$refreshInterval\s*=\s*[0-9]+/', '$refreshInterval = ' . $newSettings['refreshInterval'], $configContent);
                 
                 if (file_put_contents($configFile, $configContent)) {
                     $message = "Settings updated successfully!";
@@ -527,15 +527,15 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
                         </div>
                         <div class="d-flex align-items-center mb-2">
                             <div class="form-check form-switch mb-0 me-2">
-                                <input class="form-check-input" type="checkbox" id="coinMarketCap" name="data_sources[coinmarketcap]" checked>
-                                <label class="form-check-label" for="coinMarketCap">CoinMarketCap</label>
+                                <input class="form-check-input" type="checkbox" id="coinMarketCap" name="data_sources[coinmarketcap]" <?= $tradingConfig['api_data_sources']['coinmarketcap']['enabled'] ?? false ? 'checked' : '' ?>>
+                                <label class="form-check-label" for="coinMarketCap">Enable CoinMarketCap Data</label>
                             </div>
                             <button type="button" class="btn btn-outline-primary btn-sm p-1 me-1" title="Edit CoinMarketCap"><i class="bi bi-pencil"></i></button>
                             <button type="button" class="btn btn-outline-danger btn-sm p-1 delete-data-source" data-source-id="coinmarketcap" title="Delete CoinMarketCap"><i class="bi bi-trash"></i></button>
                         </div>
                         <div class="d-flex align-items-center mb-2">
                             <div class="form-check form-switch mb-0 me-2">
-                                <input class="form-check-input" type="checkbox" id="bitvavo" name="data_sources[bitvavo]">
+                                <input class="form-check-input" type="checkbox" id="bitvavo" name="data_sources[bitvavo]" <?= $tradingConfig['api_data_sources']['bitvavo']['enabled'] ?? false ? 'checked' : '' ?>>
                                 <label class="form-check-label" for="bitvavo">Bitvavo</label>
                             </div>
                             <button type="button" class="btn btn-outline-primary btn-sm p-1 me-1" title="Edit Bitvavo"><i class="bi bi-pencil"></i></button>
@@ -543,7 +543,7 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
                         </div>
                         <div class="d-flex align-items-center mb-2">
                             <div class="form-check form-switch mb-0 me-2">
-                                <input class="form-check-input" type="checkbox" id="jupiter" name="data_sources[jupiter]">
+                                <input class="form-check-input" type="checkbox" id="jupiter" name="data_sources[jupiter]" <?= $tradingConfig['api_data_sources']['jupiter']['enabled'] ?? false ? 'checked' : '' ?>>
                                 <label class="form-check-label" for="jupiter">Jupiter</label>
                             </div>
                             <button type="button" class="btn btn-outline-primary btn-sm p-1 me-1" title="Edit Jupiter"><i class="bi bi-pencil"></i></button>
@@ -551,7 +551,7 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
                         </div>
                         <div class="d-flex align-items-center mb-2">
                             <div class="form-check form-switch mb-0 me-2">
-                                <input class="form-check-input" type="checkbox" id="alpaca" name="data_sources[alpaca]">
+                                <input class="form-check-input" type="checkbox" id="alpaca" name="data_sources[alpaca]" <?= $tradingConfig['api_data_sources']['alpaca']['enabled'] ?? false ? 'checked' : '' ?>>
                                 <label class="form-check-label" for="alpaca">Alpaca</label>
                             </div>
                             <button type="button" class="btn btn-outline-primary btn-sm p-1 me-1" title="Edit Alpaca"><i class="bi bi-pencil"></i></button>
@@ -559,7 +559,7 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
                         </div>
                         <div class="d-flex align-items-center mb-2">
                             <div class="form-check form-switch mb-0 me-2">
-                                <input class="form-check-input" type="checkbox" id="liveCoinWatch" name="data_sources[livecoinwatch]">
+                                <input class="form-check-input" type="checkbox" id="liveCoinWatch" name="data_sources[livecoinwatch]" <?= $tradingConfig['api_data_sources']['livecoinwatch']['enabled'] ?? false ? 'checked' : '' ?>>
                                 <label class="form-check-label" for="liveCoinWatch">LiveCoinWatch</label>
                             </div>
                             <button type="button" class="btn btn-outline-primary btn-sm p-1 me-1" title="Edit LiveCoinWatch"><i class="bi bi-pencil"></i></button>

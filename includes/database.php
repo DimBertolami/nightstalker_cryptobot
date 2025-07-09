@@ -15,35 +15,25 @@ if (php_sapi_name() !== 'cli' && !defined('DB_INITIALIZED')) {
  * Initialize database connection
  */
 function connectToDatabase() {
-    static $db = null;
-    
-    if ($db === null) {
-        require_once __DIR__.'/config.php';
-        $db = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-        if ($db->connect_error) {
-            die("Database connection failed: " . $db->connect_error);
-        }
-        $db->set_charset("utf8mb4");
-    }
-    return $db;
+    return getDBConnection();
 }
 
 /**
  * Initialize database schema
  */
 function initDB() {
+    // Initialize database if needed
+    $db = getDBConnection();
+    if (!$db) {
+        throw new Exception('Database connection failed');
+    }
+    
     try {
-        $db = getDBConnection();
-        
-        if (!$db || !$db->ping()) {
-            throw new Exception("Database connection failed");
-        }
-
-        if (!$db->select_db(DB_NAME)) {
+        if (!$db->query("SELECT 1 FROM dual")) {
             if (!$db->query("CREATE DATABASE IF NOT EXISTS `".DB_NAME."`")) {
-                throw new Exception("Could not create database: ".$db->error);
+                throw new Exception("Could not create database: ".$db->errorInfo()[2]);
             }
-            $db->select_db(DB_NAME);
+            $db->query("USE `".DB_NAME."`");
         }
         
         // First check if tables exist
@@ -54,7 +44,7 @@ function initDB() {
         $result = $db->query("SHOW TABLES");
         $tables = [];
         if ($result) {
-            while($row = $result->fetch_row()) {
+            while($row = $result->fetch(PDO::FETCH_NUM)) {
                 $tables[] = $row[0];
             }
         }
@@ -76,7 +66,7 @@ function initDB() {
             try {
                 // Check if there are duplicates
                 $result = $db->query("SELECT id, COUNT(*) as count FROM cryptocurrencies GROUP BY id HAVING count > 1");
-                if ($result && $result->num_rows > 0) {
+                if ($result && $result->rowCount() > 0) {
                     // Rename the table and create a new one with proper constraints
                     $db->query("RENAME TABLE cryptocurrencies TO cryptocurrencies_old");
                     $db->query("CREATE TABLE cryptocurrencies (
@@ -98,16 +88,12 @@ function initDB() {
                     // Copy data without duplicates
                     $db->query("INSERT INTO cryptocurrencies 
                         SELECT * FROM (
-                            SELECT * FROM cryptocurrencies_old ORDER BY last_updated DESC
-                        ) as latest 
-                        GROUP BY id");
-                    
-                    // Remove cryptocurrencies from the list of existing tables so schema gets applied
-                    $existingTables = array_diff($existingTables, ['cryptocurrencies']);
+                            SELECT * FROM cryptocurrencies_old 
+                            GROUP BY id
+                        ) as temp");
                 }
             } catch (Exception $e) {
                 error_log("Error fixing cryptocurrencies table: " . $e->getMessage());
-                // Continue with initialization
             }
         }
         
@@ -159,23 +145,30 @@ function initDB() {
 }
 
 /**
- * Database Connection (Singleton Pattern)
+ * Get PDO database connection
  */
 function getDBConnection() {
-    static $connection = null;
+    static $db = null;
     
-    if ($connection === null) {
-        require_once __DIR__.'/config.php';
-        $connection = @new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-        
-        if ($connection->connect_error) {
-            error_log("[DB] Connection failed: " . $connection->connect_error);
-            return null;
+    if ($db === null) {
+        try {
+            $db = new PDO(
+                'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8',
+                DB_USER,
+                DB_PASS,
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false
+                ]
+            );
+        } catch (PDOException $e) {
+            error_log('Database connection failed: ' . $e->getMessage());
+            return false;
         }
-        $connection->set_charset("utf8mb4");
     }
     
-    return $connection;
+    return $db;
 }
 
 /**
@@ -183,7 +176,7 @@ function getDBConnection() {
  */
 function closeDB($db) {
     if ($db) {
-        $db->close();
+        $db = null;
     }
 }
 ?>
