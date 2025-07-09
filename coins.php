@@ -5,13 +5,37 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
 
 // Initialize showAll flag with default value
-$showAll = false;
+$showAll = isset($_GET['show_all']) ? $_GET['show_all'] == '1' : false;
+
+// Get filter settings from cookies or use defaults
+$filterAge = isset($_COOKIE['filter_age']) ? (int)$_COOKIE['filter_age'] : 24;
+$filterMarketCap = isset($_COOKIE['filter_marketcap']) ? (int)$_COOKIE['filter_marketcap'] : 1500000;
+$filterVolume = isset($_COOKIE['filter_volume']) ? (int)$_COOKIE['filter_volume'] : 1500000;
+$filterAgeEnabled = isset($_COOKIE['filter_age_enabled']) ? $_COOKIE['filter_age_enabled'] == '1' : true;
+$filterMarketCapEnabled = isset($_COOKIE['filter_marketcap_enabled']) ? $_COOKIE['filter_marketcap_enabled'] == '1' : true;
+$filterVolumeEnabled = isset($_COOKIE['filter_volume_enabled']) ? $_COOKIE['filter_volume_enabled'] == '1' : true;
+$autoRefresh = isset($_COOKIE['auto_refresh']) ? $_COOKIE['auto_refresh'] == '1' : true;
+$entriesPerPage = isset($_COOKIE['entries_per_page']) ? (int)$_COOKIE['entries_per_page'] : 25;
 
 // Set title before including header
 $title = "Crypto Stalker - an early tsunami detection system but for crypto";
 
+require_once __DIR__ . '/includes/header.php';
+
 // Add custom CSS for new coin highlighting and real-time updates
 $customCSS = <<<EOT
+<!-- Completely disable DataTables on this page -->
+<script>
+// This script runs immediately to prevent DataTables from initializing
+window.disableDataTables = true;
+</script>
+<meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.datatables.net 'unsafe-inline' 'unsafe-eval';
+    style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.datatables.net 'unsafe-inline';
+    img-src 'self' data: https: *;
+    font-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com 'unsafe-inline';
+">
 <style>
     div{
         background-color: #061e36;
@@ -95,228 +119,179 @@ $customCSS = <<<EOT
     .bs-tooltip-left .arrow::before {
         border-left-color: #343a40;
     }
-</style>
+    
+    /* Disable portfolio display */
+    .portfolio-alert {
+        display: none;
+    }
 EOT;
 
-require_once __DIR__ . '/includes/header.php';
-
-// Verify authentication
-//requireAuth();
-
-// Initialize live data array
-$liveData = [
-    'price' => 0,
-    'volume' => 0,
-    'market_cap' => 0,
-    'age_hours' => 0
+// Load configuration
+$config = [
+    'data_sources' => [
+        'coinmarketcap' => true
+    ]
 ];
 
-// Get live market data
+// Check if we should use mock data (for development only)
+$useMockData = isset($_GET['use_mock']) && $_GET['use_mock'] == '1';
+
+// Add a notice if we're using mock data
+if ($useMockData) {
+    $_SESSION['notice'] = "Using mock data for demonstration. <a href='?use_mock=0'>Click here to use real data</a>";
+}
+
+// Get user balances (disabled until database compatibility is fixed)
+$userBalances = [];
+
+// Get coins data
 try {
-    $marketData = fetchFromCMC();
-    if (!$marketData) {
-        throw new Exception("Failed to fetch live market data");
-    }
-    
-    // Process the show_all parameter
-    $showAll = isset($_GET['show_all']) ? (bool)$_GET['show_all'] : false;
-    
-    // Get filter values with defaults
-    $maxAge = null;
-    if (isset($_GET['max_age']) && is_numeric($_GET['max_age'])) {
-        $maxAge = max(1, (int)$_GET['max_age']); // Ensure at least 1 hour
-    }
-    
-    $minMarketCap = null;
-    if (isset($_GET['min_marketcap']) && is_numeric($_GET['min_marketcap'])) {
-        $minMarketCap = max(0, (float)$_GET['min_marketcap']); // Ensure non-negative
-    }
-    
-    $minVolume = null;
-    if (isset($_GET['min_volume']) && is_numeric($_GET['min_volume'])) {
-        $minVolume = max(0, (float)$_GET['min_volume']); // Ensure non-negative
+    // Include CMC utils if needed
+    if ($config['data_sources']['coinmarketcap'] ?? false) {
+        require_once __DIR__ . '/includes/cmc_utils.php';
     }
     
     // Initialize coins array
     $coins = [];
     
-    // Get database connection
-    $db = getDBConnection();
-    if (!$db) {
-        throw new Exception("Database connection failed");
-    }
-    
-    // Log filter values for debugging
-    error_log("Filters - showAll: " . ($showAll ? 'true' : 'false') . 
-             ", maxAge: " . ($maxAge ?? 'null') . 
-             ", minMarketCap: " . ($minMarketCap ?? 'null') . 
-             ", minVolume: " . ($minVolume ?? 'null'));
-    
-    // Always use filtered query to ensure consistent behavior
-    // Use filtered query if any filter is active or showAll is true
-    $query = "SELECT c.*, TIMESTAMPDIFF(HOUR, c.date_added, NOW()) as age_hours ";
-    $from = "FROM coins c ";
-    $where = "WHERE 1=1 ";
-    $order = "";
-    $limit = "";
-    $params = [];
-    $types = "";
-    
-    // Add filters
-    if ($maxAge !== null) {
-        $where .= "AND c.date_added >= DATE_SUB(NOW(), INTERVAL ? HOUR) ";
-        $params[] = $maxAge;
-        $types .= "i";
-    }
-    
-    if ($minMarketCap !== null) {
-        $where .= "AND c.market_cap >= ? ";
-        $params[] = $minMarketCap;
-        $types .= "d";
-    }
-    
-    if ($minVolume !== null) {
-        $where .= "AND c.volume_24h >= ? ";
-        $params[] = $minVolume;
-        $types .= "d";
-    }
-    
-    if ($showAll) {
-        // For show all, just order by market cap
-        $order = "ORDER BY c.market_cap DESC ";
-        $limit = "LIMIT 1000";
-    } else {
-        // For filtered view, include trending coins
-        $from .= "LEFT JOIN trending_coins tc ON c.id = tc.coin_id ";
-        // Only apply trending/volume condition if no specific filters are set
-        if ($minMarketCap === null && $minVolume === null && $maxAge === null) {
-            $where .= "AND (tc.coin_id IS NOT NULL OR c.volume_24h > 0) ";
-        }
-        $order = "ORDER BY c.volume_24h DESC, c.market_cap DESC ";
-        $limit = "LIMIT 200";
-    }
-    
-    // Build final query
-    $query = "$query $from $where $order $limit";
-    
-    // Debug logging
-    error_log("=== DEBUG FILTERS ===");
-    error_log("Show All: " . ($showAll ? 'true' : 'false'));
-    error_log("Max Age: " . ($maxAge ?? 'null'));
-    error_log("Min Market Cap: " . ($minMarketCap ?? 'null'));
-    error_log("Min Volume: " . ($minVolume ?? 'null'));
-    error_log("SQL Query: " . $query);
-    error_log("Params: " . print_r($params, true));
-    error_log("Param types: " . $types);
-    
-    // Log the full URL with parameters
-    $currentUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]$_SERVER[REQUEST_URI]";
-    error_log("Current URL: " . $currentUrl);
-    
-    // Prepare and execute query
-    $stmt = $db->prepare($query);
-    
-    // Bind parameters if any
-    if (!empty($params)) {
-        $stmt->bind_param($types, ...$params);
-    }
-    
-    if (!$stmt->execute()) {
-        throw new Exception("Query execution failed: " . $stmt->error);
-    }
-    
-    $result = $stmt->get_result();
-    if (!$result) {
-        throw new Exception("Failed to get result set: " . $db->error);
-    }
-    
-    // Process results
-    while ($row = $result->fetch_assoc()) {
-        // Ensure all required fields are present
-        $row['volume_24h'] = $row['volume_24h'] ?? 0;
-        $row['price_change_percentage_24h'] = $row['price_change_percentage_24h'] ?? 0;
-        $row['market_cap'] = $row['market_cap'] ?? 0;
-        
-        $coins[] = $row;
-    }
-    
-    // Initialize coins array if not set
-    if (!isset($coins) || !is_array($coins)) {
-        $coins = [];
-    }
-    
-    // Merge live data with database data
-    $coins = array_map(function($coin) use ($marketData) {
-        if (!is_array($coin)) {
-            error_log("Invalid coin data found, skipping");
-            $coin = [];
+    // Only try to get real data if we're not explicitly using mock data
+    if (!$useMockData) {
+        // Get coins from database
+        try {
+            $db = getDbConnection();
+            
+            // Query to get coins based on filter
+            if (!$showAll) {
+                $query = "SELECT * FROM coins WHERE date_added > DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY market_cap DESC";
+            } else {
+                $query = "SELECT * FROM coins ORDER BY market_cap DESC LIMIT 1000";
+            }
+            
+            $stmt = $db->prepare($query);
+            $stmt->execute();
+            $dbCoins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Debug output
+            error_log("Fetched " . count($dbCoins) . " coins from database");
+            
+            // Process database coins
+            foreach ($dbCoins as $coin) {
+                $coins[] = [
+                    'id' => $coin['id'],
+                    'symbol' => $coin['symbol'],
+                    'name' => $coin['name'],
+                    'current_price' => $coin['current_price'],
+                    'price_change_24h' => $coin['price_change_24h'],
+                    'volume_24h' => $coin['volume_24h'],
+                    'market_cap' => $coin['market_cap'],
+                    'date_added' => $coin['date_added'] ?? date('Y-m-d H:i:s'),
+                    'age_hours' => isset($coin['date_added']) ? round((time() - strtotime($coin['date_added'])) / 3600, 1) : 0,
+                    'is_trending' => $coin['is_trending'] ?? 0,
+                    'volume_spike' => $coin['volume_spike'] ?? 0,
+                    'source' => 'Local'
+                ];
+            }
+        } catch (PDOException $e) {
+            error_log("Database error: " . $e->getMessage());
+            // Continue to try CMC data
         }
         
-        $symbol = $coin['symbol'] ?? '';
-        $liveData = is_array($marketData) && isset($marketData[$symbol]) ? $marketData[$symbol] : [];
-        
-        // Ensure we have valid price data with proper null checks
-        $currentPrice = 0.0;
-        if (is_array($liveData) && isset($liveData['price']) && is_numeric($liveData['price'])) {
-            $currentPrice = (float)$liveData['price'];
-        } elseif (isset($coin['current_price']) && is_numeric($coin['current_price'])) {
-            $currentPrice = (float)$coin['current_price'];
+        // Add CMC data if enabled
+        if (($config['data_sources']['coinmarketcap'] ?? false)) {
+            try {
+                $cmcCoins = getCMCTrendingCoins();
+                error_log("Fetched " . count($cmcCoins) . " coins from CMC");
+                
+                if (!empty($cmcCoins)) {
+                    foreach ($cmcCoins as $coin) {
+                        // Skip if we already have this coin
+                        $exists = false;
+                        foreach ($coins as $existingCoin) {
+                            if ($existingCoin['symbol'] == $coin['symbol']) {
+                                $exists = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!$exists) {
+                            $coins[] = [
+                                'id' => 'cmc_' . ($coin['id'] ?? rand(10000, 99999)),
+                                'symbol' => $coin['symbol'],
+                                'name' => $coin['name'],
+                                'current_price' => $coin['quote']['USD']['price'],
+                                'price_change_24h' => $coin['quote']['USD']['percent_change_24h'],
+                                'volume_24h' => $coin['quote']['USD']['volume_24h'] ?? 0,
+                                'market_cap' => $coin['quote']['USD']['market_cap'] ?? 0,
+                                'date_added' => date('Y-m-d H:i:s'),
+                                'age_hours' => 0,
+                                'is_trending' => 1,
+                                'volume_spike' => 0,
+                                'source' => 'CMC'
+                            ];
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                error_log("CMC API error: " . $e->getMessage());
+                // Continue with just database coins
+            }
         }
-        
-        // Safely get numeric values with defaults
-        $priceChange24h = 0.0;
-        if (isset($liveData['change']) && is_numeric($liveData['change'])) {
-            $priceChange24h = (float)$liveData['change'];
-        } elseif (isset($coin['price_change_24h']) && is_numeric($coin['price_change_24h'])) {
-            $priceChange24h = (float)$coin['price_change_24h'];
-        }
-        
-        $volume24h = 0.0;
-        if (is_array($liveData) && isset($liveData['volume']) && is_numeric($liveData['volume'])) {
-            $volume24h = (float)$liveData['volume'];
-        } elseif (isset($coin['volume_24h']) && is_numeric($coin['volume_24h'])) {
-            $volume24h = (float)$coin['volume_24h'];
-        }
-        
-        $marketCap = 0.0;
-        if (isset($liveData['market_cap']) && is_numeric($liveData['market_cap'])) {
-            $marketCap = (float)$liveData['market_cap'];
-        } elseif (isset($coin['market_cap']) && is_numeric($coin['market_cap'])) {
-            $marketCap = (float)$coin['market_cap'];
-        }
-        
-        return [
-            'id' => isset($coin['id']) ? (int)$coin['id'] : 0,
-            'name' => $coin['name'] ?? 'Unknown',
-            'symbol' => $symbol,
-            'current_price' => $currentPrice,
-            'price_change_24h' => $priceChange24h,
-            'volume_24h' => $volume24h,
-            'market_cap' => $marketCap,
-            'date_added' => $liveData['date_added'] ?? $coin['date_added'] ?? null,
-            'age_hours' => (isset($coin['age_hours']) && is_numeric($coin['age_hours'])) ? (int)$coin['age_hours'] : 0,
-            'is_trending' => !empty($coin['is_trending']),
-            'volume_spike' => !empty($coin['volume_spike']),
-            'last_updated' => $coin['last_updated'] ?? null
-        ];
-    }, $coins);
+    }
+    
+    // Use mock data if explicitly requested or if no coins found
+    if ($useMockData) {
+        $coins = getMockCoinsData();
+    } else if (empty($coins)) {
+        // No coins and not using mock data
+        $_SESSION['error'] = "Market data temporarily unavailable. <a href='?use_mock=1'>Click here to use mock data</a> or <a href='?refresh=1'>Try again</a>.";
+    }
 
 } catch (Exception $e) {
     error_log("Market data error: " . $e->getMessage());
-    $_SESSION['error'] = "Market data temporarily unavailable. Showing cached data.";
-    $coins = [];
+    $_SESSION['error'] = "Market data temporarily unavailable. <a href='?use_mock=1'>Click here to use mock data</a> or <a href='?refresh=1'>Try again</a>.";
+    
+    // Use mock data if explicitly requested
+    if ($useMockData) {
+        $coins = getMockCoinsData();
+    } else {
+        $coins = [];
+    }
 }
 
-// Get user balances
-$balances = [];
-try {
-    // Check if user is logged in, if not use a default user ID for testing
-    $userId = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 1;
-    $balances = getUserBalance($userId);
-} catch (Exception $e) {
-    error_log("Balance error: " . $e->getMessage());
-    $_SESSION['error'] = "Could not load portfolio balances.";
+// Function to generate mock coin data for testing
+function getMockCoinsData() {
+    $mockCoins = [];
+    $symbols = ['BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE', 'DOT', 'AVAX', 'MATIC', 'LINK'];
+    $names = ['Bitcoin', 'Ethereum', 'Solana', 'Ripple', 'Cardano', 'Dogecoin', 'Polkadot', 'Avalanche', 'Polygon', 'Chainlink'];
+    
+    for ($i = 0; $i < 10; $i++) {
+        $price = rand(10, 60000) / (($i == 0) ? 1 : 10);
+        $change = rand(-1500, 1500) / 100;
+        $volume = rand(1000000, 1000000000);
+        $marketCap = rand(10000000, 1000000000000);
+        
+        $mockCoins[] = [
+            'id' => 'mock_' . $i,
+            'symbol' => $symbols[$i],
+            'name' => $names[$i],
+            'current_price' => $price,
+            'price_change_24h' => $change,
+            'volume_24h' => $volume,
+            'market_cap' => $marketCap,
+            'date_added' => date('Y-m-d H:i:s'),
+            'age_hours' => rand(1, 24),
+            'is_trending' => rand(0, 1),
+            'volume_spike' => rand(0, 1),
+            'source' => 'Mock'
+        ];
+    }
+    
+    return $mockCoins;
 }
+
+// Get user balances (disabled until database compatibility is fixed)
+// $userBalances = getUserBalance(1);
+$userBalances = [];
 
 // Remove coins with price exactly 0.00000000
 $coins = array_filter($coins, function($coin) {
@@ -332,11 +307,6 @@ $coins = array_filter($coins, function($coin) {
         border-left: 4px solid #17a2b8;
         width: 100%;
         margin: 20px 0;
-    }
-    #coins-table FILTER{
-        background-color: #061e36;
-        color: rgb(241, 207, 10);
-        border-left: 4px solid #17a2b8;
     }
     #coins-table th {
         background: #343a40;
@@ -415,6 +385,17 @@ $coins = array_filter($coins, function($coin) {
     }
 </style>
 
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+<!-- DataTables -->
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.js"></script>
+    
+<!-- DataTables Responsive Extension -->
+<script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/responsive/2.2.9/js/dataTables.responsive.min.js"></script>
+<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/responsive/2.2.9/css/responsive.dataTables.min.css">
+
 <div class="container-fluid">
     <div class="row mb-4">
         <div class="col-md-12">
@@ -425,8 +406,13 @@ $coins = array_filter($coins, function($coin) {
             
             <?php if (!empty($_SESSION['error'])): ?>
                 <div class="alert alert-danger">
-                    <?= htmlspecialchars($_SESSION['error']) ?>
-                    <?php unset($_SESSION['error']); ?>
+                    <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
+                </div>
+            <?php endif; ?>
+            
+            <?php if (!empty($_SESSION['notice'])): ?>
+                <div class="alert alert-info">
+                    <?php echo $_SESSION['notice']; unset($_SESSION['notice']); ?>
                 </div>
             <?php endif; ?>
             
@@ -437,7 +423,7 @@ $coins = array_filter($coins, function($coin) {
                     <div id="portfolio-loading" class="ms-2"></div>
                     <div id="portfolio" class="ms-2 d-flex flex-wrap gap-2">
                         <!-- Portfolio items will be loaded here via JavaScript -->
-                        <span class="text-muted">Loading portfolio...</span>
+                        <span class="text-muted">Portfolio temporarily disabled during database update</span>
                     </div>
                     <div id="total-portfolio-value" class="ms-auto fw-bold">
                         Total: $0.00
@@ -496,7 +482,15 @@ $coins = array_filter($coins, function($coin) {
                 <?php if (empty($coins)): ?>
                     <div class="card-body">
                         <div class="alert alert-warning">
-                            No data found.
+                            <?php 
+                            if (isset($_SESSION['error'])) {
+                                echo $_SESSION['error'];
+                                // Clear the error after displaying it
+                                unset($_SESSION['error']);
+                            } else {
+                                echo 'No data found.';
+                            }
+                            ?>
                         </div>
                     </div>
                 <?php else: ?>
@@ -511,14 +505,15 @@ $coins = array_filter($coins, function($coin) {
                                     <th>Market Cap</th>
                                     <th>Age</th>
                                     <th>Status</th>
+                                    <th>Source</th>
                                     <th>Trade</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Initial data rendered by PHP, will be replaced by AJAX -->
+                                <!-- Initial data rendered by PHP -->
                                 <?php foreach ($coins as $coin): ?>
                                 <?php 
-                                    $userBalance = $balances[$coin['symbol']] ?? 0;
+                                    $userBalance = $userBalances[$coin['symbol']] ?? 0;
                                     $canSell = $userBalance > 0;
                                     $priceChangeClass = $coin['price_change_24h'] >= 0 ? 'price-up' : 'price-down';
                                     
@@ -537,7 +532,7 @@ $coins = array_filter($coins, function($coin) {
                                         $ageDisplay = floor($coin['age_hours'] / 720) . ' months';
                                     }
                                 ?>
-                                <tr>
+                                <tr class="<?= $ageClass ?>">
                                     <td>
                                         <div class="d-flex align-items-center">
                                             <div>
@@ -557,47 +552,48 @@ $coins = array_filter($coins, function($coin) {
                                     </td>
                                     <td>$<?= isset($coin['volume_24h']) ? number_format((float)$coin['volume_24h']) : '0' ?></td>
                                     <td>$<?= isset($coin['market_cap']) ? number_format((float)$coin['market_cap']) : '0' ?></td>
-                                    <td class="<?= $ageClass ?>">
-                                        <?= $ageDisplay ?>
-                                        <?php if ($isNew): ?>
-                                            <span class="badge bg-danger">NEW</span>
-                                        <?php endif; ?>
-                                    </td>
+                                    <td data-age-hours="<?= $coin['age_hours'] ?>"><?= $ageDisplay ?></td>
                                     <td>
                                         <?php if ($coin['is_trending']): ?>
                                             <span class="badge badge-trending">Trending</span>
                                         <?php endif; ?>
                                         <?php if ($coin['volume_spike']): ?>
-                                            <span class="badge badge-volume">Volume Spike</span>
+                                            <span class="badge badge-volume-spike">Volume Spike</span>
                                         <?php endif; ?>
                                     </td>
+                                    <td class="text-center"><?= $coin['source'] ?? 'Local' ?></td>
                                     <td>
-                                        <div class="d-flex align-items-center">
-                                            <div class="input-group input-group-sm me-2" style="width: 120px;">
-                                                <input type="number" class="form-control trade-amount" 
-                                                    placeholder="Amount" step="0.01" min="0.01">
-                                            </div>
-                                            <div class="btn-group btn-group-sm">
-                                                <button type="button" class="btn btn-success buy-btn" 
-                                                    data-coin-id="<?= $coin['id'] ?>" 
-                                                    data-symbol="<?= $coin['symbol'] ?>" 
-                                                    data-price="<?= $coin['current_price'] ?>">
-                                                    <i class="fas fa-shopping-cart"></i> Buy
-                                                </button>
-                                                <button type="button" class="btn btn-danger sell-btn" 
-                                                    data-coin-id="<?= $coin['id'] ?>" 
-                                                    data-symbol="<?= $coin['symbol'] ?>" 
-                                                    data-price="<?= $coin['current_price'] ?>" 
-                                                    <?= $canSell ? '' : 'disabled' ?>>
-                                                    <i class="fas fa-money-bill-wave"></i> Sell
-                                                </button>
-                                            </div>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="dashboard/trading_dashboard.php?symbol=<?= $coin['symbol'] ?>" class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-chart-line"></i>
+                                            </a>
+                                            <button class="btn btn-outline-success btn-sm buy-coin" data-symbol="<?= $coin['symbol'] ?>" data-price="<?= $coin['current_price'] ?>">
+                                                <i class="fas fa-shopping-cart"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm sell-coin <?= !$canSell ? 'disabled' : '' ?>" data-symbol="<?= $coin['symbol'] ?>" data-price="<?= $coin['current_price'] ?>" <?= !$canSell ? 'disabled' : '' ?>>
+                                                <i class="fas fa-dollar-sign"></i>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
+                    </div>
+                    <div class="card-footer">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <label for="entriesPerPage" class="me-2">Show entries:</label>
+                                <select id="entriesPerPage" class="form-select form-select-sm d-inline-block" style="width: auto;">
+                                    <option value="10">10</option>
+                                    <option value="25" selected>25</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                </select>
+                            </div>
+                            <div id="pagination" class="mt-3"></div>
+                        </div>
+                        <div id="entries-info" class="mt-2">Showing 0 of 0 entries</div>
                     </div>
                 <?php endif; ?>
             </div>
@@ -612,4 +608,282 @@ $coins = array_filter($coins, function($coin) {
 
 <!-- Load coins.js -->
 <script src="<?= BASE_URL ?>/assets/js/coins.js" nonce="<?= $nonce ?>"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize filters with default values
+    const filters = {
+        age: {
+            enabled: true,
+            value: 24 // hours
+        },
+        marketCap: {
+            enabled: true,
+            value: 1500000 // USD
+        },
+        volume: {
+            enabled: true,
+            value: 1500000 // USD
+        },
+        showAll: <?= $showAll ? 'true' : 'false' ?>,
+        autoRefresh: true,
+        entries: 25
+    };
+    
+    // Apply custom filtering
+    function applyCustomFilters() {
+        // Get all rows and loop through them
+        $('#coins-table tbody tr').each(function() {
+            const $row = $(this);
+            let show = true;
+            
+            // Age filter
+            if (filters.age.enabled) {
+                const ageText = $row.find('td:nth-child(6)').text().trim();
+                const ageHours = parseAgeText(ageText);
+                if (ageHours > filters.age.value) {
+                    show = false;
+                }
+            }
+            
+            // Market cap filter
+            if (show && filters.marketCap.enabled) {
+                const marketCapText = $row.find('td:nth-child(5)').text().trim();
+                const marketCap = parseMoneyText(marketCapText);
+                if (marketCap < filters.marketCap.value) {
+                    show = false;
+                }
+            }
+            
+            // Volume filter
+            if (show && filters.volume.enabled) {
+                const volumeText = $row.find('td:nth-child(4)').text().trim();
+                const volume = parseMoneyText(volumeText);
+                if (volume < filters.volume.value) {
+                    show = false;
+                }
+            }
+            
+            // Show or hide the row based on filters
+            if (show) {
+                $row.show();
+            } else {
+                $row.hide();
+            }
+        });
+        
+        // Update the entries info
+        updateEntriesInfo();
+        applyPagination();
+    }
+    
+    // Helper function to parse money text like "$1,234,567"
+    function parseMoneyText(text) {
+        return parseFloat(text.replace(/[^0-9.]/g, '')) || 0;
+    }
+    
+    // Helper function to parse age text like "5 hours" or "1 day"
+    function parseAgeText(text) {
+        const hourMatch = text.match(/(\d+)\s*hours?/i);
+        if (hourMatch) return parseInt(hourMatch[1]);
+        
+        const dayMatch = text.match(/(\d+)\s*days?/i);
+        if (dayMatch) return parseInt(dayMatch[1]) * 24;
+        
+        const monthMatch = text.match(/(\d+)\s*months?/i);
+        if (monthMatch) return parseInt(monthMatch[1]) * 24 * 30;
+        
+        return 24; // Default to 24 hours if parsing fails
+    }
+    
+    // Update entries info text
+    function updateEntriesInfo() {
+        const visibleRows = $('#coins-table tbody tr:visible').length;
+        const totalRows = $('#coins-table tbody tr').length;
+        $('#entries-info').text(`Showing ${visibleRows} of ${totalRows} entries`);
+    }
+    
+    // Add entries info element if it doesn't exist
+    if ($('#entries-info').length === 0) {
+        $('#coins-table').after('<div id="entries-info" class="mt-2">Showing 0 of 0 entries</div>');
+    }
+    
+    // Simple pagination implementation
+    function applyPagination() {
+        const visibleRows = $('#coins-table tbody tr:visible');
+        const totalRows = visibleRows.length;
+        const pages = Math.ceil(totalRows / filters.entries);
+        
+        // Hide all rows first
+        visibleRows.hide();
+        
+        // Show only the first page
+        visibleRows.slice(0, filters.entries).show();
+        
+        // Create pagination controls if needed
+        createPaginationControls(pages);
+    }
+    
+    // Create pagination controls
+    function createPaginationControls(pages) {
+        const $pagination = $('#pagination');
+        $pagination.empty();
+        
+        if (pages <= 1) return;
+        
+        const $ul = $('<ul class="pagination"></ul>');
+        
+        // Previous button
+        $ul.append('<li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>');
+        
+        // Page numbers
+        for (let i = 1; i <= pages; i++) {
+            const $li = $(`<li class="page-item ${i === 1 ? 'active' : ''}"><a class="page-link" href="#">${i}</a></li>`);
+            $li.on('click', function() {
+                $('.pagination .page-item').removeClass('active');
+                $(this).addClass('active');
+                
+                const page = parseInt($(this).text()) - 1;
+                const visibleRows = $('#coins-table tbody tr:visible');
+                
+                visibleRows.hide();
+                visibleRows.slice(page * filters.entries, (page + 1) * filters.entries).show();
+                
+                // Enable/disable previous/next buttons
+                if (page === 0) {
+                    $('.pagination .page-item:first-child').addClass('disabled');
+                } else {
+                    $('.pagination .page-item:first-child').removeClass('disabled');
+                }
+                
+                if (page === pages - 1) {
+                    $('.pagination .page-item:last-child').addClass('disabled');
+                } else {
+                    $('.pagination .page-item:last-child').removeClass('disabled');
+                }
+            });
+            
+            $ul.append($li);
+        }
+        
+        // Next button
+        $ul.append('<li class="page-item"><a class="page-link" href="#">Next</a></li>');
+        
+        $pagination.append($ul);
+    }
+    
+    // Add pagination container if it doesn't exist
+    if ($('#pagination').length === 0) {
+        $('#coins-table').after('<div id="pagination" class="mt-3"></div>');
+    }
+    
+    // Filter event handlers
+    $('#filter-age').on('change', function() {
+        filters.age.enabled = $(this).is(':checked');
+        applyCustomFilters();
+    });
+    
+    $('#filter-marketcap-toggle').on('change', function() {
+        filters.marketCap.enabled = $(this).is(':checked');
+        $('#filter-marketcap').prop('disabled', !filters.marketCap.enabled);
+        applyCustomFilters();
+    });
+    
+    $('#filter-marketcap').on('input', function() {
+        filters.marketCap.value = parseInt($(this).val()) || 0;
+        applyCustomFilters();
+    });
+    
+    $('#filter-volume-toggle').on('change', function() {
+        filters.volume.enabled = $(this).is(':checked');
+        $('#filter-volume').prop('disabled', !filters.volume.enabled);
+        applyCustomFilters();
+    });
+    
+    $('#filter-volume').on('input', function() {
+        filters.volume.value = parseInt($(this).val()) || 0;
+        applyCustomFilters();
+    });
+    
+    // Show all coins toggle
+    $('#show-all-coins-toggle').on('change', function() {
+        filters.showAll = $(this).is(':checked');
+        
+        // Reload page with appropriate parameter
+        const url = new URL(window.location.href);
+        url.searchParams.set('show_all', filters.showAll ? '1' : '0');
+        window.location.href = url.toString();
+    });
+    
+    // Auto-refresh toggle
+    $('#auto-refresh-toggle').on('change', function() {
+        filters.autoRefresh = $(this).is(':checked');
+        if (filters.autoRefresh) {
+            startAutoRefresh();
+        } else {
+            stopAutoRefresh();
+        }
+    });
+    
+    // Entries per page selector
+    $('#entriesPerPage').on('change', function() {
+        filters.entries = parseInt($(this).val()) || 25;
+        applyPagination();
+    });
+    
+    // Auto-refresh functionality
+    let autoRefreshInterval;
+    
+    function startAutoRefresh() {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        autoRefreshInterval = setInterval(function() {
+            window.location.reload();
+        }, 60000); // Refresh every minute
+    }
+    
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    }
+    
+    // Initialize auto-refresh if enabled
+    if (filters.autoRefresh) {
+        startAutoRefresh();
+    }
+    
+    // Refresh button handler
+    $('#refresh-data').on('click', function() {
+        window.location.reload();
+    });
+    
+    // Search functionality
+    $('#searchInput').on('input', function() {
+        const searchTerm = $(this).val().toLowerCase();
+        
+        $('#coins-table tbody tr').each(function() {
+            const $row = $(this);
+            const text = $row.text().toLowerCase();
+            
+            if (text.includes(searchTerm)) {
+                $row.addClass('search-match');
+            } else {
+                $row.removeClass('search-match');
+                $row.hide();
+            }
+        });
+        
+        applyCustomFilters();
+    });
+    
+    // Initialize filters
+    $('#filter-age').prop('checked', filters.age.enabled);
+    $('#filter-marketcap-toggle').prop('checked', filters.marketCap.enabled);
+    $('#filter-marketcap').prop('disabled', !filters.marketCap.enabled).val(filters.marketCap.value);
+    $('#filter-volume-toggle').prop('checked', filters.volume.enabled);
+    $('#filter-volume').prop('disabled', !filters.volume.enabled).val(filters.volume.value);
+    
+    // Apply initial filters
+    applyCustomFilters();
+});
+</script>
+
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

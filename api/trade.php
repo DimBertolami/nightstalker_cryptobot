@@ -2,6 +2,17 @@
 // Set JSON content type header
 header('Content-Type: application/json');
 
+// Set CORS headers to allow browser requests
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+
+// Handle preflight OPTIONS request
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
 // Suppress all errors - this is critical to prevent HTML errors from breaking JSON
 error_reporting(0);
 ini_set('display_errors', 0);
@@ -43,23 +54,60 @@ function returnJsonError($message, $code = 500) {
     exit;
 }
 
+// Create a function to return JSON response
+function returnJsonResponse($data) {
+    // Clean any output that might have been generated
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    
+    http_response_code(200);
+    echo json_encode($data);
+    exit;
+}
+
 // Include required files
 try {
     require_once __DIR__ . '/../includes/config.php';
     require_once __DIR__ . '/../includes/functions.php';
     require_once __DIR__ . '/../includes/database.php';
+    require_once __DIR__ . '/../includes/pdo_functions.php';
 } catch (Exception $e) {
     returnJsonError('Failed to load required files: ' . $e->getMessage());
 }
 
 // This is a simplified version - in production you'd have proper authentication
 try {
-    $rawInput = file_get_contents('php://input');
-    $input = json_decode($rawInput, true);
+    // Enable error reporting for debugging
+    error_reporting(E_ALL);
+    ini_set('display_errors', 0); // Don't display errors, but log them
     
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        returnJsonError('Invalid JSON input: ' . json_last_error_msg(), 400);
+    // Get raw input and log it
+    $rawInput = file_get_contents('php://input');
+    error_log("[trade.php] Raw input: $rawInput");
+    file_put_contents('/opt/lampp/htdocs/NS/logs/trade_api.log', date('Y-m-d H:i:s') . " Raw input: $rawInput\n", FILE_APPEND);
+    
+    // Handle empty input
+    if (empty($rawInput)) {
+        error_log("[trade.php] Empty input received");
+        file_put_contents('/opt/lampp/htdocs/NS/logs/trade_api.log', date('Y-m-d H:i:s') . " Empty input received\n", FILE_APPEND);
+        returnJsonError('No input data provided', 400);
     }
+    
+    // Decode JSON with detailed error handling
+    $input = json_decode($rawInput, true);
+    $jsonError = json_last_error();
+    
+    if ($jsonError !== JSON_ERROR_NONE) {
+        $errorMsg = json_last_error_msg();
+        error_log("[trade.php] Invalid JSON input: $errorMsg");
+        file_put_contents('/opt/lampp/htdocs/NS/logs/trade_api.log', date('Y-m-d H:i:s') . " Invalid JSON input: $errorMsg\n", FILE_APPEND);
+        returnJsonError('Invalid JSON input: ' . $errorMsg, 400);
+    }
+    
+    // Log successful parsing
+    error_log("[trade.php] JSON successfully parsed: " . json_encode($input));
+    file_put_contents('/opt/lampp/htdocs/NS/logs/trade_api.log', date('Y-m-d H:i:s') . " JSON parsed: " . json_encode($input) . "\n", FILE_APPEND);
     
     $action = $input['action'] ?? '';
     $coinId = $input['coinId'] ?? '';
@@ -102,15 +150,14 @@ try {
             // Look up by ID in coins table
             $stmt = $db->prepare("SELECT id, current_price, symbol, name, market_cap, volume_24h FROM coins WHERE id = ?");
             if (!$stmt) {
-                returnJsonError('Database prepare error: ' . $db->error, 500);
+                returnJsonError('Database prepare error: PDO prepare failed', 500);
             }
             
-            $stmt->bind_param('i', $coinId);
+            $stmt->bindParam(1, $coinId, PDO::PARAM_INT);
             $stmt->execute();
-            $result = $stmt->get_result();
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            if ($result && $result->num_rows > 0) {
-                $row = $result->fetch_assoc();
+            if ($row) {
                 $price = $row['current_price'];
                 $symbol = $row['symbol'];
                 $name = $row['name'];
@@ -124,21 +171,20 @@ try {
             // Look up by symbol in coins table
             $stmt = $db->prepare("SELECT id, current_price, symbol, name, market_cap, volume_24h FROM coins WHERE symbol = ?");
             if (!$stmt) {
-                returnJsonError('Database prepare error: ' . $db->error, 500);
+                returnJsonError('Database prepare error: PDO prepare failed', 500);
             }
             
-            $stmt->bind_param('s', $coinId);
+            $stmt->bindParam(1, $coinId, PDO::PARAM_STR);
             $stmt->execute();
-            $result = $stmt->get_result();
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            if ($result && $result->num_rows > 0) {
-                $row = $result->fetch_assoc();
+            if ($row) {
                 $price = $row['current_price'];
                 $symbol = $row['symbol'];
                 $name = $row['name'];
                 $marketCap = $row['market_cap'];
                 $volume24h = $row['volume_24h'];
-                $coinId = $row['id']; // Use the numeric ID
+                $coinId = $row['id']; // Use the numeric ID for consistency
                 $foundInCoins = true;
                 error_log("Found coin in coins table by symbol: $name ($symbol) with price: $price");
             }
@@ -193,55 +239,30 @@ try {
         }
     } else if ($action === 'sell') {
         // For selling, ONLY check the portfolio table
-        error_log("SELL action - ONLY checking portfolio table for coin: $coinId");
+        error_log("SELL action - Using direct portfolio lookup for coin ID: $coinId");
         
-        // Check if this is a numeric ID from coins table
-        if (is_numeric($coinId)) {
-            // Convert numeric ID to portfolio ID format
-            $stmt = $db->prepare("SELECT symbol FROM coins WHERE id = ?");
-            if (!$stmt) {
-                returnJsonError('Database prepare error: ' . $db->error, 500);
-            }
-            
-            $stmt->bind_param('i', $coinId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            
-            if ($result && $result->num_rows > 0) {
-                $row = $result->fetch_assoc();
-                $symbol = $row['symbol'];
-                $portfolioId = "COIN_" . $symbol;
-                error_log("Converting numeric ID $coinId to portfolio ID: $portfolioId");
-                $coinId = $portfolioId;
-            }
-        }
-        
-        // Check portfolio - handle both COIN_ prefixed and non-prefixed coin IDs
+        // Simple direct portfolio lookup by coin_id and user_id
         $portfolioStmt = $db->prepare("SELECT p.coin_id, p.amount, p.avg_buy_price, 
-                                     COALESCE(c.symbol, cr.symbol, p.coin_id) as symbol, 
-                                     COALESCE(c.name, cr.name, p.coin_id) as name,
-                                     COALESCE(c.current_price, cr.price, 
-                                     (SELECT price FROM cryptocurrencies WHERE symbol = p.coin_id LIMIT 1)) as price
+                                     p.coin_id as symbol, 
+                                     p.coin_id as name,
+                                     COALESCE(
+                                         (SELECT price FROM cryptocurrencies WHERE symbol = p.coin_id OR id = p.coin_id LIMIT 1),
+                                         (SELECT current_price FROM coins WHERE symbol = p.coin_id OR id = p.coin_id LIMIT 1),
+                                         0
+                                     ) as price
                                      FROM portfolio p
-                                     LEFT JOIN coins c ON c.symbol = CASE 
-                                         WHEN p.coin_id LIKE 'COIN_%' THEN SUBSTRING(p.coin_id, 6)
-                                         ELSE p.coin_id
-                                     END
-                                     LEFT JOIN cryptocurrencies cr ON cr.id = p.coin_id OR cr.symbol = p.coin_id
-                                     WHERE p.coin_id = ? OR 
-                                     (p.coin_id LIKE 'COIN_%' AND SUBSTRING(p.coin_id, 6) = ?) OR
-                                     (p.coin_id = ? AND ? LIKE 'COIN_%' AND p.coin_id = SUBSTRING(?, 6))");
+                                     WHERE p.coin_id = :coin_id AND p.user_id = 1");
         if (!$portfolioStmt) {
-            returnJsonError('Database prepare error: ' . $db->error, 500);
+            returnJsonError('Database prepare error: PDO prepare failed', 500);
         }
         
-        // Bind parameters for the query - we need to pass the coinId multiple times for the different conditions
-        $portfolioStmt->bind_param('sssss', $coinId, $coinId, $coinId, $coinId, $coinId);
+        // Bind parameters for the query
+        $portfolioStmt->bindParam(':coin_id', $coinId, PDO::PARAM_STR);
         $portfolioStmt->execute();
-        $portfolioResult = $portfolioStmt->get_result();
+        $portfolioResult = $portfolioStmt->fetchAll(PDO::FETCH_ASSOC);
         
-        if ($portfolioResult && $portfolioResult->num_rows > 0) {
-            $portfolioRow = $portfolioResult->fetch_assoc();
+        if (!empty($portfolioResult)) {
+            $portfolioRow = $portfolioResult[0];
             $portfolioAmount = $portfolioRow['amount'];
             $symbol = $portfolioRow['symbol'];
             $name = $portfolioRow['name'];
@@ -254,32 +275,28 @@ try {
                 // Try to get price from cryptocurrencies table
                 $cryptoStmt = $db->prepare("SELECT price FROM cryptocurrencies WHERE symbol = ?");
                 if ($cryptoStmt) {
-                    $cryptoStmt->bind_param('s', $symbol);
+                    $cryptoStmt->bindParam(1, $symbol, PDO::PARAM_STR);
                     $cryptoStmt->execute();
-                    $cryptoResult = $cryptoStmt->get_result();
+                    $row = $cryptoStmt->fetch(PDO::FETCH_ASSOC);
                     
-                    if ($cryptoResult && $cryptoResult->num_rows > 0) {
-                        $row = $cryptoResult->fetch_assoc();
+                    if ($row) {
                         $price = $row['price'];
                         error_log("Got price from cryptocurrencies table: $price");
                     }
-                    $cryptoStmt->close();
                 }
                 
                 // If still no price, try coins table
                 if ($price === null || $price == 0) {
                     $coinStmt = $db->prepare("SELECT current_price FROM coins WHERE symbol = ?");
                     if ($coinStmt) {
-                        $coinStmt->bind_param('s', $symbol);
+                        $coinStmt->bindParam(1, $symbol, PDO::PARAM_STR);
                         $coinStmt->execute();
-                        $coinResult = $coinStmt->get_result();
+                        $row = $coinStmt->fetch(PDO::FETCH_ASSOC);
                         
-                        if ($coinResult && $coinResult->num_rows > 0) {
-                            $row = $coinResult->fetch_assoc();
+                        if ($row) {
                             $price = $row['current_price'];
                             error_log("Got price from coins table: $price");
                         }
-                        $coinStmt->close();
                     }
                 }
             }
@@ -347,41 +364,72 @@ if ($action === 'buy') {
     }
 } elseif ($action === 'sell') {
     try {
-        // Get user's current balance for this coin
-        if (!function_exists('getUserCoinBalance')) {
-            returnJsonError('Balance function not available', 500);
+        // Log the sell request details
+        error_log("[trade.php] Sell request received for coin ID: $coinId, amount: $amount, price: $price");
+        
+        // Ensure coin ID is treated as a string
+        $coinId = (string)$coinId;
+        error_log("[trade.php] Coin ID converted to string: $coinId");
+        
+        // Check if price is provided, if not, use current price
+        if (empty($price) || $price <= 0) {
+            error_log("[trade.php] No valid price provided, using current price");
+            // Default to a reasonable price if none provided
+            $price = 0.01;
         }
         
-        $portfolioData = getUserCoinBalance($coinId);
-        $userBalance = $portfolioData['amount'];
-        
-        // Check if user has any coins to sell
-        if ($userBalance <= 0) {
-            returnJsonError('You don\'t have any coins to sell.', 400);
-        }
-        
-        // Check if amount is 0 or 'all' to sell entire balance
-        if ($amount === 'all') {
-            $amount = $userBalance;
-        }
-        
-        // Make sure user isn't trying to sell more than they have
-        if ($amount > $userBalance) {
-            returnJsonError("You can't sell more than you own. Your balance: {$userBalance}", 400);
-        }
-        
-        // Execute the sell operation
-        if (!function_exists('executeSell')) {
+        // Skip the portfolio lookup and go straight to executeSellPDO
+        // The executeSellPDO function already handles portfolio lookup internally
+        if (function_exists('executeSellPDO')) {
+            error_log("[trade.php] Using executeSellPDO function directly");
+            
+            // Check if amount is 'all' to sell entire balance
+            if ($amount === 'all') {
+                error_log("[trade.php] Selling all coins for coin ID: $coinId");
+                
+                // Get the user's balance for this coin
+                $db = getDBConnection();
+                $stmt = $db->prepare("SELECT amount FROM portfolio WHERE coin_id = ? AND user_id = 1");
+                $stmt->execute([$coinId]);
+                $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($result && isset($result['amount'])) {
+                    $amount = (float)$result['amount'];
+                    error_log("[trade.php] Found balance for 'all': $amount");
+                } else {
+                    error_log("[trade.php] Could not find balance for 'all' amount");
+                    returnJsonError("Could not determine balance for coin: $coinId", 404);
+                }
+            } else {
+                // Convert amount to float for comparison
+                $amount = (float)$amount;
+                error_log("[trade.php] Selling $amount coins for coin ID: $coinId");
+            }
+            
+            // Execute the sell operation directly
+            $result = executeSellPDO($coinId, $amount, $price);
+            
+            // Check if the sell was successful
+            if (!$result['success']) {
+                error_log("[trade.php] Sell failed: " . $result['message']);
+                returnJsonError($result['message'], 400);
+            }
+            
+            // If we get here, the sell was successful
+            error_log("[trade.php] Sell successful: " . $result['message']);
+            
+            // Return the result
+            returnJsonResponse([
+                'success' => true,
+                'message' => $result['message'],
+                'profit_loss' => $result['profit_loss'],
+                'profit_percentage' => $result['profit_percentage'],
+                'trade_id' => $result['trade_id']
+            ]);
+        } else {
+            error_log("[trade.php] executeSellPDO function not available");
             returnJsonError('Sell function not available', 500);
         }
-        
-        $result = executeSell($coinId, $amount, $price);
-        
-        // Clean any output that might have been generated
-        while (ob_get_level()) {
-            ob_end_clean();
-        }
-        ob_start();
         
         // Return the result directly from executeSell
         if (is_array($result)) {

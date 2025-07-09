@@ -1,6 +1,75 @@
+// GLOBAL FORMATTING FUNCTIONS (must be defined before any code that uses them)
+window.formatCoinName = function(name, symbol) {
+    return `<span class='coin-name'>${name}</span> <span class='coin-symbol'>${symbol}</span>`;
+};
+
+window.formatPrice = function(price) {
+    if (price === null || price === undefined) return 'N/A';
+    return parseFloat(price).toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8
+    });
+};
+
+window.formatPercentage = function(change) {
+    if (change === null || change === undefined) return 'N/A';
+    const num = parseFloat(change);
+    const colorClass = num >= 0 ? 'positive' : 'negative';
+    return `<span class='${colorClass}'>${num >= 0 ? '+' : ''}${num.toFixed(2)}%</span>`;
+};
+
+window.formatLargeNumber = function(num) {
+    if (num === null || num === undefined) return 'N/A';
+    return parseFloat(num).toLocaleString('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).replace('.00', '');
+};
+
+window.formatAge = function(timestamp) {
+    if (!timestamp) return 'N/A';
+    const date = new Date(timestamp);
+    return date.toLocaleDateString();
+};
+
+window.formatStatus = function(isTrending, volumeSpike, source) {
+    let status = [];
+    if (isTrending) status.push('Trending');
+    if (volumeSpike) status.push('Volume Spike');
+    if (source) status.push(source);
+    return status.join(' • ') || 'Normal';
+};
+
+window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
+    return `
+        <div class="trade-controls">
+            <div class="input-group input-group-sm mb-1">
+                <input type="number" class="form-control buy-amount" placeholder="Amount" 
+                       data-id="${id}" data-symbol="${symbol}" min="0.001" step="0.001">
+                <button class='btn btn-sm btn-success btn-buy' data-id='${id}' data-symbol='${symbol}' data-price='${price}'>
+                    Buy
+                </button>
+            </div>
+            ${canSell ? `
+            <div class="input-group input-group-sm">
+                <input type="number" class="form-control sell-amount" placeholder="Amount" 
+                       data-id="${id}" data-symbol="${symbol}" min="0.001" step="0.001" max="${balance}">
+                <button class='btn btn-sm btn-danger btn-sell' data-id='${id}' data-symbol='${symbol}' data-price='${price}' data-balance='${balance}'>
+                    Sell
+                </button>
+            </div>` : ''}
+        </div>
+    `;
+};
+
 // Wait for jQuery to be available before executing code
-(function checkJQuery() {
-    if (window.jQuery) {
+(function() {
+    function checkJQuery() {
+        if (window.jQuery) {
         // jQuery is loaded, initialize everything
         $(document).ready(function() {
             // Check if BASE_URL is defined, if not set a default
@@ -254,18 +323,26 @@
             // Initialize DataTable with existing data
             let coinsTable;
             
-            // Only initialize DataTable if it doesn't already exist
-            if (!$.fn.DataTable.isDataTable('#coins-table')) {
-                coinsTable = $('#coins-table').DataTable({
-                    responsive: true,
-                    pageLength: 25,
-                    language: {
-                        search: "_INPUT_",
-                        searchPlaceholder: "Search coins..."
-                    }
-                });
+            // Check if DataTables is available
+            if (typeof $.fn.DataTable === 'function' && !window.disableDataTables) {
+                try {
+                    coinsTable = $('#coins-table').DataTable({
+                        responsive: true,
+                        pageLength: 25,
+                        language: {
+                            search: "_INPUT_",
+                            searchPlaceholder: "Search coins..."
+                        }
+                    });
+                } catch (e) {
+                    console.error('DataTables initialization failed:', e);
+                    // Fallback to basic table display
+                    $('#coins-table').addClass('table').addClass('table-striped');
+                }
             } else {
-                coinsTable = $('#coins-table').DataTable();
+                console.log('DataTables is disabled or not available');
+                // Fallback to basic table display
+                $('#coins-table').addClass('table').addClass('table-striped');
             }
             
             // Add filter controls to the page
@@ -297,107 +374,6 @@
                 setTimeout(() => {
                     $('.dataTables_length').append(showAllToggleHtml);
                 }, 100);
-            }
-            
-            // Format functions
-            function formatPrice(price) {
-                let formatted = price >= 1 ? price.toFixed(2) : price.toFixed(8);
-                // Remove trailing zeros and optional trailing decimal point
-                formatted = formatted.replace(/\.?0+$/, '');
-                return '$' + formatted;
-            }
-            
-            function formatLargeNumber(num) {
-                return '$' + num.toLocaleString();
-            }
-            
-            function formatPercentage(percent) {
-                const isPositive = percent >= 0;
-                const icon = isPositive ? '<i class="fas fa-caret-up"></i>' : '<i class="fas fa-caret-down"></i>';
-                return `<span class="${isPositive ? 'price-up' : 'price-down'}">${icon} ${Math.abs(percent).toFixed(2)}%</span>`;
-            }
-            
-            function formatAge(dateAdded) {
-                if (!dateAdded) return 'Unknown';
-                
-                const added = new Date(dateAdded);
-                const now = new Date();
-                const diffTime = Math.abs(now - added);
-                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                
-                if (diffDays > 0) {
-                    return `${diffDays} days`;
-                } else {
-                    const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
-                    const isNew = diffHours < 24;
-                    return `${diffHours} hours${isNew ? ' <span class="badge bg-danger">NEW</span>' : ''}`;
-                }
-            }
-            
-            function formatCoinName(name, symbol) {
-                return `
-                    <div class="d-flex align-items-center">
-                        <div>
-                            <div class="fw-bold">${name}</div>
-                            <div class="text-muted">${symbol}</div>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            function formatStatus(isTrending, volumeSpike, dataSource) {
-                let badges = [];
-                
-                // Always show the data source
-                if (dataSource) {
-                    badges.push(`<span class="badge bg-info">Source: ${dataSource}</span>`);
-                }
-                
-                // Add other status badges
-                if (isTrending) {
-                    badges.push('<span class="badge badge-trending">Trending</span>');
-                }
-                if (volumeSpike) {
-                    badges.push('<span class="badge badge-volume">Volume Spike</span>');
-                }
-                
-                return badges.length > 0 ? badges.join(' ') : '<span class="badge bg-secondary">Normal</span>';
-            }
-            
-            function formatTradeButtons(coinId, symbol, price, canSell, portfolioAmount = 0) {
-            // Only show sell button if user has coins in portfolio
-            const sellButton = canSell ? 
-                `<button type="button" class="btn btn-danger sell-btn" 
-                    data-coin-id="${coinId}" 
-                    data-symbol="${symbol}" 
-                    data-price="${price}"
-                    data-max-amount="${portfolioAmount}"
-                    style="opacity: 1 !important;">
-                    <i class="fas fa-money-bill-wave"></i> Sell
-                </button>` : '';
-            
-            // Show portfolio amount if available
-            const portfolioInfo = portfolioAmount > 0 ? 
-                `<small class="text-muted d-block">You own: ${portfolioAmount} ${symbol}</small>` : '';
-            
-            return `
-                <div class="d-flex align-items-center">
-                    <div class="input-group input-group-sm me-2" style="width: 120px;">
-                        <input type="number" class="form-control trade-amount" 
-                            placeholder="Amount" step="0.01" min="0.01">
-                        ${portfolioInfo}
-                    </div>
-                    <div class="btn-group btn-group-sm">
-                        <button type="button" class="btn btn-success buy-btn" 
-                            data-coin-id="${coinId}" 
-                            data-symbol="${symbol}" 
-                            data-price="${price}">
-                            <i class="fas fa-shopping-cart"></i> Buy
-                        </button>
-                        ${sellButton}
-                    </div>
-                </div>
-            `;
             }
             
             /**
@@ -444,99 +420,26 @@
                     cache: false, // Prevent caching
                     success: function(response) {
                         console.log('API Response received');
-                        
-                        // Hide loading indicator
-                        $loading.hide();
-                        
-                        if (!response) {
-                            throw new Error('Empty response from server');
-                        }
-                        
                         console.log('Response data:', response);
                         
-                        if (response.success !== true) {
-                            throw new Error(response.message || 'API request failed');
-                        }
-                        
-                        if (!response.data || !Array.isArray(response.data)) {
-                            throw new Error('Invalid data format received from server');
-                        }
-                        
-                        const coins = response.data;
-                        console.log(`Received ${coins.length} coins`);
-                        
-                        if (coins.length > 0) {
-                            // 1. Log sample first
-                            console.log('First coin sample:', coins[0]);
+                        if (response.success && response.data) {
+                            console.log('Received', response.count, 'coins');
+                            console.log('First coin sample:', response.data[0]);
                             
-                            // 2. Clear table immediately
-                            console.log('Clearing existing table data');
-                            coinsTable.clear().draw(false);
-                            
-                            // 3. Update timestamp
-                            const updateTime = new Date().toLocaleTimeString();
-                            console.log('Updating table at:', updateTime);
-                            $('#last-updated').text('Last updated: ' + updateTime);
-                            
-                            try {
-                                // 4. Process coins
-                                coins.forEach(coin => {
-                                    const userBalance = coin.user_balance || 0;
-                                    const canSell = userBalance > 0;
-                                    
-                                    coinsTable.row.add([
-                                        formatCoinName(coin.name, coin.symbol),
-                                        formatPrice(coin.current_price || coin.price || 0),
-                                        formatPercentage(coin.price_change_24h || 0),
-                                        formatLargeNumber(coin.volume_24h || 0),
-                                        formatLargeNumber(coin.market_cap || 0),
-                                        formatAge(coin.date_added || coin.last_updated),
-                                        formatStatus(coin.is_trending, coin.volume_spike, coin.source || coin.data_source || ''),
-                                        formatTradeButtons(coin.id, coin.symbol, coin.current_price || coin.price || 0, canSell, userBalance)
-                                    ]);
-                                });
-                                
-                                // 5. Draw and complete
-                                coinsTable.draw(true);
-                                console.log('Table update complete - added', coins.length, 'coins');
-                                
-                                // Update the portfolio display after a short delay to avoid race conditions
-                                console.log('Scheduling portfolio update');
-                                setTimeout(() => {
-                                    console.log('Starting portfolio update');
-                                    updatePortfolioDisplay();
-                                }, 100);
-                                
-                            } catch (error) {
-                                console.error('Error updating table:', error);
-                                showToast('Error updating table: ' + (error.message || 'Unknown error'), 'error');
-                                throw error; // Re-throw to be caught by the error handler
+                            // Clear existing table data - with null check
+                            if (window.coinsTable && typeof window.coinsTable.clear === 'function') {
+                                window.coinsTable.clear().draw();
+                            } else {
+                                $('#coins-table tbody').empty();
                             }
                             
-                            // Add highlight class to rows for animation
-                            $('#coins-table tbody tr').addClass('highlight-update');
+                            // Process and add new data
+                            processCoinData(response.data);
                             
-                            // Remove highlight class after animation completes
-                            setTimeout(function() {
-                                $('#coins-table tbody tr').removeClass('highlight-update');
-                            }, 1500);
-                        } else {
-                            console.warn('No coins data available');
-                            // Clear the table if no data
-                            coinsTable.clear().draw();
-                            
-                            // Show a message to the user
-                            const message = 'No coins data available. Try refreshing the page.';
-                            coinsTable.row.add({
-                                symbol: 'No Data',
-                                name: message,
-                                price: '',
-                                price_change_24h: '',
-                                volume_24h: '',
-                                market_cap: ''
-                            }).draw();
-                            
-                            //showToast(message, 'warning');
+                            // Refresh DataTables if available
+                            if (window.coinsTable && typeof window.coinsTable.draw === 'function') {
+                                window.coinsTable.draw();
+                            }
                         }
                     },
                     error: function(xhr, status, error) {
@@ -547,7 +450,6 @@
                             statusCode: xhr.status,
                             statusText: xhr.statusText,
                             url: xhr.responseURL || window.location.href,
-                            method: xhr.config?.method || 'GET',
                             timestamp: new Date().toISOString()
                         };
                         
@@ -562,7 +464,7 @@
                             // Try to parse JSON response if available
                             if (xhr.responseText) {
                                 const response = JSON.parse(xhr.responseText);
-                                if (response?.message) {
+                                if (response && response.message) {
                                     errorMessage = response.message;
                                     // If we have a specific error code, handle it
                                     if (response.code === 'RATE_LIMITED') {
@@ -762,11 +664,11 @@
                             else if (xhr.responseText) {
                                 try {
                                     const response = JSON.parse(xhr.responseText);
-                                    if (response?.message) {
+                                    if (response && response.message) {
                                         errorMessage = response.message;
                                     }
                                 } catch (e) {
-                                    console.error('Failed to parse JSON response:', e);
+                                    console.error('Error parsing error response:', e);
                                 }
                             }
                             
@@ -948,124 +850,299 @@
             });
 
             // Sell button handler using event delegation
-        $('#coins-table').on('click', '.sell-btn', function() {
-            const coinId = $(this).data('coin-id');
-            const symbol = $(this).data('symbol');
-            const maxAmount = parseFloat($(this).data('max-amount'));
-            let amount = $(this).closest('.d-flex').find('.trade-amount').val();
-            
-            // If no amount entered, use the max amount available in portfolio
-            if (!amount || amount.trim() === '') {
-                // Use 'all' as a special value to tell the backend to sell everything
-                sellCoin(coinId, 'all');
-                return;
-            } else {
-                // Make sure we have a valid number
-                amount = parseFloat(amount);
-                if (isNaN(amount) || amount <= 0) {
-                    alert('Please enter a valid amount to sell');
+            $('#coins-table').on('click', '.sell-btn', function() {
+                const coinId = $(this).data('coin-id');
+                const symbol = $(this).data('symbol');
+                const maxAmount = parseFloat($(this).data('max-amount'));
+                let amount = $(this).closest('.d-flex').find('.trade-amount').val();
+                
+                // If no amount entered, use the max amount available in portfolio
+                if (!amount || amount.trim() === '') {
+                    // Use 'all' as a special value to tell the backend to sell everything
+                    sellCoin(coinId, 'all');
                     return;
+                } else {
+                    // Make sure we have a valid number
+                    amount = parseFloat(amount);
+                    if (isNaN(amount) || amount <= 0) {
+                        alert('Please enter a valid amount to sell');
+                        return;
+                    }
+                }
+                
+                if (amount > maxAmount) {
+                    alert(`You can only sell up to ${maxAmount} ${symbol}`);
+                    return;
+                }
+
+                // Use the sellCoin function instead of redirecting
+                if (typeof sellCoin === 'function') {
+                    sellCoin(coinId, amount);
+                } else {
+                    console.error('sellCoin function is not defined');
+                    alert('Error: Sell function not available');
+                }
+            });
+        
+            // Set up interval for subsequent fetches
+            window.autoRefreshInterval = setInterval(function() {
+                console.log('Auto-refresh: Fetching data...');
+                fetchAndUpdateData();
+                updatePortfolioDisplay();
+            }, 30000); // 30 seconds
+            
+            // Function to update auto-refresh state
+            function updateAutoRefresh() {
+                console.log('Auto-refresh:', isAutoRefreshEnabled ? 'enabled' : 'disabled');
+                clearInterval(window.autoRefreshInterval);
+                
+                if (isAutoRefreshEnabled) {
+                    // Set up interval for subsequent fetches
+                    window.autoRefreshInterval = setInterval(function() {
+                        console.log('Auto-refresh: Fetching data...');
+                        fetchAndUpdateData();
+                        updatePortfolioDisplay();
+                    }, 30000); // 30 seconds
                 }
             }
             
-            if (amount > maxAmount) {
-                alert(`You can only sell up to ${maxAmount} ${symbol}`);
-                return;
-            }
-
-            // Use the sellCoin function instead of redirecting
-            if (typeof sellCoin === 'function') {
-                sellCoin(coinId, amount);
-            } else {
-                console.error('sellCoin function is not defined');
-                alert('Error: Sell function not available');
-            }
-        });
+            // Initialize auto-refresh
+            isAutoRefreshEnabled = true; // Start with auto-refresh enabled
+            updateAutoRefresh();
         
-        // Set up interval for subsequent fetches
-        window.autoRefreshInterval = setInterval(function() {
-            console.log('Auto-refresh: Fetching data...');
+            // Set up Show All Coins toggle
+            $('#show-all-coins-toggle').on('change', function() {
+                showAllCoins = $(this).prop('checked');
+                console.log('Show all coins:', showAllCoins);
+                
+                // Update URL with show_all parameter without page reload
+                const url = new URL(window.location);
+                if (showAllCoins) {
+                    url.searchParams.set('show_all', '1');
+                } else {
+                    url.searchParams.delete('show_all');
+                }
+                window.history.pushState({}, '', url);
+                
+                // Update the toggle label
+                const label = $(this).next('label');
+                label.text(showAllCoins ? 'Show All Coins (All)' : 'Show All Coins (Filtered)');
+                
+                // Refresh data with the new filter
+                fetchAndUpdateData();
+            });
+        
+            // Initialize showAllCoins from URL parameter on page load
+            const urlParams = new URLSearchParams(window.location.search);
+            const showAllParam = urlParams.get('show_all');
+            if (showAllParam === '1') {
+                showAllCoins = true;
+                $('#show-all-coins-toggle').prop('checked', true);
+                const label = $('#show-all-coins-toggle').next('label');
+                label.text('Show All Coins (All)');
+            }
+        
+            // Refresh button handler
+            $('#refresh-data').on('click', function(e) {
+                e.preventDefault();
+                console.log('Refresh button clicked');
+                fetchAndUpdateData();
+                updatePortfolioDisplay();
+                return false;
+            });
+        
+            // Also keep the generic refresh handler for any other refresh buttons
+            $(document).on('click', '.refresh-btn, .refresh-data, button:contains("Refresh")', function(e) {
+                e.preventDefault();
+                console.log('Generic refresh button clicked');
+                fetchAndUpdateData();
+                updatePortfolioDisplay();
+                return false;
+            });
+        
+            // Initial data load
             fetchAndUpdateData();
             updatePortfolioDisplay();
-        }, 30000); // 30 seconds
         
-        // Function to update auto-refresh state
-        function updateAutoRefresh() {
-            console.log('Auto-refresh:', isAutoRefreshEnabled ? 'enabled' : 'disabled');
-            clearInterval(window.autoRefreshInterval);
-            
-            if (isAutoRefreshEnabled) {
-                // Set up interval for subsequent fetches
-                window.autoRefreshInterval = setInterval(function() {
-                    console.log('Auto-refresh: Fetching data...');
-                    fetchAndUpdateData();
-                    updatePortfolioDisplay();
-                }, 30000); // 30 seconds
-            }
+            // End of document.ready function
+        });
+        } else {
+            // jQuery isn't loaded yet, wait 100ms and try again
+            setTimeout(checkJQuery, 100);
         }
-        
-        // Initialize auto-refresh
-        isAutoRefreshEnabled = true; // Start with auto-refresh enabled
-        updateAutoRefresh();
-        
-        // Set up Show All Coins toggle
-        $('#show-all-coins-toggle').on('change', function() {
-            showAllCoins = $(this).prop('checked');
-            console.log('Show all coins:', showAllCoins);
-            
-            // Update URL with show_all parameter without page reload
-            const url = new URL(window.location);
-            if (showAllCoins) {
-                url.searchParams.set('show_all', '1');
-            } else {
-                url.searchParams.delete('show_all');
-            }
-            window.history.pushState({}, '', url);
-            
-            // Update the toggle label
-            const label = $(this).next('label');
-            label.text(showAllCoins ? 'Show All Coins (All)' : 'Show All Coins (Filtered)');
-            
-            // Refresh data with the new filter
-            fetchAndUpdateData();
-        });
-        
-        // Initialize showAllCoins from URL parameter on page load
-        const urlParams = new URLSearchParams(window.location.search);
-        const showAllParam = urlParams.get('show_all');
-        if (showAllParam === '1') {
-            showAllCoins = true;
-            $('#show-all-coins-toggle').prop('checked', true);
-            const label = $('#show-all-coins-toggle').next('label');
-            label.text('Show All Coins (All)');
-        }
-        
-        // Refresh button handler
-        $('#refresh-data').on('click', function(e) {
-            e.preventDefault();
-            console.log('Refresh button clicked');
-            fetchAndUpdateData();
-            updatePortfolioDisplay();
-            return false;
-        });
-        
-        // Also keep the generic refresh handler for any other refresh buttons
-        $(document).on('click', '.refresh-btn, .refresh-data, button:contains("Refresh")', function(e) {
-            e.preventDefault();
-            console.log('Generic refresh button clicked');
-            fetchAndUpdateData();
-            updatePortfolioDisplay();
-            return false;
-        });
-        
-        // Initial data load
-        fetchAndUpdateData();
-        updatePortfolioDisplay();
-        
-        // End of document.ready function
-    });
-    } else {
-        // jQuery isn't loaded yet, wait 100ms and try again
-        setTimeout(checkJQuery, 100);
     }
+    
+    // Start checking for jQuery
+    checkJQuery();
 })();
+
+// Buy button click handler
+$(document).on('click', '.btn-buy', function() {
+    const $button = $(this);
+    const coinId = $button.data('id');
+    const symbol = $button.data('symbol');
+    const price = $button.data('price');
+    const $inputField = $button.closest('.input-group').find('.buy-amount');
+    const amount = parseFloat($inputField.val());
+    
+    if (!amount || isNaN(amount) || amount <= 0) {
+        showToast('Please enter a valid amount to buy', 'warning');
+        return;
+    }
+    
+    // Show confirmation
+    const totalCost = (amount * price).toFixed(2);
+    if (confirm(`Confirm purchase of ${amount} ${symbol} for $${totalCost}?`)) {
+        // Disable button to prevent double-clicks
+        $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+        
+        // Call API to execute trade
+        $.ajax({
+            url: '/NS/api/execute-trade.php',
+            method: 'POST',
+            data: {
+                action: 'buy',
+                coin_id: coinId,
+                symbol: symbol,
+                amount: amount,
+                price: price
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    showToast(`Successfully purchased ${amount} ${symbol}!`, 'success');
+                    // Update portfolio display
+                    updatePortfolioDisplay();
+                    // Clear input field
+                    $inputField.val('');
+                } else {
+                    showToast(response.message || 'Trade failed', 'error');
+                }
+            },
+            error: function() {
+                showToast('Server error while processing trade', 'error');
+            },
+            complete: function() {
+                // Re-enable button
+                $button.prop('disabled', false).html('Buy');
+            }
+        });
+    }
+});
+
+// Sell button click handler
+$(document).on('click', '.btn-sell', function() {
+    const $button = $(this);
+    const coinId = $button.data('id');
+    const symbol = $button.data('symbol');
+    const price = $button.data('price');
+    const balance = parseFloat($button.data('balance'));
+    const $inputField = $button.closest('.input-group').find('.sell-amount');
+    const amount = parseFloat($inputField.val());
+    
+    if (!amount || isNaN(amount) || amount <= 0) {
+        showToast('Please enter a valid amount to sell', 'warning');
+        return;
+    }
+    
+    if (amount > balance) {
+        showToast(`You only have ${balance} ${symbol} available to sell`, 'warning');
+        return;
+    }
+    
+    // Show confirmation
+    const totalValue = (amount * price).toFixed(2);
+    if (confirm(`Confirm sale of ${amount} ${symbol} for $${totalValue}?`)) {
+        // Disable button to prevent double-clicks
+        $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+        
+        // Call API to execute trade
+        $.ajax({
+            url: '/NS/api/execute-trade.php',
+            method: 'POST',
+            data: {
+                action: 'sell',
+                coin_id: coinId,
+                symbol: symbol,
+                amount: amount,
+                price: price
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    showToast(`Successfully sold ${amount} ${symbol}!`, 'success');
+                    // Update portfolio display
+                    updatePortfolioDisplay();
+                    // Clear input field
+                    $inputField.val('');
+                } else {
+                    showToast(response.message || 'Trade failed', 'error');
+                }
+            },
+            error: function() {
+                showToast('Server error while processing trade', 'error');
+            },
+            complete: function() {
+                // Re-enable button
+                $button.prop('disabled', false).html('Sell');
+            }
+        });
+    }
+});
+
+// Helper function for showing toast notifications
+window.showToast = function(message, type = 'info') {
+    if (typeof $.toast === 'function') {
+        $.toast({
+            text: message,
+            heading: type.charAt(0).toUpperCase() + type.slice(1),
+            icon: type,
+            showHideTransition: 'fade',
+            allowToastClose: true,
+            hideAfter: 5000,
+            stack: 5,
+            position: 'top-right',
+            textAlign: 'left',
+            loader: true,
+            loaderBg: '#9EC600'
+        });
+    } else {
+        // Fallback if toast plugin not available
+        alert(message);
+    }
+};
+
+function processCoinData(data) {
+    // Process coins
+    data.forEach(coin => {
+        const userBalance = coin.user_balance || 0;
+        const canSell = userBalance > 0;
+        
+        if (window.coinsTable && typeof window.coinsTable.row.add === 'function') {
+            window.coinsTable.row.add([
+                window.formatCoinName(coin.name, coin.symbol),
+                window.formatPrice(coin.current_price || coin.price || 0),
+                window.formatPercentage(coin.price_change_24h || 0),
+                window.formatLargeNumber(coin.volume_24h || 0),
+                window.formatLargeNumber(coin.market_cap || 0),
+                window.formatAge(coin.date_added || coin.last_updated),
+                window.formatStatus(coin.is_trending, coin.volume_spike, coin.source || coin.data_source || ''),
+                window.formatTradeButtons(coin.id, coin.symbol, coin.current_price || coin.price || 0, canSell, userBalance)
+            ]);
+        } else {
+            const rowHtml = `
+                <tr>
+                    <td>${window.formatCoinName(coin.name, coin.symbol)}</td>
+                    <td>${window.formatPrice(coin.current_price || coin.price || 0)}</td>
+                    <td>${window.formatPercentage(coin.price_change_24h || 0)}</td>
+                    <td>${window.formatLargeNumber(coin.volume_24h || 0)}</td>
+                    <td>${window.formatLargeNumber(coin.market_cap || 0)}</td>
+                    <td>${window.formatAge(coin.date_added || coin.last_updated)}</td>
+                    <td>${window.formatStatus(coin.is_trending, coin.volume_spike, coin.source || coin.data_source || '')}</td>
+                    <td>${window.formatTradeButtons(coin.id, coin.symbol, coin.current_price || coin.price || 0, canSell, userBalance)}</td>
+                </tr>
+            `;
+            $('#coins-table tbody').append(rowHtml);
+        }
+    });
+}

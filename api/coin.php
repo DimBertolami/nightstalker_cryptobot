@@ -23,11 +23,10 @@ if (empty($coinId)) {
 
 $db = getDBConnection();
 $stmt = $db->prepare("SELECT * FROM cryptocurrencies WHERE id = ?");
-$stmt->bind_param('s', $coinId);
-$stmt->execute();
-$result = $stmt->get_result();
+$stmt->execute([$coinId]);
+$result = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if ($result->num_rows === 0) {
+if (!$result) {
     http_response_code(404);
     echo json_encode([
         'success' => false,
@@ -36,7 +35,7 @@ if ($result->num_rows === 0) {
     exit;
 }
 
-$coin = $result->fetch_assoc();
+$coin = $result;
 
 // Get price history
 $stmt = $db->prepare("
@@ -45,9 +44,8 @@ $stmt = $db->prepare("
     ORDER BY recorded_at DESC 
     LIMIT 24
 ");
-$stmt->bind_param('s', $coinId);
-$stmt->execute();
-$history = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->execute([$coinId]);
+$history = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 echo json_encode([
     'success' => true,

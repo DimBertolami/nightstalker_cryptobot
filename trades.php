@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/pdo_functions.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
 
@@ -12,7 +13,7 @@ $title = "Trade History";
 require_once __DIR__ . '/includes/header.php';
 
 try {
-    $trades = getRecentTradesWithMarketData(100);
+    $trades = getRecentTradesWithMarketDataPDO(100);
 } catch (Exception $e) {
     $_SESSION['error'] = "Could not load trade history. Please try again later.";
     error_log("Trade history error: " . $e->getMessage());
@@ -28,15 +29,16 @@ if (!empty($trades)) {
     $symbols = array_unique(array_column($trades, 'symbol'));
     $stmtPrice = $db->prepare("SELECT symbol, current_price FROM coins WHERE symbol = ?");
     foreach ($symbols as $sym) {
-        $stmtPrice->bind_param("s", $sym);
-        $stmtPrice->execute();
-        $res = $stmtPrice->get_result();
-        if ($r = $res->fetch_assoc()) {
-            $coinPrices[$r['symbol']] = (float)$r['current_price'];
+        try {
+            $stmtPrice->execute([$sym]);
+            $r = $stmtPrice->fetch(PDO::FETCH_ASSOC);
+            if ($r) {
+                $coinPrices[$r['symbol']] = (float)$r['current_price'];
+            }
+        } catch (Exception $e) {
+            error_log("Error fetching price for $sym: " . $e->getMessage());
         }
-        $res->free();
     }
-    $stmtPrice->close();
 }
 ?>
 
