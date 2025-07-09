@@ -5,8 +5,8 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/pdo_functions.php';
 
-// Initialize showAll flag with default value
-$showAll = isset($_GET['show_all']) ? $_GET['show_all'] == '1' : false;
+// Initialize showAll flag with default value (true to show all coins by default)
+$showAll = isset($_GET['show_all']) ? $_GET['show_all'] == '1' : true;
 
 // Get filter settings from cookies or use defaults
 $filterAge = isset($_COOKIE['filter_age']) ? (int)$_COOKIE['filter_age'] : 24;
@@ -557,16 +557,8 @@ $coins = array_filter($coins, function($coin) {
                                     $isNew = $coin['age_hours'] < 24;
                                     $ageClass = $isNew ? 'new-coin' : '';
                                     
-                                    // Format age display based on how old it is
-                                    if ($coin['age_hours'] < 24) {
-                                        $ageDisplay = $coin['age_hours'] . ' hours';
-                                    } else if ($coin['age_hours'] < 48) {
-                                        $ageDisplay = '1 day';
-                                    } else if ($coin['age_hours'] < 720) { // 30 days
-                                        $ageDisplay = floor($coin['age_hours'] / 24) . ' days';
-                                    } else {
-                                        $ageDisplay = floor($coin['age_hours'] / 720) . ' months';
-                                    }
+                                    // Always display age in hours with 1 decimal place
+                                    $ageDisplay = number_format($coin['age_hours'], 1) . ' hours';
                                 ?>
                                 <tr class="<?= $ageClass ?>">
                                     <td>
@@ -790,18 +782,17 @@ $(document).ready(function() {
         return parseFloat(text.replace(/[^0-9.]/g, '')) || 0;
     }
     
-    // Helper function to parse age text like "5 hours" or "1 day"
+    // Helper function to parse age text like "5.5 hours"
     function parseAgeText(text) {
-        const hourMatch = text.match(/(\d+)\s*hours?/i);
-        if (hourMatch) return parseInt(hourMatch[1]);
+        // Match decimal numbers followed by 'hours'
+        const hourMatch = text.match(/([\d.]+)\s*hours?/i);
+        if (hourMatch) return parseFloat(hourMatch[1]);
         
-        const dayMatch = text.match(/(\d+)\s*days?/i);
-        if (dayMatch) return parseInt(dayMatch[1]) * 24;
+        // If no match, try to parse as a number directly (fallback)
+        const numberMatch = text.match(/([\d.]+)/);
+        if (numberMatch) return parseFloat(numberMatch[1]);
         
-        const monthMatch = text.match(/(\d+)\s*months?/i);
-        if (monthMatch) return parseInt(monthMatch[1]) * 24 * 30;
-        
-        return 24; // Default to 24 hours if parsing fails
+        return 0; // Default to 0 hours if parsing fails
     }
     
     // Update entries info text

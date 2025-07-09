@@ -261,6 +261,9 @@ class Order {
         // Initialize wallet
         $wallet = new Wallet($this->exchangeId);
         
+        // Default user ID (can be updated later for multi-user support)
+        $userId = 1;
+        
         if ($order['side'] === 'buy') {
             // For buy orders:
             // - Decrease quote currency (e.g., USDT)
@@ -282,6 +285,15 @@ class Order {
                 'symbol' => $order['symbol']
             ]);
             
+            // Log the buy trade
+            $this->logTrade(
+                $userId,
+                $baseCurrency, // coin_id
+                'buy',
+                $order['filled'], // amount
+                $order['price']
+            );
+            
         } else {
             // For sell orders:
             // - Decrease base currency (e.g., BTC)
@@ -302,6 +314,15 @@ class Order {
                 'type' => 'sell',
                 'symbol' => $order['symbol']
             ]);
+            
+            // Log the sell trade
+            $this->logTrade(
+                $userId,
+                $baseCurrency, // coin_id
+                'sell',
+                $order['filled'], // amount
+                $order['price']
+            );
         }
         
         return true;
@@ -492,6 +513,35 @@ class Order {
         ]);
         
         return true;
+    }
+    
+    /**
+     * Log a trade in the trades table
+     */
+    private function logTrade($userId, $coinId, $tradeType, $amount, $price) {
+        $totalValue = $amount * $price;
+        
+        $stmt = $this->db->prepare("
+            INSERT INTO trades 
+            (user_id, coin_id, trade_type, amount, price, total_value, trade_time)
+            VALUES (?, ?, ?, ?, ?, ?, NOW())
+        ");
+        
+        $stmt->bind_param('issddd', 
+            $userId,
+            $coinId,
+            $tradeType,
+            $amount,
+            $price,
+            $totalValue
+        );
+        
+        if (!$stmt->execute()) {
+            error_log("Failed to log trade: " . $stmt->error);
+            return false;
+        }
+        
+        return $this->db->insert_id;
     }
     
     /**

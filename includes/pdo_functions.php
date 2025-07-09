@@ -5,6 +5,69 @@
  */
 
 /**
+ * Get coin information by ID from either cryptocurrencies or coins table
+ */
+function getCoinInfoById($coinId) {
+    try {
+        $db = getDBConnection();
+        if (!$db) {
+            throw new Exception("Database connection failed");
+        }
+        
+        // Try to get from cryptocurrencies table by ID
+        $stmt = $db->prepare("SELECT id, symbol, name FROM cryptocurrencies WHERE id = ?");
+        $stmt->execute([$coinId]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // If not found, try the coins table by ID
+        if (!$result) {
+            $stmt = $db->prepare("SELECT id, symbol, name FROM coins WHERE id = ?");
+            $stmt->execute([$coinId]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            // If found in coins table, try to find matching symbol in cryptocurrencies
+            if ($result && !empty($result['symbol'])) {
+                $symbol = $result['symbol'];
+                $stmt = $db->prepare("SELECT id, symbol, name FROM cryptocurrencies WHERE symbol = ?");
+                $stmt->execute([$symbol]);
+                $cryptoResult = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                // If found with matching symbol, use that data
+                if ($cryptoResult) {
+                    $result = $cryptoResult;
+                }
+            }
+        }
+        
+        // If still no result, try to find by ID in any table (as string match)
+        if (!$result) {
+            $stmt = $db->prepare("SELECT id, symbol, name FROM cryptocurrencies WHERE id = ?");
+            $stmt->execute([(string)$coinId]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+        
+        // If still no result, try to get symbol from coins table and use that
+        if (!$result) {
+            $stmt = $db->prepare("SELECT symbol, name FROM coins WHERE id = ?");
+            $stmt->execute([$coinId]);
+            $coinData = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($coinData) {
+                $result = [
+                    'id' => $coinId,
+                    'symbol' => $coinData['symbol'] ?? 'UNKNOWN',
+                    'name' => $coinData['name'] ?? 'Unknown Coin'
+                ];
+            }
+        }
+        
+        return $result ?: ['id' => $coinId, 'symbol' => 'UNKNOWN', 'name' => 'Unknown Coin'];
+    } catch (Exception $e) {
+        error_log("[getCoinInfoById] " . $e->getMessage());
+        return ['id' => $coinId, 'symbol' => 'UNKNOWN', 'name' => 'Unknown Coin'];
+    }
+}
+
+/**
  * Get trending coins
  */
 function getTrendingCoinsPDO(): array {
@@ -63,24 +126,16 @@ function getRecentTradesPDO(int $limit = 10): array {
             return [];
         }
         
-        // Get cryptocurrency data to map coin_id to symbol
-        $cryptoData = [];
-        $cryptoStmt = $db->prepare("SELECT id, symbol, name FROM cryptocurrencies");
-        $cryptoStmt->execute();
-        $cryptoResult = $cryptoStmt->fetchAll(PDO::FETCH_ASSOC);
-        foreach ($cryptoResult as $row) {
-            $cryptoData[$row['id']] = $row;
-        }
-        
         $trades = [];
         foreach ($result as $row) {
             $coinId = $row['coin_id'];
-            $symbol = $cryptoData[$coinId]['symbol'] ?? 'UNKNOWN';
+            $coinInfo = getCoinInfoById($coinId);
             
             $trades[] = [
                 'id' => $row['id'],
                 'coin_id' => $coinId,
-                'symbol' => $symbol,
+                'symbol' => $coinInfo['symbol'],
+                'name' => $coinInfo['name'],
                 'amount' => $row['amount'],
                 'price' => $row['price'],
                 'trade_type' => $row['trade_type'],
@@ -329,7 +384,7 @@ function getUserBalancesPDO(): array {
         return [];
     }
 }
-
+    
 /**
  * Get user's coin balance for a specific coin with PDO
  * @param string|int $coinId The coin ID to check balance for
