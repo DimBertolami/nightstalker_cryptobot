@@ -14,6 +14,11 @@ require_once __DIR__ . '/includes/header.php';
 
 try {
     $trades = getRecentTradesWithMarketDataPDO(100);
+    
+    // Sort trades by date descending (newest first)
+    usort($trades, function($a, $b) {
+        return strtotime($b['trade_time']) <=> strtotime($a['trade_time']);
+    });
 } catch (Exception $e) {
     $_SESSION['error'] = "Could not load trade history. Please try again later.";
     error_log("Trade history error: " . $e->getMessage());

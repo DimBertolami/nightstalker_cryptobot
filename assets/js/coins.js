@@ -757,7 +757,7 @@ window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
                 .then(data => {
                     if (data.success) {
                         // Show toast notification
-                        showToast(`Successfully bought ${amount} ${coinId}`, 'success');
+                        //showToast(`Successfully bought ${amount} ${coinId}`, 'success');
                         // Refresh data
                         fetchAndUpdateData();
                         updatePortfolioDisplay();
@@ -1010,17 +1010,17 @@ $(document).on('click', '.btn-buy', function() {
             dataType: 'json',
             success: function(response) {
                 if (response.success) {
-                    showToast(`Successfully purchased ${amount} ${symbol}!`, 'success');
+                    // showToast(`Successfully purchased ${amount} ${symbol}!`, 'success');
                     // Update portfolio display
                     updatePortfolioDisplay();
                     // Clear input field
                     $inputField.val('');
                 } else {
-                    showToast(response.message || 'Trade failed', 'error');
+                    // showToast(response.message || 'Trade failed', 'error');
                 }
             },
             error: function() {
-                showToast('Server error while processing trade', 'error');
+                // showToast('Server error while processing trade', 'error');
             },
             complete: function() {
                 // Re-enable button
@@ -1070,13 +1070,13 @@ $(document).on('click', '.btn-sell', function() {
             dataType: 'json',
             success: function(response) {
                 if (response.success) {
-                    showToast(`Successfully sold ${amount} ${symbol}!`, 'success');
+                    //showToast(`Successfully sold ${amount} ${symbol}!`, 'success');
                     // Update portfolio display
                     updatePortfolioDisplay();
                     // Clear input field
                     $inputField.val('');
                 } else {
-                    showToast(response.message || 'Trade failed', 'error');
+                    // showToast(response.message || 'Trade failed', 'error');
                 }
             },
             error: function() {

@@ -170,16 +170,11 @@ class TradeMonitor {
     }
     
     private function executeBuyTrade($coin) {
+        require_once __DIR__ . '/../includes/pdo_functions.php';
         $amountToBuy = 1000 / $coin['price']; // Example: $1000 worth
         
-        $stmt = $this->db->prepare("
-            INSERT INTO trades 
-            (coin_id, trade_type, price, amount) 
-            VALUES (?, 'buy', ?, ?)
-        ");
-        $stmt->bind_param('idd', $coin['id'], $coin['price'], $amountToBuy);
-        $stmt->execute();
-        $tradeId = $this->db->insert_id;
+        // Use the PDO buy logic to ensure trades and portfolio are updated
+        $tradeId = executeBuyPDO($coin['id'], $amountToBuy, $coin['price']);
         
         logEvent("Bought {$coin['symbol']} due to volume spike", 'info', [
             'amount' => $amountToBuy,
