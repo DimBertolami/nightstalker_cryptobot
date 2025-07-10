@@ -2,15 +2,7 @@
 <?php
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/functions.php';
-
-// Initialize MySQLi connection
-$db = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-if ($db->connect_error) {
-    die("Connection failed: " . $db->connect_error);
-}
-
-// Whitelisted coin IDs
-const COIN_WHITELIST = ['COIN_DMC', 'COIN_POPCAT'];
+require_once __DIR__ . '/../includes/database.php';
 
 // Initialize logging
 $logFile = __DIR__ . '/../logs/price_updates.log';
@@ -21,6 +13,12 @@ $log = function($message) use ($logFile) {
 try {
     $log("Starting price update");
 
+    // Get database connection
+    $db = getDBConnection();
+    if (!$db) {
+        throw new Exception("Database connection failed");
+    }
+    
     // Note: We're not creating tables anymore as they already exist with different schema
     // Just logging the existing table structure for reference
     $log("Using existing cryptocurrencies table structure");
@@ -71,12 +69,9 @@ try {
     }
 
     // Prepare statements for cryptocurrencies table (new format)
-    $whitelist = implode("','", COIN_WHITELIST);
     $upsertCryptoCoin = $db->prepare("INSERT INTO cryptocurrencies 
         (id, symbol, name, price, price_change_24h, market_cap, volume, last_updated, created_at) 
-        SELECT ?, ?, ?, ?, ?, ?, ?, NOW(), NOW() 
-        FROM (SELECT ?, ?, ?, ?, ?, ?, ?) as api_data
-        WHERE symbol IN ('$whitelist')
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW()) 
         ON DUPLICATE KEY UPDATE 
             name=VALUES(name), 
             price=VALUES(price), 
@@ -141,21 +136,14 @@ try {
         $volume = $coinData['volume']; // API returns 'volume' not 'volume_24h'
         
         // 1. Update cryptocurrencies table (new format)
-        $upsertCryptoCoin->bind_param('ssssssss',
+        $upsertCryptoCoin->bind_param('sssdddd',
             $cryptoId,          // id (using symbol as ID)
             $cryptoSymbol,      // symbol
             $cryptoName,        // name
             $price,             // price
             $priceChange,       // price_change_24h
             $marketCap,         // market_cap
-            $volume,            // volume
-            $cryptoId,          // symbol (for api_data)
-            $cryptoSymbol,      // symbol (for api_data)
-            $cryptoName,        // name (for api_data)
-            $price,             // price (for api_data)
-            $priceChange,       // price_change_24h (for api_data)
-            $marketCap,         // market_cap (for api_data)
-            $volume             // volume (for api_data)
+            $volume             // volume
         );
         
         if (!$upsertCryptoCoin->execute()) {
@@ -233,21 +221,14 @@ try {
         $volume = $coinData['volume'];
         
         // 1. Update cryptocurrencies table (new format)
-        $upsertCryptoCoin->bind_param('ssssssss',
+        $upsertCryptoCoin->bind_param('sssdddd',
             $cryptoId,          // id (using symbol as ID)
             $cryptoSymbol,      // symbol
             $cryptoName,        // name
             $price,             // price
             $priceChange,       // price_change_24h
             $marketCap,         // market_cap
-            $volume,            // volume
-            $cryptoId,          // symbol (for api_data)
-            $cryptoSymbol,      // symbol (for api_data)
-            $cryptoName,        // name (for api_data)
-            $price,             // price (for api_data)
-            $priceChange,       // price_change_24h (for api_data)
-            $marketCap,         // market_cap (for api_data)
-            $volume             // volume (for api_data)
+            $volume             // volume
         );
         
         if (!$upsertCryptoCoin->execute()) {

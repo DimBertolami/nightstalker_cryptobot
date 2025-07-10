@@ -1,5 +1,5 @@
 {
-    "enabled": true,
+    "enabled": false,
     "maxCoinAge": 24,
     "minMarketCap": 1500000,
     "minVolume": 1500000,

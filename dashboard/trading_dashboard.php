@@ -20,6 +20,10 @@ $selectedExchange = $_SESSION['selected_exchange'] ?? 'binance';
 
 // Include the header template
 $pageTitle = 'Trading Dashboard';
+
+// Add custom CSS for price history table
+$customCSS = '<link href="/NS/assets/css/price-history.css" rel="stylesheet">';
+
 include __DIR__ . '/../includes/header.php';
 ?>
 
@@ -29,6 +33,49 @@ include __DIR__ . '/../includes/header.php';
             <h1 class="display-5">Night Stalker Trading</h1>
             <p class="lead">Real-time trading dashboard</p>
             <hr>
+        </div>
+    </div>
+    
+    <!-- Price History Table -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center bg-dark text-white">
+                    <h5 class="mb-0"><i class="bi bi-graph-up-arrow me-2"></i>Portfolio Price History</h5>
+                    <div>
+                        <button id="refresh-price-history" class="btn btn-sm btn-outline-light">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="loading-price-history" class="loading">
+                        <div class="spinner-border text-primary loading-spinner" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p>Loading price history...</p>
+                    </div>
+                    <div class="table-responsive">
+                        <table id="price-history-table" class="table table-hover table-striped mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Coin</th>
+                                    <th class="text-end">Current Price</th>
+                                    <th>1h</th>
+                                    <th>4h</th>
+                                    <th>12h</th>
+                                    <th>24h</th>
+                                    <th>7d</th>
+                                    <th>Price Trend</th>
+                                </tr>
+                            </thead>
+                            <tbody id="price-history-tbody">
+                                <!-- Price history data will be loaded here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -657,5 +704,8 @@ $(document).ready(function() {
     });
 });
 </script>
+
+<!-- Price History Table JavaScript -->
+<script src="/NS/assets/js/price-history.js"></script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

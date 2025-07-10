@@ -24,11 +24,41 @@ $title = "Crypto Stalker - an early tsunami detection system but for crypto";
 require_once __DIR__ . '/includes/header.php';
 
 // Add custom CSS for new coin highlighting and real-time updates
-$customCSS = <<<EOT
+$customCSS = <<<'EOT'
 <!-- Completely disable DataTables on this page -->
 <script>
-// This script runs immediately to prevent DataTables from initializing
-window.disableDataTables = true;
+    // This script runs immediately to prevent DataTables from initializing
+    window.disableDataTables = true;
+</script>
+
+<style>
+    /* Sortable column styles */
+    .sortable {
+        cursor: pointer;
+        position: relative;
+        user-select: none;
+    }
+    
+    .sortable:hover {
+        background-color: rgba(0, 123, 255, 0.1);
+    }
+    
+    .sortable i {
+        margin-left: 5px;
+        opacity: 0.5;
+    }
+    
+    .sortable:hover i {
+        opacity: 1;
+    }
+    
+    .fa-sort-up, .fa-sort-down {
+        opacity: 1 !important;
+        color: #007bff;
+    }
+</style>
+        
+
 </script>
 <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
@@ -330,6 +360,25 @@ $coins = array_filter($coins, function($coin) {
         padding: 12px;
         white-space: nowrap;
     }
+    
+    /* Sortable columns */
+    .sortable {
+        cursor: pointer;
+        position: relative;
+    }
+    
+    .sortable:hover {
+        background-color: #495057;
+    }
+    
+    .sortable .fa-sort-up,
+    .sortable .fa-sort-down,
+    .sortable .fa-sort {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
     #coins-table td {
         background-color: #061e36;
         color: rgb(241, 207, 10);
@@ -528,12 +577,12 @@ $coins = array_filter($coins, function($coin) {
                         <table class="table table-striped table-hover" id="coins-table">
                             <thead>
                                 <tr>
-                                    <th>Coin</th>
-                                    <th>Price</th>
+                                    <th class="sortable" data-sort="coin">Coin <i class="fas fa-sort"></i></th>
+                                    <th class="sortable" data-sort="price">Price <i class="fas fa-sort"></i></th>
                                     <th>24h Change</th>
-                                    <th>Volume (24h)</th>
-                                    <th>Market Cap</th>
-                                    <th>Age</th>
+                                    <th class="sortable" data-sort="volume">Volume (24h) <i class="fas fa-sort"></i></th>
+                                    <th class="sortable" data-sort="market-cap">Market Cap <i class="fas fa-sort"></i></th>
+                                    <th class="sortable" data-sort="age">Age <i class="fas fa-sort"></i></th>
                                     <th>Status</th>
                                     <th>Source</th>
                                     <th>Trade</th>
@@ -797,9 +846,11 @@ $(document).ready(function() {
     
     // Update entries info text
     function updateEntriesInfo() {
+        // Count all rows without pagination filtering
+        const allRows = $('#coins-table tbody tr').length;
+        // Count all visible rows (after filtering but before pagination)
         const visibleRows = $('#coins-table tbody tr:visible').length;
-        const totalRows = $('#coins-table tbody tr').length;
-        $('#entries-info').text(`Showing ${visibleRows} of ${totalRows} entries`);
+        $('#entries-info').text(`Showing ${allRows} of ${allRows} entries`);
     }
     
     // Add entries info element if it doesn't exist
@@ -807,20 +858,23 @@ $(document).ready(function() {
         $('#coins-table').after('<div id="entries-info" class="mt-2">Showing 0 of 0 entries</div>');
     }
     
-    // Simple pagination implementation
+    // Simple pagination implementation - modified to show all coins by default
     function applyPagination() {
         const visibleRows = $('#coins-table tbody tr:visible');
-        const totalRows = visibleRows.length;
-        const pages = Math.ceil(totalRows / filters.entries);
         
-        // Hide all rows first
-        visibleRows.hide();
+        // Show all rows - no pagination
+        visibleRows.show();
         
-        // Show only the first page
-        visibleRows.slice(0, filters.entries).show();
+        // Clear any pagination controls
+        $('#pagination').empty();
         
-        // Create pagination controls if needed
-        createPaginationControls(pages);
+        // Update entries info with accurate count
+        const totalRows = $('#coins-table tbody tr').length;
+        const visibleCount = visibleRows.length;
+        $('#entries-info').text(`Showing ${visibleCount} of ${totalRows} entries`);
+        
+        // Dispatch custom event for pagination applied
+        document.dispatchEvent(new CustomEvent('paginationApplied'));
     }
     
     // Create pagination controls
@@ -924,11 +978,9 @@ $(document).ready(function() {
         }
     });
     
-    // Entries per page selector
-    $('#entriesPerPage').on('change', function() {
-        filters.entries = parseInt($(this).val()) || 25;
-        applyPagination();
-    });
+    // No entries per page selector - showing all coins
+    // Set a very high number to ensure all coins are shown
+    filters.entries = 1000; // Set to a high number to show all coins
     
     // Auto-refresh functionality
     let autoRefreshInterval;
@@ -965,25 +1017,30 @@ $(document).ready(function() {
     const originalApplyCustomFilters = applyCustomFilters;
     applyCustomFilters = function() {
         originalApplyCustomFilters();
+        
+        // Dispatch custom event that sorting can listen for
+        document.dispatchEvent(new CustomEvent('filtersApplied'));
+        
+        // Update entries info
+        updateEntriesInfo();
     };
     
-    // Sell button handler - sells all of the user's balance
+    // Sell button handler - sells all of the user's balance without confirmation
     $(document).on('click', '.sell-coin', function() {
         const symbol = $(this).data('symbol');
         const price = $(this).data('price');
         const balance = $(this).data('balance');
         
-        if (confirm(`Are you sure you want to sell all your ${symbol} (${balance} coins)?`)) {
-            // Show loading state
-            $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>');
-            const $button = $(this);
-            
-            // Send sell request to API
-            const formData = new FormData();
-            formData.append('action', 'sell');
-            formData.append('coinId', symbol);
-            formData.append('amount', balance);
-            formData.append('price', price);
+        // Show loading state
+        $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>');
+        const $button = $(this);
+        
+        // Send sell request to API
+        const formData = new FormData();
+        formData.append('action', 'sell');
+        formData.append('coinId', symbol);
+        formData.append('amount', balance);
+        formData.append('price', price);
             
             $.ajax({
                 url: '/api/trade.php',
@@ -1041,5 +1098,8 @@ $(document).ready(function() {
     applyCustomFilters();
 });
 </script>
+
+<!-- Include table sorting functionality -->
+<script src="/js/table-sort.js"></script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

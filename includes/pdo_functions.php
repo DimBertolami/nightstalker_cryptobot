@@ -187,20 +187,116 @@ function getRecentTradesWithMarketDataPDO(int $limit = 10): array {
             }
         }
         
-        // Merge trade data with market data
-        foreach ($trades as &$trade) {
-            $symbol = $trade['symbol'];
-            if (isset($marketData[$symbol])) {
-                $trade['current_price'] = $marketData[$symbol]['current_price'];
-                $trade['price_change_24h'] = $marketData[$symbol]['price_change_24h'];
-            } else {
-                // If no market data available, use the original trade price
-                $trade['current_price'] = $trade['price'];
-                $trade['price_change_24h'] = 0;
+        // FIFO matching for correct Sell trade P/L and invested calculation
+        // Sort trades by trade_time ascending for FIFO - ensure stable sort with ID as secondary key
+        usort($trades, function($a, $b) {
+            $timeCompare = strtotime($a['trade_time']) <=> strtotime($b['trade_time']);
+            return $timeCompare !== 0 ? $timeCompare : ($a['id'] <=> $b['id']);
+        });
+        
+        // Log trades for debugging
+        error_log("Sorted trades for FIFO matching: " . json_encode(array_map(function($t) { 
+            return ['id' => $t['id'], 'symbol' => $t['symbol'], 'type' => $t['trade_type'], 'time' => $t['trade_time'], 'amount' => $t['amount'], 'price' => $t['price']];
+        }, $trades)));
+        
+        // Build per-coin trade lists for FIFO processing by symbol (not coin_id)
+        $tradesBySymbol = [];
+        foreach ($trades as $trade) {
+            $tradesBySymbol[$trade['symbol']][] = $trade;
+        }
+        $fifoResults = [];
+        foreach ($tradesBySymbol as $symbol => $coinTrades) {
+            $openBuys = [];
+            foreach ($coinTrades as $trade) {
+                $symbol = $trade['symbol'];
+                $currentPrice = $marketData[$symbol]['current_price'] ?? $trade['price'];
+                $priceChange24h = $marketData[$symbol]['price_change_24h'] ?? 0;
+                $currentValue = $trade['amount'] * $currentPrice;
+                if ($trade['trade_type'] === 'buy') {
+                    // Track open buy
+                    $openBuys[] = [
+                        'id' => $trade['id'],
+                        'amount' => $trade['amount'],
+                        'price' => $trade['price'],
+                        'remaining' => $trade['amount'],
+                        'total_value' => $trade['total_value'],
+                        'trade_time' => $trade['trade_time'],
+                    ];
+                    $fifoResults[] = array_merge($trade, [
+                        'current_price' => round($trade['price'], 2), // price at time of buy
+                        'price_change_24h' => $priceChange24h,
+                        'current_value' => round($trade['amount'] * $trade['price'], 2),
+                        'profit_loss' => null,
+                        'profit_loss_percent' => null,
+                        'invested' => round($trade['total_value'], 2),
+                        'entry_price' => round($trade['price'], 4),
+                        'realized_pl' => null,
+                    ]);
+                } elseif ($trade['trade_type'] === 'sell') {
+                    // FIFO match to open buys
+                    $sellAmount = $trade['amount'];
+                    $invested = 0;
+                    $entryPrice = 0;
+                    $realizedPL = 0;
+                    $matchedAmount = 0;
+                    $weightedBuyTotal = 0; // sum of (matched amount * buy price)
+                    $totalSaleValue = $trade['amount'] * $trade['price']; // Total value of the sale
+                    
+                    // Debug log before matching
+                    error_log("Processing sell for {$trade['symbol']} - Amount: {$trade['amount']} at price: {$trade['price']} - Open buys: " . json_encode($openBuys));
+                    
+                    foreach ($openBuys as &$buy) {
+                        if ($buy['remaining'] <= 0) continue;
+                        $match = min($buy['remaining'], $sellAmount);
+                        if ($match <= 0) continue;
+                        
+                        // Calculate this match's contribution to invested amount and P/L
+                        $matchInvested = $match * $buy['price'];
+                        $matchSaleValue = $match * $trade['price'];
+                        $matchPL = $matchSaleValue - $matchInvested;
+                        
+                        $invested += $matchInvested;
+                        $weightedBuyTotal += $matchInvested;
+                        $realizedPL += $matchPL;
+                        
+                        // Debug log with detailed calculation
+                        error_log("FIFO Match Detail: Buy price: {$buy['price']}, Sell price: {$trade['price']}, Match amount: {$match}");
+                        error_log("FIFO Calculation: Buy value: {$matchInvested}, Sell value: {$matchSaleValue}, P/L: {$matchPL}");
+                        
+                        // Debug log for this match
+                        error_log("Matched {$match} units from buy ID {$buy['id']} at {$buy['price']} - Match P/L: {$matchPL}");
+                        
+                        $buy['remaining'] -= $match;
+                        $sellAmount -= $match;
+                        $matchedAmount += $match;
+                        
+                        if ($sellAmount <= 0) break;
+                    }
+                    unset($buy);
+                    
+                    // Calculate the correct profit/loss - total sale value minus total invested
+                    // This ensures we're using the full sale value and not just the matched portions
+                    $correctRealizedPL = $totalSaleValue - $invested;
+                    
+                    // Debug log after matching with corrected calculation
+                    error_log("Final results for sell ID {$trade['id']}: Invested: {$invested}, Sale Value: {$totalSaleValue}, Corrected P/L: {$correctRealizedPL}");
+                    
+                    $entryPrice = $matchedAmount > 0 ? $weightedBuyTotal / $matchedAmount : 0;
+                    $fifoResults[] = array_merge($trade, [
+                        'current_price' => round($trade['price'], 2), // price at time of sell
+                        'price_change_24h' => $priceChange24h,
+                        'current_value' => round($trade['amount'] * $trade['price'], 2),
+                        'profit_loss' => round($correctRealizedPL, 2),
+                        'profit_loss_percent' => $invested > 0 ? round(($correctRealizedPL / $invested) * 100, 2) : null,
+                        'invested' => round($invested, 2),
+                        'entry_price' => round($entryPrice, 4),
+                        'realized_pl' => round($correctRealizedPL, 2),
+                    ]);
+                }
             }
         }
-        
-        return $trades;
+        // Return most recent $limit trades
+        return array_slice(array_reverse($fifoResults), 0, $limit);
     } catch (Exception $e) {
         error_log("[getRecentTradesWithMarketDataPDO] " . $e->getMessage());
         return [];
@@ -229,21 +325,14 @@ function getTradingStatsPDO(): array {
         $activeTradesResult = $activeTradesStmt->fetch(PDO::FETCH_ASSOC);
         $activeTrades = $activeTradesResult['active'] ?? 0;
         
-        // Get total profit
-        $profitStmt = $db->prepare("
-            SELECT SUM(
-                CASE 
-                    WHEN t.trade_type = 'sell' THEN t.total_value - (t.amount * p.avg_buy_price)
-                    ELSE 0
-                END
-            ) as total_profit
-            FROM trades t
-            LEFT JOIN portfolio p ON t.coin_id = p.coin_id
-            WHERE t.trade_type = 'sell'
-        ");
-        $profitStmt->execute();
-        $profitResult = $profitStmt->fetch(PDO::FETCH_ASSOC);
-        $totalProfit = $profitResult['total_profit'] ?? 0;
+        // Get total profit using FIFO-matched realized P/L from enriched trade data
+        $allTrades = getRecentTradesWithMarketDataPDO(1000); // adjust limit as needed
+        $totalProfit = 0;
+        foreach ($allTrades as $trade) {
+            if (strtolower($trade['trade_type']) === 'sell' && is_numeric($trade['profit_loss'])) {
+                $totalProfit += $trade['profit_loss'];
+            }
+        }
         
         // Get total volume
         $volumeStmt = $db->prepare("SELECT SUM(total_value) as total_volume FROM trades");
