@@ -1,6 +1,12 @@
 <?php
 require_once __DIR__ . '/../includes/config.php';
+require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/database.php';
+
+// Constants (should be in config.php)
+//define('MIN_VOLUME_THRESHOLD', 1500000); // $1.5M
+//define('MAX_COIN_AGE', 48); // hours
+define('CONSECUTIVE_DECREASES_FOR_SELL', 3);
 
 /**
  * Night Stalker Trading Algorithm
@@ -9,12 +15,9 @@ class TradeMonitor {
     private $db;
     
     public function __construct() {
-        $this->db = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-        if ($this->db->connect_error) {
-            die("Connection failed: " . $this->db->connect_error);
-        }
+        $this->db = getDBConnection();
     }
-
+    
     public function monitorTrades() {
         try {
             $this->processActiveTrades();
@@ -32,10 +35,6 @@ class TradeMonitor {
         $activeTrades = $this->getActiveTrades();
         
         foreach ($activeTrades as $trade) {
-            if (!in_array($trade['coin_id'], COIN_WHITELIST)) {
-                continue; // Skip non-whitelisted coins
-            }
-            
             $currentPrice = $this->getCurrentPrice($trade['coin_id']);
             $recentPrices = $this->getRecentPrices($trade['coin_id'], CONSECUTIVE_DECREASES_FOR_SELL);
             
@@ -60,7 +59,6 @@ class TradeMonitor {
                 AND t2.trade_type = 'sell'
                 AND t2.trade_time > t.trade_time
             )
-            AND c.id IN ('" . implode("','", COIN_WHITELIST) . "')
         ");
         
         if (!$result) {
@@ -71,7 +69,7 @@ class TradeMonitor {
     }
     
     private function getCurrentPrice($coinId) {
-        $stmt = $this->db->prepare("SELECT price FROM cryptocurrencies WHERE id = ? AND id IN ('" . implode("','", COIN_WHITELIST) . "')");
+        $stmt = $this->db->prepare("SELECT price FROM cryptocurrencies WHERE id = ?");
         $stmt->bind_param('i', $coinId);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -125,33 +123,33 @@ class TradeMonitor {
     }
     
     private function updatePriceHistory($trade, $currentPrice) {
-        error_log("Attempting to update price history for: ".$trade['coin_id']);
+        $stmt = $this->db->prepare("
+            INSERT INTO price_history 
+            (coin_id, price, volume, market_cap)
+            VALUES (?, ?, ?, ?)
+        ");
+        $stmt->bind_param(
+            'iddd',
+            $trade['coin_id'],
+            $currentPrice,
+            $trade['volume'],
+            $trade['market_cap']
+        );
+        $stmt->execute();
+    }
+    
+    private function findNewOpportunities() {
+        $newCoins = $this->getVolumeSpikeCoins();
         
-        if (!in_array($trade['coin_id'], COIN_WHITELIST)) {
-            return;
-        }
-
-        $coinId = $trade['coin_id'];
-        $price = $currentPrice;
-        $volume = $trade['volume'];
-        $marketCap = $trade['market_cap'];
-
-        $stmt = $this->db->prepare("INSERT INTO price_history (coin_id, price, volume, market_cap) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param('sddd', $coinId, $price, $volume, $marketCap);
-        
-        if ($stmt->execute()) {
-            error_log("Price history updated for: ".$coinId);
-        } else {
-            error_log("Price history update failed: " . $this->db->error);
+        foreach ($newCoins as $coin) {
+            $this->executeBuyTrade($coin);
         }
     }
-        
-    private function findNewOpportunities() {
-        $whitelist = implode("','", COIN_WHITELIST);
+    
+    private function getVolumeSpikeCoins() {
         $result = $this->db->query("
             SELECT * FROM cryptocurrencies 
-            WHERE id IN ('$whitelist')
-            AND volume >= " . MIN_VOLUME_THRESHOLD . "
+            WHERE volume >= " . MIN_VOLUME_THRESHOLD . "
             AND age_hours <= " . MAX_COIN_AGE . "
             AND id NOT IN (
                 SELECT coin_id FROM trades WHERE trade_type = 'buy'
@@ -162,11 +160,7 @@ class TradeMonitor {
             throw new Exception("Failed to get volume spike coins: " . $this->db->error);
         }
         
-        $newCoins = $result->fetch_all(MYSQLI_ASSOC);
-        
-        foreach ($newCoins as $coin) {
-            $this->executeBuyTrade($coin);
-        }
+        return $result->fetch_all(MYSQLI_ASSOC);
     }
     
     private function executeBuyTrade($coin) {

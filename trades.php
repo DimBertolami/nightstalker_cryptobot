@@ -102,10 +102,13 @@ if (!empty($trades)) {
                                 <tbody background-color: #061e36; color: rgb(241, 207, 10);>
                                     <?php foreach ($trades as $trade): ?>
                                     <?php
-                                        $currentValue = $trade['amount'] * $trade['current_price'];
-                                        $profitLoss = $currentValue - $trade['total_value'];
-                                        // Check for division by zero
-                                        $profitLossPercent = ($trade['total_value'] != 0) ? ($profitLoss / $trade['total_value']) * 100 : 0;
+                                        // Use backend-calculated values
+                                        $entryPrice = $trade['entry_price'];
+                                        $currentPrice = $trade['current_price'];
+                                        $invested = $trade['invested'];
+                                        $profitLoss = $trade['profit_loss'];
+                                        $profitLossPercent = $trade['profit_loss_percent'];
+                                        $isBuy = strtolower($trade['trade_type']) === 'buy';
                                     ?>
                                     <tr>
                                         <td><?= htmlspecialchars(date('Y-m-d H:i', strtotime($trade['trade_time']))) ?></td>
@@ -122,14 +125,18 @@ if (!empty($trades)) {
                                                 <?= strtoupper($trade['trade_type']) ?>
                                             </span>
                                         </td>
-                                        <td><?= rtrim(rtrim(number_format($trade['amount'], 4, '.', ''), '0'), '.') ?></td>
-                                        <td>$<?= rtrim(rtrim(number_format($trade['price'], 4, '.', ''), '0'), '.') ?></td>
-                                        <td>$<?= rtrim(rtrim(number_format(($coinPrices[$trade['symbol']] ?? $trade['current_price']), 4, '.', ''), '0'), '.') ?></td>
-                                        <td>$<?= number_format($trade['total_value'], 2) ?></td>
+                                        <td><?= is_numeric($trade['amount']) ? rtrim(rtrim(number_format($trade['amount'], 4, '.', ''), '0'), '.') : '–' ?></td>
+                                        <td>$<?= is_numeric($entryPrice) ? rtrim(rtrim(number_format($entryPrice, 4, '.', ''), '0'), '.') : '–' ?></td>
+                                        <td>$<?= is_numeric($currentPrice) ? rtrim(rtrim(number_format($currentPrice, 4, '.', ''), '0'), '.') : '–' ?></td>
+                                        <td>$<?= is_numeric($invested) ? number_format($invested, 2) : '–' ?></td>
                                         
-                                        <td class="<?= $profitLoss >= 0 ? 'text-success' : 'text-danger' ?>">
-                                            $<?= number_format($profitLoss, 2) ?>
-                                            (<?= number_format($profitLossPercent, 2) ?>%)
+                                        <td class="<?= (is_numeric($profitLoss) && $profitLoss >= 0) ? 'text-success' : ((is_numeric($profitLoss)) ? 'text-danger' : '') ?>">
+                                            <?php if (!is_numeric($profitLoss)): ?>
+                                                –
+                                            <?php else: ?>
+                                                $<?= number_format($profitLoss, 2) ?>
+                                                (<?= is_numeric($profitLossPercent) ? number_format($profitLossPercent, 2) : '–' ?>%)
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>

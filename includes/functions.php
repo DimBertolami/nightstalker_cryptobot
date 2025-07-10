@@ -866,50 +866,102 @@ function getRecentTradesWithMarketData(int $limit = 100): array {
         }
         $marketData = $normalizedMarketData;
         
-        return array_map(function($trade) use ($cryptoData, $marketData) {
-            // Get symbol and name from crypto data
-            $symbol = $cryptoData[$trade['coin_id']]['symbol'] ?? 'UNKNOWN';
-            $name = $cryptoData[$trade['coin_id']]['name'] ?? 'Unknown';
-            
-            // Find current price from market data
-            $currentPrice = 0;
-            $priceChange24h = 0;
-            $marketCap = 0;
-            $volume24h = 0;
-            
-            if (isset($marketData[$symbol])) {
+        // FIFO matching for correct Sell trade P/L and invested calculation
+        // Build per-coin trade lists for FIFO processing
+        $tradesByCoin = [];
+        foreach (array_reverse($trades) as $trade) { // process oldest to newest
+            $tradesByCoin[$trade['coin_id']][] = $trade;
+        }
+        $fifoResults = [];
+        foreach ($tradesByCoin as $coinId => $coinTrades) {
+            $openBuys = [];
+            foreach ($coinTrades as $trade) {
+                $symbol = $cryptoData[$trade['coin_id']]['symbol'] ?? 'UNKNOWN';
+                $name = $cryptoData[$trade['coin_id']]['name'] ?? 'Unknown';
                 $currentPrice = $marketData[$symbol]['price'] ?? 0;
                 $priceChange24h = $marketData[$symbol]['change'] ?? 0;
                 $marketCap = $marketData[$symbol]['market_cap'] ?? 0;
                 $volume24h = $marketData[$symbol]['volume'] ?? 0;
+                $currentValue = $trade['amount'] * $currentPrice;
+                if ($trade['trade_type'] === 'buy') {
+                    // Track open buy
+                    $openBuys[] = [
+                        'id' => $trade['id'],
+                        'amount' => $trade['amount'],
+                        'price' => $trade['price'],
+                        'remaining' => $trade['amount'],
+                        'total_value' => $trade['total_value'],
+                        'trade_time' => $trade['trade_time'],
+                    ];
+                    $fifoResults[] = [
+                        'id' => $trade['id'],
+                        'coin_id' => $trade['coin_id'],
+                        'symbol' => $symbol,
+                        'amount' => $trade['amount'],
+                        'price' => $trade['price'],
+                        'trade_type' => $trade['trade_type'],
+                        'trade_time' => $trade['trade_time'],
+                        'total_value' => $trade['total_value'],
+                        'current_price' => $currentPrice,
+                        'price_change_24h' => $priceChange24h,
+                        'coin_name' => $name,
+                        'market_cap' => $marketCap,
+                        'volume_24h' => $volume24h,
+                        'current_value' => $currentValue,
+                        'profit_loss' => $currentValue - $trade['total_value'],
+                        'profit_loss_percent' => $trade['total_value'] > 0 ? (($currentValue - $trade['total_value']) / $trade['total_value']) * 100 : 0,
+                        'invested' => $trade['total_value'],
+                        'entry_price' => $trade['price'],
+                        'realized_pl' => null,
+                    ];
+                } elseif ($trade['trade_type'] === 'sell') {
+                    // FIFO match to open buys
+                    $sellAmount = $trade['amount'];
+                    $invested = 0;
+                    $entryPrice = 0;
+                    $realizedPL = 0;
+                    $matchedAmount = 0;
+                    $buyPrices = [];
+                    foreach ($openBuys as &$buy) {
+                        if ($buy['remaining'] <= 0) continue;
+                        $match = min($buy['remaining'], $sellAmount);
+                        if ($match <= 0) continue;
+                        $invested += $match * $buy['price'];
+                        $realizedPL += ($trade['price'] - $buy['price']) * $match;
+                        $buyPrices[] = $buy['price'];
+                        $buy['remaining'] -= $match;
+                        $sellAmount -= $match;
+                        $matchedAmount += $match;
+                        if ($sellAmount <= 0) break;
+                    }
+                    unset($buy);
+                    $entryPrice = count($buyPrices) > 0 ? array_sum($buyPrices) / count($buyPrices) : 0;
+                    $fifoResults[] = [
+                        'id' => $trade['id'],
+                        'coin_id' => $trade['coin_id'],
+                        'symbol' => $symbol,
+                        'amount' => $trade['amount'],
+                        'price' => $trade['price'],
+                        'trade_type' => $trade['trade_type'],
+                        'trade_time' => $trade['trade_time'],
+                        'total_value' => $trade['total_value'],
+                        'current_price' => $currentPrice,
+                        'price_change_24h' => $priceChange24h,
+                        'coin_name' => $name,
+                        'market_cap' => $marketCap,
+                        'volume_24h' => $volume24h,
+                        'current_value' => $currentValue,
+                        'profit_loss' => $realizedPL,
+                        'profit_loss_percent' => $invested > 0 ? ($realizedPL / $invested) * 100 : 0,
+                        'invested' => $invested,
+                        'entry_price' => $entryPrice,
+                        'realized_pl' => $realizedPL,
+                    ];
+                }
             }
-            
-            // Calculate current value and profit/loss
-            $currentValue = $trade['amount'] * $currentPrice;
-            $profitLoss = $currentValue - $trade['total_value'];
-            $profitLossPercent = $trade['total_value'] > 0 
-                ? ($profitLoss / $trade['total_value']) * 100 
-                : 0;
-            
-            return [
-                'id' => $trade['id'],
-                'coin_id' => $trade['coin_id'],
-                'symbol' => $symbol,
-                'amount' => $trade['amount'],
-                'price' => $trade['price'],
-                'trade_type' => $trade['trade_type'],
-                'trade_time' => $trade['trade_time'],
-                'total_value' => $trade['total_value'],
-                'current_price' => $currentPrice,
-                'price_change_24h' => $priceChange24h,
-                'coin_name' => $name,
-                'market_cap' => $marketCap,
-                'volume_24h' => $volume24h,
-                'current_value' => $currentValue,
-                'profit_loss' => $profitLoss,
-                'profit_loss_percent' => $profitLossPercent
-            ];
-        }, $trades);
+        }
+        // Return most recent $limit trades
+        return array_slice(array_reverse($fifoResults), 0, $limit);
     } catch (Exception $e) {
         error_log("[getRecentTradesWithMarketData] " . $e->getMessage());
         return [];
