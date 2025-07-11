@@ -62,6 +62,14 @@ function login($username, $password) {
         if ($user && password_verify($password, $user['password'])) {
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
+            
+            // Check if user has admin privileges
+            if (isset($user['is_admin']) && $user['is_admin'] == 1) {
+                $_SESSION['is_admin'] = 1;
+            } else {
+                $_SESSION['is_admin'] = 0;
+            }
+            
             return true;
         }
         

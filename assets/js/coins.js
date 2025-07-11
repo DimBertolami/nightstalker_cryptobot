@@ -601,20 +601,8 @@ window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
                                 </button>
                             `;
                             
-                            const $button = $(buttonHtml);
-                            
-                            // Add click handler
-                            $button.on('click', function(e) {
-                                e.preventDefault();
-                                console.log(`Sell button clicked: ${symbol} (${amount})`);
-                                if (confirm(`Sell all ${amount} ${symbol}?`)) {
-                                    console.log(`Initiating sell for ${amount} ${symbol}`);
-                                    sellCoin(coinId, 'all');
-                                }
-                            });
-                            
                             // Append the button to the portfolio container
-                            $portfolio.append($button);
+                            $portfolio.append(buttonHtml);
                         });
                         
                         console.log('Finished rendering portfolio buttons');
@@ -990,9 +978,10 @@ $(document).on('click', '.btn-buy', function() {
         return;
     }
     
-    // Show confirmation
+    // Calculate total cost (removed confirmation popup)
     const totalCost = (amount * price).toFixed(2);
-    if (confirm(`Confirm purchase of ${amount} ${symbol} for $${totalCost}?`)) {
+    // Proceed directly without confirmation
+    {
         // Disable button to prevent double-clicks
         $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
         
@@ -1050,9 +1039,10 @@ $(document).on('click', '.btn-sell', function() {
         return;
     }
     
-    // Show confirmation
+    // Calculate total value (removed confirmation popup)
     const totalValue = (amount * price).toFixed(2);
-    if (confirm(`Confirm sale of ${amount} ${symbol} for $${totalValue}?`)) {
+    // Proceed directly without confirmation
+    {
         // Disable button to prevent double-clicks
         $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
         

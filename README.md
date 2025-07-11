@@ -351,8 +351,90 @@ The system uses cron jobs for automated operations:
    * * * * * php /opt/lampp/htdocs/NS/cron/update_prices.php
    ```
 
+## System Tools
+
+Night Stalker includes an administrative System Tools Dashboard for managing backend scripts and maintenance tasks.
+
+### Accessing System Tools
+
+1. **Via Navigation Bar**: Click the "System Tools" link in the main navigation
+2. **Via User Menu**: Click your username, then select "System Tools" from the dropdown
+
+### Available Tools
+
+#### Data Management Tools
+
+1. **CoinGecko Data Fetcher**
+   - **Purpose**: Updates the database with latest coins from CoinGecko API
+   - **Location**: `/scripts/fetch_coingecko_coins.php`
+   - **Features**:
+     - Updates `all_coingecko_coins` table with latest coin data
+     - Creates CSV backups in `/data/` directory
+     - Prevents duplicate daily runs
+     - Provides detailed execution logs
+
+#### Using System Tools
+
+1. **Running Scripts**:
+   - Click the "Run Now" button next to any tool
+   - View real-time execution output in the browser
+   - All executions are logged for future reference
+
+2. **Viewing Logs**:
+   - Click "View Log" to see previous execution results
+   - Logs are timestamped and stored in `/system-tools/logs/`
+
+### Security
+
+- All system tools require user login (no guest access)
+- Execution is logged and monitored
+- Scripts run with web server permissions
+
+### Adding New Tools
+
+To add a new tool to the dashboard:
+
+1. Add the script to an appropriate directory (e.g., `/scripts/`, `/cron/`)
+2. Register the tool in `/system-tools/index.php` in the `$tools` array
+3. Add execution permission in `/system-tools/run.php` in the `$allowedTools` array
+
+## Troubleshooting
+
+- **API Connection Issues**:
+  - Check `logs/api_errors.log` for detailed error messages
+  - Verify API keys are correctly entered and have proper permissions
+  - Ensure your IP is not blocked by the exchange
+
+- **Database Problems**:
+  - Verify database connection in `includes/config.php`
+  - Check MySQL service is running: `sudo service mysql status`
+  - Run database diagnostics: `php tools/db_check.php`
+  - delete from coins table: `DELETE FROM coins WHERE id IN (886, 887, 888);`
+  - delete from cryptocurrencies table: `DELETE FROM cryptocurrencies WHERE symbol = 'SC1';`
+  - other handy commands:   `"SHOW DATABASES"` 
+                            `"SHOW TABLES FROM night_stalker"` 
+                            `"SELECT * FROM coins;"` 
+                            `"SELECT * FROM cryptocurrencies;"`
+                            `"SELECT count(*) FROM coins;"`
+                            `"DESCRIBE night_stalker.cryptocurrencies"`
+                            `"DESCRIBE night_stalker.coins"`
+
+- **Scheduled Tasks**:
+  - Make sure cron jobs are running: `crontab -l`
+  - Check cron logs: `grep CRON /var/log/syslog`
+  - Verify PHP CLI is working: `php -v`
+
+- **Exchange Integration**:
+  - Test exchange connection through the Settings page
+  - Check CCXT library is installed: `composer show ccxt/ccxt`
+  - Verify exchange API status on their official status page
+  - Ensure config directory has proper write permissions: `chmod -R 777 /opt/lampp/htdocs/NS/config`
+  - Check browser console for JavaScript errors when adding exchanges
+  - Verify `api_url` parameter is included in exchange credentials
+
 ## Recent Fixes
 
+### New Coin Detection & Display Enhancement (June 2025)
 ### New Coin Discovery & Display Enhancement (June 2025)
 
 Significant improvements were made to the new coin discovery, import, and frontend display functionality:

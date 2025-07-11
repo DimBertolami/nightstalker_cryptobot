@@ -36,20 +36,20 @@ define('MIN_VOLUME_THRESHOLD', 100000);
 define('MAX_TRADE_AMOUNT', 500);
 
 // Validate API Keys
-if (strpos(CMC_API_KEY, 'your_actual') !== false) {
-    die("ERROR: Please update CMC_API_KEY in config.php with your key from https://pro.coinmarketcap.com/account");
-}
+//if (strpos(CMC_API_KEY, 'e2e746c1-169a-4778-90f7-a66458a6af00') !== false) {
+//    die("ERROR: Please update CMC_API_KEY in config.php with your key from https://pro.coinmarketcap.com/account");
+//}
 
-if (strpos(COINGECKO_API_KEY, 'your_') !== false) {
+if (strpos(COINGECKO_API_KEY, 'e2e746c1-169a-4778-90f7-a66458a6af00') !== false) {
     die("ERROR: Please update COINGECKO_API_KEY in config.php");
 }
 
 // CoinMarketCap Configuration
-define('CMC_API_SYMBOLS', 'BTC,ETH,BNB,SOL');  // Specific coins you track
+//define('CMC_API_SYMBOLS', 'BTC,ETH,BNB,SOL');  // Specific coins you track
 
 // Trading Parameters
 define('CHECK_INTERVAL', 3); // Check every 3 seconds (20x/minute)
-define('MAX_COIN_AGE', 48); // Max age in hours
+define('MAX_COIN_AGE', 24); // Max age in hours
 define('MIN_PROFIT_PERCENTAGE', 5); // Minimum 5% profit target
 define('STOP_LOSS_PERCENTAGE', 3); // 3% stop loss
 
@@ -63,6 +63,6 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 // Start session
-//if (session_status() === PHP_SESSION_NONE) {
-//    session_start();
-//}
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}

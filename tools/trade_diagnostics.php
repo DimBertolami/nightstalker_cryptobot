@@ -12,8 +12,16 @@ require_once __DIR__ . '/../includes/database.php';
 
 // Set up error handling
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+ini_set('display_errors', 0); // Don't display errors directly
+ini_set('display_startup_errors', 0);
+
+// Check if we're running from command line or system-tools
+$isSystemTools = isset($_SERVER['HTTP_REFERER']) && strpos($_SERVER['HTTP_REFERER'], 'system-tools') !== false;
+
+// Start output buffering if we're running from system-tools
+if ($isSystemTools) {
+    ob_start();
+}
 
 class TradeOperationVerifier {
     private $db;
@@ -24,9 +32,9 @@ class TradeOperationVerifier {
     public function __construct() {
         try {
             $this->db = getDBConnection();
-            $this->addResult('database_connection', 'Connected to database successfully');
+            $this->addResult('database_connection', 'DB connection OK');
         } catch (Exception $e) {
-            $this->addError('database_connection', 'Failed to connect to database: ' . $e->getMessage());
+            $this->addError('database_connection', 'DB connection failed: ' . $e->getMessage());
         }
     }
     
@@ -61,12 +69,12 @@ class TradeOperationVerifier {
             
             foreach ($requiredTables as $table) {
                 if (in_array($table, $existingTables)) {
-                    $this->addResult('table_' . $table, "Table '$table' exists");
+                    $this->addResult('table_' . $table, "$table: exists");
                     
                     // Check table structure
                     $this->verifyTableStructure($table);
                 } else {
-                    $this->addError('table_' . $table, "Table '$table' is missing");
+                    $this->addError('table_' . $table, "$table: missing");
                 }
             }
         } catch (Exception $e) {
@@ -96,9 +104,9 @@ class TradeOperationVerifier {
             if (isset($requiredColumns[$table])) {
                 foreach ($requiredColumns[$table] as $column) {
                     if (in_array($column, $columns)) {
-                        $this->addResult('column_' . $table . '_' . $column, "Column '$column' exists in '$table'");
+                        $this->addResult('column_' . $table . '_' . $column, "$table.$column: exists");
                     } else {
-                        $this->addWarning('column_' . $table . '_' . $column, "Column '$column' is missing in '$table'");
+                        $this->addWarning('column_' . $table . '_' . $column, "$table.$column: missing");
                     }
                 }
             }
@@ -283,130 +291,154 @@ class TradeOperationVerifier {
     }
 }
 
-// HTML Output
-function outputHTML($diagnosticResults) {
-    ?>
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Night Stalker Trade Diagnostics</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-        <style>
-            body {
-                background-color: #1a1a2e;
-                color: #e6e6e6;
-            }
-            .card {
-                background-color: #16213e;
-                border: 1px solid #0f3460;
-                margin-bottom: 20px;
-            }
-            .card-header {
-                background-color: #0f3460;
-                color: #e6e6e6;
-            }
-            .success {
-                color: #4cd137;
-            }
-            .warning {
-                color: #fbc531;
-            }
-            .error {
-                color: #e84118;
-            }
-            .result-item {
-                padding: 8px;
-                border-bottom: 1px solid #2c3e50;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container mt-4">
-            <h1 class="mb-4">Night Stalker Trade Diagnostics</h1>
-            
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Summary</h3>
-                        </div>
-                        <div class="card-body">
-                            <p><span class="success">✓</span> <strong><?= count($diagnosticResults['results']) ?></strong> checks passed</p>
-                            <p><span class="warning">⚠</span> <strong><?= count($diagnosticResults['warnings']) ?></strong> warnings</p>
-                            <p><span class="error">✗</span> <strong><?= count($diagnosticResults['errors']) ?></strong> errors</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <?php if (!empty($diagnosticResults['errors'])): ?>
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Errors</h3>
-                        </div>
-                        <div class="card-body">
-                            <?php foreach ($diagnosticResults['errors'] as $key => $message): ?>
-                                <div class="result-item">
-                                    <span class="error">✗</span> <strong><?= htmlspecialchars($key) ?>:</strong> <?= htmlspecialchars($message) ?>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <?php endif; ?>
-            
-            <?php if (!empty($diagnosticResults['warnings'])): ?>
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Warnings</h3>
-                        </div>
-                        <div class="card-body">
-                            <?php foreach ($diagnosticResults['warnings'] as $key => $message): ?>
-                                <div class="result-item">
-                                    <span class="warning">⚠</span> <strong><?= htmlspecialchars($key) ?>:</strong> <?= htmlspecialchars($message) ?>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <?php endif; ?>
-            
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Successful Checks</h3>
-                        </div>
-                        <div class="card-body">
-                            <?php foreach ($diagnosticResults['results'] as $key => $message): ?>
-                                <div class="result-item">
-                                    <span class="success">✓</span> <strong><?= htmlspecialchars($key) ?>:</strong> <?= htmlspecialchars($message) ?>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row mb-4">
-                <div class="col-md-12">
-                    <a href="/" class="btn btn-primary">Return to Dashboard</a>
-                </div>
-            </div>
-        </div>
+// Output function - can output either HTML or plain text depending on context
+function outputResults($diagnosticResults) {
+    global $isSystemTools;
+    
+    if ($isSystemTools) {
+        // Plain text output for system-tools
+        echo "=== NIGHT STALKER TRADE DIAGNOSTICS ===\n\n";
         
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    </body>
-    </html>
-    <?php
+        echo "=== SUMMARY ===\n";
+        echo "✓ " . count($diagnosticResults['results']) . " passed\n";
+        echo "⚠ " . count($diagnosticResults['warnings']) . " warnings\n";
+        echo "✗ " . count($diagnosticResults['errors']) . " errors\n\n";
+        
+        if (!empty($diagnosticResults['errors'])) {
+            echo "=== ERRORS ===\n";
+            foreach ($diagnosticResults['errors'] as $key => $message) {
+                echo "✗ {$message}\n";
+            }
+            echo "\n";
+        }
+        
+        if (!empty($diagnosticResults['warnings'])) {
+            echo "=== WARNINGS ===\n";
+            foreach ($diagnosticResults['warnings'] as $key => $message) {
+                echo "⚠ {$message}\n";
+            }
+            echo "\n";
+        }
+        
+        echo "=== SUCCESSFUL CHECKS ===\n";
+        foreach ($diagnosticResults['results'] as $key => $message) {
+            echo "✓ {$message}\n";
+        }
+    } else {
+        // HTML output for direct browser access
+        ?><!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Night Stalker Trade Diagnostics</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+            <style>
+                .result-item {
+                    margin-bottom: 8px;
+                    padding: 8px;
+                    border-bottom: 1px solid #eee;
+                }
+                .success {
+                    color: green;
+                    font-weight: bold;
+                }
+                .warning {
+                    color: orange;
+                    font-weight: bold;
+                }
+                .error {
+                    color: red;
+                    font-weight: bold;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container mt-4">
+                <h1 class="mb-4">Night Stalker Trade Diagnostics</h1>
+                
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Summary</h3>
+                            </div>
+                            <div class="card-body">
+                                <p><span class="success">✓</span> <strong><?= count($diagnosticResults['results']) ?></strong> checks passed</p>
+                                <p><span class="warning">⚠</span> <strong><?= count($diagnosticResults['warnings']) ?></strong> warnings</p>
+                                <p><span class="error">✗</span> <strong><?= count($diagnosticResults['errors']) ?></strong> errors</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <?php if (!empty($diagnosticResults['errors'])): ?>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Errors</h3>
+                            </div>
+                            <div class="card-body">
+                                <?php foreach ($diagnosticResults['errors'] as $key => $message): ?>
+                                    <div class="result-item">
+                                        <span class="error">✗</span> <strong><?= htmlspecialchars($key) ?>:</strong> <?= htmlspecialchars($message) ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+                
+                <?php if (!empty($diagnosticResults['warnings'])): ?>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Warnings</h3>
+                            </div>
+                            <div class="card-body">
+                                <?php foreach ($diagnosticResults['warnings'] as $key => $message): ?>
+                                    <div class="result-item">
+                                        <span class="warning">⚠</span> <strong><?= htmlspecialchars($key) ?>:</strong> <?= htmlspecialchars($message) ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+                
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Successful Checks</h3>
+                            </div>
+                            <div class="card-body">
+                                <?php foreach ($diagnosticResults['results'] as $key => $message): ?>
+                                    <div class="result-item">
+                                        <span class="success">✓</span> <strong><?= htmlspecialchars($key) ?>:</strong> <?= htmlspecialchars($message) ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <a href="/" class="btn btn-primary">Return to Dashboard</a>
+                    </div>
+                </div>
+            </div>
+            
+            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+        </body>
+        </html>
+        <?php
+    }
 }
 
 // Run diagnostics
@@ -414,4 +446,20 @@ $verifier = new TradeOperationVerifier();
 $diagnosticResults = $verifier->runDiagnostics();
 
 // Output results
-outputHTML($diagnosticResults);
+outputResults($diagnosticResults);
+
+// End output buffering if we're running from system-tools
+if ($isSystemTools) {
+    $output = ob_get_clean();
+    echo $output;
+    
+    // Save to log file if running from system-tools
+    $logDir = '/opt/lampp/htdocs/NS/system-tools/logs';
+    if (!is_dir($logDir)) {
+        mkdir($logDir, 0755, true);
+    }
+    
+    $timestamp = date('Ymd_His');
+    $logFile = "{$logDir}/trade_diagnostics_{$timestamp}.log";
+    file_put_contents($logFile, $output);
+}

@@ -54,13 +54,22 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Make the sort function available globally
     window.sortTable = function(sortKey, direction) {
+        console.log(`%c🔄 Sorting table by ${sortKey} in ${direction} order`, 'color: #00bfff; font-weight: bold;');
+        
         const table = document.getElementById('coins-table');
-        if (!table) return;
+        if (!table) {
+            console.error('Could not find coins-table element');
+            return;
+        }
         
         const tbody = table.querySelector('tbody');
-        if (!tbody) return;
+        if (!tbody) {
+            console.error('Could not find tbody element');
+            return;
+        }
         
         const rows = Array.from(tbody.querySelectorAll('tr'));
+        console.log(`Found ${rows.length} rows to sort`);
         
         // Sort rows based on the selected column
         rows.sort((a, b) => {
@@ -80,6 +89,23 @@ document.addEventListener('DOMContentLoaded', function() {
                     aValue = parseFloat(a.querySelector('td:nth-child(2)').textContent.replace('$', '').replace(/,/g, ''));
                     bValue = parseFloat(b.querySelector('td:nth-child(2)').textContent.replace('$', '').replace(/,/g, ''));
                     break;
+                
+                case '24h-change':
+                    // Sort by 24h change percentage (column 2)
+                    const aText = a.querySelector('td:nth-child(3)').textContent.trim();
+                    const bText = b.querySelector('td:nth-child(3)').textContent.trim();
+                    
+                    // Log the values for debugging
+                    console.log(`Comparing 24h change values: '${aText}' vs '${bText}'`);
+                    
+                    // Handle percentage values correctly
+                    aValue = parseFloat(aText.replace('%', '').replace(/[+]/g, ''));
+                    bValue = parseFloat(bText.replace('%', '').replace(/[+]/g, ''));
+                    
+                    // Handle NaN values
+                    if (isNaN(aValue)) aValue = 0;
+                    if (isNaN(bValue)) bValue = 0;
+                    break;
                     
                 case 'volume':
                     // Sort by volume (column 3)
@@ -91,12 +117,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Sort by market cap (column 4)
                     aValue = parseFloat(a.querySelector('td:nth-child(5)').textContent.replace('$', '').replace(/,/g, ''));
                     bValue = parseFloat(b.querySelector('td:nth-child(5)').textContent.replace('$', '').replace(/,/g, ''));
-                    break;
-                    
-                case 'age':
-                    // Sort by age (column 5)
-                    aValue = parseFloat(a.querySelector('td:nth-child(6)').textContent);
-                    bValue = parseFloat(b.querySelector('td:nth-child(6)').textContent);
                     break;
             }
             

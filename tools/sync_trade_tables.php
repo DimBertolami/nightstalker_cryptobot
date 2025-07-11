@@ -12,8 +12,16 @@ require_once __DIR__ . '/../includes/database.php';
 
 // Set up error handling
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+ini_set('display_errors', 0); // Don't display errors directly
+ini_set('display_startup_errors', 0);
+
+// Check if we're running from command line or system-tools
+$isSystemTools = isset($_SERVER['HTTP_REFERER']) && strpos($_SERVER['HTTP_REFERER'], 'system-tools') !== false;
+
+// Start output buffering if we're running from system-tools
+if ($isSystemTools) {
+    ob_start();
+}
 
 class TradeSynchronizer {
     private $db;
@@ -66,7 +74,7 @@ class TradeSynchronizer {
                         $this->syncResults['skipped']++;
                         $this->syncResults['details'][] = [
                             'status' => 'skipped',
-                            'message' => "Trade already exists: {$logTrade['symbol']} {$logTrade['action']} {$logTrade['amount']} at {$logTrade['price']} on {$logTrade['trade_date']}",
+                            'message' => "exists: {$logTrade['symbol']} {$logTrade['action']} " . number_format((float)$logTrade['amount'], 6, '.', '') . " at " . number_format((float)$logTrade['price'], 2, '.', '') . " on {$logTrade['trade_date']}",
                             'trade_log_id' => $logTrade['id']
                         ];
                         continue;
@@ -105,7 +113,7 @@ class TradeSynchronizer {
                     $this->syncResults['synced']++;
                     $this->syncResults['details'][] = [
                         'status' => 'synced',
-                        'message' => "Synced trade: {$logTrade['symbol']} {$logTrade['action']} {$logTrade['amount']} at {$logTrade['price']} on {$logTrade['trade_date']}",
+                        'message' => "synced: {$logTrade['symbol']} {$logTrade['action']} " . number_format((float)$logTrade['amount'], 6, '.', '') . " at " . number_format((float)$logTrade['price'], 2, '.', '') . " on {$logTrade['trade_date']}",
                         'trade_log_id' => $logTrade['id']
                     ];
                     
@@ -166,101 +174,120 @@ class TradeSynchronizer {
     }
 }
 
-// HTML Output
-function outputHTML($results) {
-    ?>
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Night Stalker Trade Tables Synchronization</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-        <style>
-            body {
-                background-color: #1a1a2e;
-                color: #e6e6e6;
-            }
-            .card {
-                background-color: #16213e;
-                border: 1px solid #0f3460;
-                margin-bottom: 20px;
-            }
-            .card-header {
-                background-color: #0f3460;
-                color: #e6e6e6;
-            }
-            .success {
-                color: #4cd137;
-            }
-            .warning {
-                color: #fbc531;
-            }
-            .error {
-                color: #e84118;
-            }
-            .result-item {
-                padding: 8px;
-                border-bottom: 1px solid #2c3e50;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container mt-4">
-            <h1 class="mb-4">Night Stalker Trade Tables Synchronization</h1>
-            
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Summary</h3>
-                        </div>
-                        <div class="card-body">
-                            <p><strong>Processed:</strong> <?= $results['processed'] ?> trades</p>
-                            <p><span class="success">✓</span> <strong>Synced:</strong> <?= $results['synced'] ?> trades</p>
-                            <p><span class="warning">⚠</span> <strong>Skipped:</strong> <?= $results['skipped'] ?> trades (already exist)</p>
-                            <p><span class="error">✗</span> <strong>Errors:</strong> <?= $results['errors'] ?> trades</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row">
-                <div class="col-md-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Details</h3>
-                        </div>
-                        <div class="card-body">
-                            <?php foreach ($results['details'] as $detail): ?>
-                                <div class="result-item">
-                                    <?php if ($detail['status'] === 'synced'): ?>
-                                        <span class="success">✓</span>
-                                    <?php elseif ($detail['status'] === 'skipped'): ?>
-                                        <span class="warning">⚠</span>
-                                    <?php else: ?>
-                                        <span class="error">✗</span>
-                                    <?php endif; ?>
-                                    <strong>Trade #<?= $detail['trade_log_id'] ?>:</strong> <?= htmlspecialchars($detail['message']) ?>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row mb-4">
-                <div class="col-md-12">
-                    <a href="/" class="btn btn-primary">Return to Dashboard</a>
-                    <a href="/trades.php" class="btn btn-success">View Trade History</a>
-                </div>
-            </div>
-        </div>
+// Output function - can output either HTML or plain text depending on context
+function outputResults($results) {
+    global $isSystemTools;
+    
+    if ($isSystemTools) {
+        // Plain text output for system-tools
+        echo "=== NIGHT STALKER TRADE TABLES SYNCHRONIZATION ===\n\n";
         
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    </body>
-    </html>
-    <?php
+        echo "=== SUMMARY ===\n";
+        echo "Processed: {$results['processed']} trades\n";
+        echo "✓ Synced: {$results['synced']} trades\n";
+        echo "⚠ Skipped: {$results['skipped']} trades (already exist)\n";
+        echo "✗ Errors: {$results['errors']} trades\n\n";
+        
+        echo "=== DETAILS ===\n";
+        foreach ($results['details'] as $detail) {
+            $symbol = $detail['status'] === 'synced' ? '✓' : ($detail['status'] === 'skipped' ? '⚠' : '✗');
+            echo "{$symbol} {$detail['trade_log_id']}: {$detail['message']}\n";
+        }
+    } else {
+        // HTML output for direct browser access
+        ?><!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Night Stalker Trade Tables Synchronization</title>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+            <style>
+                body {
+                    background-color: #1a1a2e;
+                    color: #e6e6e6;
+                }
+                .card {
+                    background-color: #16213e;
+                    border: 1px solid #0f3460;
+                    margin-bottom: 20px;
+                }
+                .card-header {
+                    background-color: #0f3460;
+                    color: #e6e6e6;
+                }
+                .success {
+                    color: #4cd137;
+                }
+                .warning {
+                    color: #fbc531;
+                }
+                .error {
+                    color: #e84118;
+                }
+                .result-item {
+                    padding: 8px;
+                    border-bottom: 1px solid #2c3e50;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container mt-4">
+                <h1 class="mb-4">Night Stalker Trade Tables Synchronization</h1>
+                
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Summary</h3>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Processed:</strong> <?= $results['processed'] ?> trades</p>
+                                <p><span class="success">✓</span> <strong>Synced:</strong> <?= $results['synced'] ?> trades</p>
+                                <p><span class="warning">⚠</span> <strong>Skipped:</strong> <?= $results['skipped'] ?> trades (already exist)</p>
+                                <p><span class="error">✗</span> <strong>Errors:</strong> <?= $results['errors'] ?> trades</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Details</h3>
+                            </div>
+                            <div class="card-body">
+                                <?php foreach ($results['details'] as $detail): ?>
+                                    <div class="result-item">
+                                        <?php if ($detail['status'] === 'synced'): ?>
+                                            <span class="success">✓</span>
+                                        <?php elseif ($detail['status'] === 'skipped'): ?>
+                                            <span class="warning">⚠</span>
+                                        <?php else: ?>
+                                            <span class="error">✗</span>
+                                        <?php endif; ?>
+                                        <strong><?= $detail['trade_log_id'] ?>:</strong> <?= htmlspecialchars($detail['message']) ?>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <a href="/" class="btn btn-primary">Return to Dashboard</a>
+                        <a href="/NS/trades.php" class="btn btn-success">View Trade History</a>
+                    </div>
+                </div>
+            </div>
+            
+            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+        </body>
+        </html>
+        <?php
+    }
 }
 
 // Run synchronization
@@ -268,4 +295,20 @@ $synchronizer = new TradeSynchronizer();
 $results = $synchronizer->synchronizeTrades();
 
 // Output results
-outputHTML($results);
+outputResults($results);
+
+// End output buffering if we're running from system-tools
+if ($isSystemTools) {
+    $output = ob_get_clean();
+    echo $output;
+    
+    // Save to log file if running from system-tools
+    $logDir = '/opt/lampp/htdocs/NS/system-tools/logs';
+    if (!is_dir($logDir)) {
+        mkdir($logDir, 0755, true);
+    }
+    
+    $timestamp = date('Ymd_His');
+    $logFile = "{$logDir}/sync_trade_tables_{$timestamp}.log";
+    file_put_contents($logFile, $output);
+}

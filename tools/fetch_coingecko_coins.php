@@ -3,9 +3,9 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 
-// Set error reporting
+// Set error reporting - don't display errors, just log them
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
 
 // Function to fetch all coins from CoinGecko API
 function fetchAllCoinsFromCoinGecko() {
@@ -50,18 +50,20 @@ function updateCoinsTable($db, $coins) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     ";
     
-    if (!$db->query($createTable)) {
-        throw new Exception("Failed to create table: " . $db->error);
+    try {
+        $db->exec($createTable);
+    } catch (PDOException $e) {
+        throw new Exception("Failed to create table: " . $e->getMessage());
     }
     
     // Start transaction
-    $db->begin_transaction();
+    $db->beginTransaction();
     
     try {
         // Prepare insert/update statement with ON DUPLICATE KEY UPDATE
         $stmt = $db->prepare("
             INSERT INTO `all_coingecko_coins` (id, symbol, name, platforms) 
-            VALUES (?, ?, ?, ?)
+            VALUES (:id, :symbol, :name, :platforms)
             ON DUPLICATE KEY UPDATE 
                 symbol = VALUES(symbol),
                 name = VALUES(name),
@@ -77,36 +79,33 @@ function updateCoinsTable($db, $coins) {
         foreach ($coins as $coin) {
             $platforms = isset($coin['platforms']) ? json_encode($coin['platforms']) : '{}';
             
-            $stmt->bind_param('ssss', 
-                $coin['id'],
-                $coin['symbol'],
-                $coin['name'],
-                $platforms
-            );
+            $stmt->bindParam(':id', $coin['id'], PDO::PARAM_STR);
+            $stmt->bindParam(':symbol', $coin['symbol'], PDO::PARAM_STR);
+            $stmt->bindParam(':name', $coin['name'], PDO::PARAM_STR);
+            $stmt->bindParam(':platforms', $platforms, PDO::PARAM_STR);
             
             try {
-                $result = $stmt->execute();
+                $stmt->execute();
                 
                 // Check if this was an insert or update
-                if ($stmt->affected_rows > 0) {
-                    if ($stmt->insert_id > 0) {
-                        $inserted++;
-                    } else {
-                        $updated++;
-                    }
+                $rowCount = $stmt->rowCount();
+                if ($rowCount > 0) {
+                    // In PDO, we can't easily distinguish between insert and update
+                    // with ON DUPLICATE KEY UPDATE, so we'll just count affected rows
+                    $updated++;
                 } else {
                     $skipped++;
                 }
                 
                 // Log progress every 100 records
-                $total = $inserted + $updated + $skipped;
+                $total = $updated + $skipped;
                 if ($total % 100 === 0) {
-                    echo "Processed $total records (I:$inserted, U:$updated, S:$skipped)\n";
+                    echo "Processed $total records (U:$updated, S:$skipped)\n";
                 }
             
-            } catch (Exception $e) {
-                // Log error but continue with next coin
+            } catch (PDOException $e) {
                 echo "Error processing coin {$coin['id']}: " . $e->getMessage() . "\n";
+                $skipped++;
                 continue;
             }
         }
@@ -116,14 +115,14 @@ function updateCoinsTable($db, $coins) {
         
         // Return summary
         return [
-            'total' => $inserted + $updated + $skipped,
-            'inserted' => $inserted,
+            'total' => $updated + $skipped,
+            'inserted' => 0, // We're not tracking inserts separately with PDO
             'updated' => $updated,
             'skipped' => $skipped
         ];
         
-    } catch (Exception $e) {
-        $db->rollback();
+    } catch (PDOException $e) {
+        $db->rollBack(); // Note: PDO uses rollBack() with capital B
         throw $e;
     }
 }
@@ -136,10 +135,12 @@ try {
     $db = getDBConnection();
     
     // First, ensure the table exists
-    $tableExists = $db->query("SHOW TABLES LIKE 'all_coingecko_coins'")->num_rows > 0;
+    $stmt = $db->query("SHOW TABLES LIKE 'all_coingecko_coins'");
+    $tableExists = ($stmt && $stmt->rowCount() > 0);
     
     if ($tableExists) {
-        $lastRun = $db->query("SELECT MAX(last_updated) as last_run FROM all_coingecko_coins")->fetch_assoc();
+        $stmt = $db->query("SELECT MAX(last_updated) as last_run FROM all_coingecko_coins");
+        $lastRun = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($lastRun && isset($lastRun['last_run'])) {
             $lastRunTime = new DateTime($lastRun['last_run']);

@@ -5,8 +5,10 @@ require_once __DIR__ . '/../includes/TradingLogger.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__.'/../includes/cmc_utils.php';
 
-// Start session and check authentication
-session_start();
+// Start session if not already started and check authentication
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 requireAuth();
 
 // Initialize the trading logger

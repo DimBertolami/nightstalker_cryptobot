@@ -71,12 +71,15 @@ if (!empty($trades)) {
                     <div class="d-flex justify-content-between align-items-center">
                         <h3 class="mb-0">Recent Trades</h3>
                         <div>
-                            <span class="badge bg-success me-2">
+                            <button id="filter-buy" class="badge bg-success me-2 border-0" style="cursor: pointer;">
                                 <?= count(array_filter($trades, fn($t) => $t['trade_type'] === 'buy')) ?> Buys
-                            </span>
-                            <span class="badge bg-danger">
+                            </button>
+                            <button id="filter-sell" class="badge bg-danger me-2 border-0" style="cursor: pointer;">
                                 <?= count(array_filter($trades, fn($t) => $t['trade_type'] === 'sell')) ?> Sells
-                            </span>
+                            </button>
+                            <button id="filter-all" class="badge bg-secondary me-2 border-0" style="cursor: pointer;">
+                                All Trades
+                            </button>
                             <span class="badge bg-info ms-2" title="Last updated">
                                 <i class="fas fa-sync-alt"></i> <?= date('H:i') ?>
                             </span>
@@ -157,3 +160,63 @@ if (!empty($trades)) {
 
 <?php
 require_once __DIR__ . '/includes/footer.php';
+?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Get filter buttons
+    const filterBuyBtn = document.getElementById('filter-buy');
+    const filterSellBtn = document.getElementById('filter-sell');
+    const filterAllBtn = document.getElementById('filter-all');
+    
+    // Get all trade rows
+    const tradeRows = document.querySelectorAll('table.datatable tbody tr');
+    
+    // Function to filter trades
+    function filterTrades(tradeType) {
+        tradeRows.forEach(row => {
+            // Find the trade type cell (3rd column)
+            const typeCell = row.querySelector('td:nth-child(3)');
+            
+            if (tradeType === 'all') {
+                // Show all rows
+                row.style.display = '';
+            } else {
+                // Check if the trade type matches
+                const badgeText = typeCell.querySelector('.badge').textContent.trim().toLowerCase();
+                if (badgeText === tradeType) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            }
+        });
+        
+        // Update active button styling
+        [filterBuyBtn, filterSellBtn, filterAllBtn].forEach(btn => {
+            btn.classList.remove('bg-primary');
+            if (tradeType === 'buy' && btn === filterBuyBtn) {
+                btn.classList.remove('bg-success');
+                btn.classList.add('bg-primary');
+            } else if (tradeType === 'sell' && btn === filterSellBtn) {
+                btn.classList.remove('bg-danger');
+                btn.classList.add('bg-primary');
+            } else if (tradeType === 'all' && btn === filterAllBtn) {
+                btn.classList.remove('bg-secondary');
+                btn.classList.add('bg-primary');
+            } else if (btn === filterBuyBtn) {
+                btn.classList.add('bg-success');
+            } else if (btn === filterSellBtn) {
+                btn.classList.add('bg-danger');
+            } else if (btn === filterAllBtn) {
+                btn.classList.add('bg-secondary');
+            }
+        });
+    }
+    
+    // Add click event listeners
+    filterBuyBtn.addEventListener('click', () => filterTrades('buy'));
+    filterSellBtn.addEventListener('click', () => filterTrades('sell'));
+    filterAllBtn.addEventListener('click', () => filterTrades('all'));
+});
+</script>

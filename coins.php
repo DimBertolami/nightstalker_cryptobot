@@ -555,6 +555,77 @@ $coins = array_filter($coins, function($coin) {
                             <input class="form-check-input" type="checkbox" id="show-all-coins-toggle" <?= $showAll ? 'checked' : '' ?>>
                             <label class="form-check-label text-white" for="show-all-coins-toggle">Show All Coins (<?= $showAll ? 'All' : 'Filtered' ?>)</label>
                         </div>
+                        <div class="form-check form-switch d-inline-block ms-3">
+                            <input class="form-check-input" type="checkbox" id="filter-zero-price">
+                            <label class="form-check-label text-white" for="filter-zero-price">Hide $0.00 coins</label>
+                        </div>
+                        <script>
+                        // Direct inline script to handle zero price filtering
+                        document.getElementById('filter-zero-price').addEventListener('change', function() {
+                            const shouldHide = this.checked;
+                            // Store preference in cookie
+                            document.cookie = `hide_zero_price=${shouldHide ? '1' : '0'}; path=/; max-age=${30 * 24 * 60 * 60}`;
+                            
+                            // Get all table rows
+                            const rows = document.querySelectorAll('table tr');
+                            let filteredCount = 0;
+                            let remainingCount = 0;
+                            
+                            console.log('%c🚀 NIGHTSTALKER COIN FILTER 🚀', 'font-size: 20px; font-weight: bold; color: #00ff00; background-color: #000;');
+                            console.log('%c⚙️ Filtering in progress...', 'color: #00bfff; font-style: italic;');
+                            
+                            let currentCount = 0;
+                            rows.forEach(row => {
+                                // Skip header rows
+                                if (row.querySelector('th')) return;
+                                
+                                // Find the price cell (second column) and coin name (first column)
+                                const cells = row.querySelectorAll('td');
+                                if (cells.length >= 2) {
+                                    const coinNameCell = cells[0]; // Coin name is in the first column (index 0)
+                                    const priceCell = cells[1]; // Price is in the second column (index 1)
+                                    const priceText = priceCell.textContent.trim();
+                                    const coinName = coinNameCell.textContent.trim();
+                                    
+                                    if (priceText === '$0.00' || priceText === '$0' || priceText === '$0.0' || priceText === '$0.000') {
+                                        if (shouldHide) {
+                                            row.style.display = 'none';
+                                            row.setAttribute('data-zero-price-hidden', 'true');
+                                            filteredCount++;
+                                            currentCount++;
+                                            console.log(`%c🗑️ [${currentCount}] ${coinName}`, 'color: #ff6b6b; font-weight: bold;');
+                                        } else {
+                                            row.style.display = '';
+                                            row.removeAttribute('data-zero-price-hidden');
+                                        }
+                                    } else {
+                                        remainingCount++;
+                                    }
+                                }
+                            });
+                            
+                            if (shouldHide) {
+                                console.log('%c📊 FILTER SUMMARY 📊', 'font-size: 16px; font-weight: bold; color: #00bfff; background-color: #000;');
+                                console.log(`%c✅ ${filteredCount} coins with $0.00 price filtered out`, 'color: #ff9500; font-weight: bold;');
+                                console.log(`%c💰 ${remainingCount} non-zero price coins remain visible`, 'color: #33ff33; font-weight: bold;');
+                            } else {
+                                console.log('%c📊 FILTER DISABLED 📊', 'font-size: 16px; font-weight: bold; color: #00bfff; background-color: #000;');
+                                console.log(`%c👁️ All ${filteredCount + remainingCount} coins are now visible`, 'color: #33ff33; font-weight: bold;');
+                            }
+                        });
+                        
+                        // Initialize based on cookie
+                        window.addEventListener('DOMContentLoaded', function() {
+                            const hideZeroPrice = document.cookie.includes('hide_zero_price=1');
+                            const toggle = document.getElementById('filter-zero-price');
+                            if (toggle) {
+                                toggle.checked = hideZeroPrice;
+                                if (hideZeroPrice) {
+                                    toggle.dispatchEvent(new Event('change'));
+                                }
+                            }
+                        });
+                        </script>
                     </h5>
                 </div>
                 
@@ -579,7 +650,7 @@ $coins = array_filter($coins, function($coin) {
                                 <tr>
                                     <th class="sortable" data-sort="coin">Coin <i class="fas fa-sort"></i></th>
                                     <th class="sortable" data-sort="price">Price <i class="fas fa-sort"></i></th>
-                                    <th>24h Change</th>
+                                    <th class="sortable" data-sort="24h-change">24h Change <i class="fas fa-sort"></i></th>
                                     <th class="sortable" data-sort="volume">Volume (24h) <i class="fas fa-sort"></i></th>
                                     <th class="sortable" data-sort="market-cap">Market Cap <i class="fas fa-sort"></i></th>
                                     <th class="sortable" data-sort="age">Age <i class="fas fa-sort"></i></th>
@@ -1101,5 +1172,8 @@ $(document).ready(function() {
 
 <!-- Include table sorting functionality -->
 <script src="/js/table-sort.js"></script>
+
+<!-- Include our coin filtering script -->
+<script src="/js/filter-coins.js"></script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

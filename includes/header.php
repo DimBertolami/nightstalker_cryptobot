@@ -82,6 +82,13 @@ $current_page = basename($_SERVER['PHP_SELF']);
                             <i class="fas fa-cog me-1"></i>Settings
                         </a>
                     </li>
+                    <?php if (isset($_SESSION['user_id'])): ?>
+                    <li class="nav-item">
+                        <a class="nav-link <?= $current_page === 'system-tools/index.php' ? 'active' : '' ?>" href="<?= BASE_URL ?>/system-tools/index.php">
+                            <i class="fas fa-tools me-1"></i>System Tools
+                        </a>
+                    </li>
+                    <?php endif; ?>
                 </ul>
                 <ul class="navbar-nav ms-auto">
                     <?php if (isset($_SESSION['user_id'])): ?>
@@ -92,6 +99,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="<?= BASE_URL ?>/profile.php">
                                 <i class="fas fa-user me-2"></i>Profile
+                            </a></li>
+                            <li><a class="dropdown-item" href="<?= BASE_URL ?>/system-tools/">
+                                <i class="fas fa-tools me-2"></i>System Tools
                             </a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="<?= BASE_URL ?>/logout.php">
