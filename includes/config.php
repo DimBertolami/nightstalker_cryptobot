@@ -5,7 +5,8 @@
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '1304');
-define('DB_NAME', 'night_stalker');
+#define('DB_NAME', 'night_stalker');
+define('DB_NAME', 'NS');
 
 // API Keys Configuration
 define('CMC_API_KEY', 'e2e746c1-169a-4778-90f7-a66458a6af00');

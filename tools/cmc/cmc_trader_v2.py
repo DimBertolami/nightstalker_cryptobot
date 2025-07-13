@@ -1,25 +1,36 @@
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 import subprocess
 import sys
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
+from dateutil.parser import parse as dateparse  # More explicit import
+from binance.client import Client
+from binance.exceptions import BinanceAPIException
+
+from config import (
+    CMC_API_KEY,
+    BINANCE_TEST_API_KEY,
+    BINANCE_TEST_API_SECRET,
+    TEST_MODE
+)
 
 # Configuration
-API_KEY = '1758e18b-1744-4ad6-a2a9-908af2f33c8a'
 DB_NAME = "Crypto_Stalker_py"
 WALLET_BALANCE = 1000.00  # Starting balance in USD
 MIN_VOLUME = 1_500_000  # Minimum 24h volume in USD
-PRICE_UPDATE_INTERVAL = 15  # Seconds
-DECLINE_DURATION_TO_SELL = 120  # Seconds of declining prices before selling
+PRICE_UPDATE_INTERVAL = 3  # Seconds
+DECLINE_DURATION_TO_SELL = 30  # Seconds of declining prices before selling
 
-headers = {'X-CMC_PRO_API_KEY': API_KEY}
+headers = {'X-CMC_PRO_API_KEY': CMC_API_KEY}
 
 class TradingBot:
-    def __init__(self):
+    def __init__(self, days: int = 1):
         self.current_holdings: Dict[str, Dict] = {}  # symbol: {buy_price, quantity, peak_price}
         self.wallet_balance = WALLET_BALANCE
         self.setup_complete = False
+        self.days = days
+        self.sells_since_header = 0  # Counter for sells since last header
     
     def _get_timestamp(self):
         """Helper method to get current timestamp in YYYY-MM-DD HH:MM:SS format"""
@@ -27,6 +38,7 @@ class TradingBot:
 
     def setup_tables(self):
         """Create required database tables if they don't exist"""
+        print(f"[{self._get_timestamp()}] [INFO] Starting database setup...")
         setup_cmd = f"""
         mysql -u root -p1304 -e "
         CREATE TABLE IF NOT EXISTS newcoins (
@@ -67,13 +79,15 @@ class TradingBot:
         try:
             subprocess.run(setup_cmd, shell=True, check=True)
             self.setup_complete = True
+            print(f"[{self._get_timestamp()}] [SUCCESS] Database setup complete.")
             return True
         except subprocess.CalledProcessError as e:
-            print(f"Error setting up tables: {e}")
-            return False
+            print(f"[{self._get_timestamp()}] [ERROR] Error setting up tables: {e}")
+            raise
 
     def get_recent_cryptos(self) -> List[Dict]:
         """Fetch recent high-volume cryptocurrencies"""
+        print(f"[{self._get_timestamp()}] [INFO] Fetching recent high-volume cryptocurrencies from API...")
         url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest'
         params = {
             'start': '1',
@@ -88,14 +102,22 @@ class TradingBot:
             response.raise_for_status()
             data = response.json()
             
-            one_day_ago = datetime.now() - timedelta(days=1)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(days=self.days)
+            print(f"[DEBUG] cutoff_time (UTC, {self.days} days ago): {cutoff_time}")
             recent_coins = []
             
             for coin in data['data']:
-                date_added = datetime.strptime(coin['date_added'], "%Y-%m-%dT%H:%M:%S.%fZ")
+                raw_date_added = coin['date_added']
+                try:
+                    date_added = dateparse(raw_date_added)
+                    if date_added.tzinfo is None:
+                        date_added = date_added.replace(tzinfo=timezone.utc)
+                except Exception as e:
+                    print(f"[WARNING] Could not parse date_added for {coin.get('symbol', '?')}: {raw_date_added} ({e})")
+                    continue
                 volume = coin['quote']['USD']['volume_24h']
-                
-                if date_added > one_day_ago and volume > MIN_VOLUME:
+                print(f"[DEBUG] {coin['symbol']} date_added: {date_added} (raw: {raw_date_added}), volume: {volume}")
+                if date_added > cutoff_time and volume > MIN_VOLUME:
                     recent_coins.append({
                         'symbol': coin['symbol'],
                         'name': coin['name'],
@@ -105,11 +127,13 @@ class TradingBot:
                         'market_cap': coin['quote']['USD']['market_cap'],
                         'date_added': coin['date_added']
                     })
-            
+            print(f"[{self._get_timestamp()}] [INFO] Fetched {len(recent_coins)} recent coins.")
+            if not recent_coins:
+                print(f"[{self._get_timestamp()}] [WARNING] No recent coins found matching criteria.")
             return recent_coins
             
         except requests.exceptions.RequestException as e:
-            print(f"API Error: {e}")
+            print(f"[{self._get_timestamp()}] [ERROR] API Error: {e}")
             return []
 
     def purge_and_add_coins(self, coins: List[Dict]):
@@ -181,14 +205,17 @@ class TradingBot:
             """
             mysql_cmd = f"mysql -u root -p1304 -e \"{sql}\" {DB_NAME}"
             subprocess.run(mysql_cmd, shell=True, check=True)
+            print(f"[{self._get_timestamp()}] [INFO] Recorded trade for {symbol}.")
         except subprocess.CalledProcessError as e:
-            print(f"Error recording trade: {e}")
+            print(f"[{self._get_timestamp()}] [ERROR] Error recording trade: {e}")
 
     def buy_coins(self, coins: List[Dict]):
         """Simulate buying coins with available wallet balance"""
+        print(f"[{self._get_timestamp()}] [INFO] Attempting to buy coins...")
         if not coins or not self.wallet_balance:
+            print(f"[{self._get_timestamp()}] [WARNING] No coins to buy or wallet balance is zero.")
             return
-            
+        
         per_coin_amount = self.wallet_balance / len(coins)
         
         for coin in coins:
@@ -205,13 +232,14 @@ class TradingBot:
             
             # Record trade in database
             self.record_trade(symbol, buy_price, quantity, 'open')
-            print(f"{self._get_timestamp()}: Bought {symbol} at ${buy_price:.6f}")
-            
+            print(f"[{self._get_timestamp()}] [TRADE] Bought {symbol} at ${buy_price:.6f}")
+        print(f"[{self._get_timestamp()}] [INFO] Finished buying coins. Holdings: {list(self.current_holdings.keys())}")
         self.wallet_balance = 0
 
     def update_price_history(self):
         """Update price history for all held coins"""
         if not self.current_holdings:
+            print(f"[{self._get_timestamp()}] [WARNING] No coins to update price history for.")
             return
             
         symbols = list(self.current_holdings.keys())
@@ -306,8 +334,7 @@ class TradingBot:
         except (ImportError, OSError):
             terminal_width = 100  # Default if can't determine
             
-        # Calculate column width based on terminal width and number of columns
-        # We need space for timestamp (19) + each symbol column + separators
+        # Calculate column widths
         num_columns = len(symbols) + 1  # +1 for timestamp
         separators_space = 3 * num_columns  # Each '| ' takes 2 chars, plus one at end
         available_width = terminal_width - separators_space
@@ -319,8 +346,8 @@ class TradingBot:
         else:
             symbol_width = 10
             
-        self.column_width = symbol_width  # Store for use in other methods
-        self.timestamp_width = timestamp_width  # Store for use in other methods
+        self.column_width = symbol_width
+        self.timestamp_width = timestamp_width
         
         # Print header row
         header = f"{'Timestamp':<{timestamp_width}} | "
@@ -328,10 +355,8 @@ class TradingBot:
             header += f"{symbol:^{symbol_width}} | "
         
         # Create dotted separator line
-        separator = ""
-        for i in range(terminal_width):
-            separator += "."
-            
+        separator = "." * terminal_width
+        
         print(f"{BLUE}{separator}{BRIGHT_YELLOW}")
         print(header)
         print(f"{BLUE}{separator}{BRIGHT_YELLOW}")
@@ -344,14 +369,15 @@ class TradingBot:
         BRIGHT_YELLOW = "\033[38;5;226;1m"  # Bright yellow bold
         BRIGHT_FUCHSIA = "\033[38;5;201m"  # Bright fuchsia
         RESET = "\033[0m"
-        
+    
         timestamp = row_data['timestamp']
         row = f"{timestamp:<19} | "
-        
+        sql_statements = []  # Initialize sql_statements list
+    
         for symbol, data in row_data.items():
             if symbol == 'timestamp':
                 continue
-                
+            
             if not data['changed']:
                 # Empty spaces instead of 'unchanged'
                 row += f"{BRIGHT_YELLOW}{' ':<{self.column_width}}{BRIGHT_YELLOW} | "
@@ -363,105 +389,42 @@ class TradingBot:
                     row += f"{BRIGHT_RED}{price_str:<{self.column_width}}{BRIGHT_YELLOW} | "
                 else:
                     row += f"{BRIGHT_YELLOW}{price_str:<{self.column_width}}{BRIGHT_YELLOW} | "
-        
+    
         print(row)
-
-    def sell_coin(self, symbol: str, sell_price: float):
-        """Sell a coin and calculate profit"""
-        if symbol not in self.current_holdings:
-            return
-            
-        holding = self.current_holdings.pop(symbol)
-        buy_price = holding['buy_price']
-        quantity = holding['quantity']
-        profit = (sell_price - buy_price) * quantity
-        
-        self.wallet_balance += sell_price * quantity
-        
-        # Update trade record
-        sell_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        update_sql = f"""
-        UPDATE trades 
-        SET sell_price = {sell_price}, 
-            sell_time = '{sell_time}',
-            profit = {profit},
-            status = 'closed'
-        WHERE symbol = '{symbol}' AND status = 'open';
-        """
-        mysql_cmd = f"mysql -u root -p1304 -e \"{update_sql}\" {DB_NAME}"
-        subprocess.run(mysql_cmd, shell=True, check=True)
-        
-        # ANSI color codes
-        BRIGHT_FUCHSIA = "\033[38;5;201m"  # Bright fuchsia
-        BRIGHT_YELLOW = "\033[38;5;226;1m"  # Bright yellow bold
-        
-        # Get all current symbols to determine position
-        all_symbols = list(self.current_holdings.keys())
-        # If we just sold the last one, use the symbol alone
-        if not all_symbols:
-            all_symbols = [symbol]
-        
-        # Find position of the symbol in the list of all symbols
-        symbol_position = 0
-        for i, s in enumerate(all_symbols):
-            if s == symbol:
-                symbol_position = i
-                break
-        
-        # Calculate spacing for the sold message
-        try:
-            # Get terminal width
-            import os
-            terminal_width = os.get_terminal_size().columns
-        except (ImportError, OSError):
-            terminal_width = 100  # Default if can't determine
-            
-        # Calculate spacing before the sold symbol
-        spacing = 0
-        for i in range(symbol_position):
-            spacing += self.column_width + 3  # column width + separator
-            
-        # Create dotted separator line
-        separator = ""
-        for i in range(terminal_width):
-            separator += "."
-        separator_line = f"\033[34m{separator}\033[38;5;201m"
-        
-        # Print the sell information in the table format
-        print(f"{BRIGHT_FUCHSIA}{sell_time} | {' ' * spacing}Sold {symbol}{' ' * (self.column_width - len('Sold ') - len(symbol))} | {BRIGHT_YELLOW}")
-        profit_text = f"loss: ${abs(profit):.2f}" if profit < 0 else f"profit: ${profit:.2f}"
-        print(f"{BRIGHT_FUCHSIA}{' ' * self.timestamp_width} | {' ' * spacing}{profit_text}{' ' * (self.column_width - len(profit_text))} | {BRIGHT_YELLOW}")
-        print(separator_line)
+    
+        if sql_statements:
+            all_sql = ' '.join(sql_statements)
+            mysql_cmd = f"mysql -u root -p1304 -e \"{all_sql}\" {DB_NAME}"
+            subprocess.run(mysql_cmd, shell=True, check=True)
 
     def run(self):
-        """Main trading loop"""
+        """Main bot logic"""
+        if not self.setup_complete:
+            print(f"[{self._get_timestamp()}] [ERROR] Setup not complete. Exiting.")
+            return
+        
+        print(f"[{self._get_timestamp()}] [INFO] Starting bot. Monitoring new cryptocurrencies...")
+        
         try:
-            # Setup tables if not already done
-            if not self.setup_complete:
-                self.setup_tables()
-                self.setup_complete = True
+            # Initial fetch and purge/add
+            recent_coins = self.get_recent_cryptos()
+            self.purge_and_add_coins(recent_coins)
             
-            # Get recent coins
-            coins = self.get_recent_cryptos()
-            
-            # Purge and add new coins
-            self.purge_and_add_coins(coins)
-            
-            # Buy coins
-            self.buy_coins(coins)
-            
-            # Set terminal colors - Navy blue background, bright yellow bold text
-            print("\033[48;5;18m\033[38;5;226;1m")
+            # Buy new coins
+            self.buy_coins(recent_coins)
             
             # Monitor prices and sell when appropriate
             while self.current_holdings:
                 self.update_price_history()
                 time.sleep(PRICE_UPDATE_INTERVAL)
-                
+            print(f"[{self._get_timestamp()}] [INFO] Monitoring loop exited (no more holdings).")
         except KeyboardInterrupt:
             print("\033[0m")  # Reset terminal colors
-            print("\nStopping monitoring...")
-            
+            print(f"[{self._get_timestamp()}] [INFO] Stopping monitoring due to KeyboardInterrupt.")
+        except Exception as e:
+            import traceback
+            print(f"[{self._get_timestamp()}] [CRITICAL] Unexpected error: {e}")
+            traceback.print_exc()
         finally:
             # Reset terminal colors
             print("\033[0m")
@@ -492,6 +455,169 @@ class TradingBot:
                 if decline_duration >= DECLINE_DURATION_TO_SELL:
                     self.sell_coin(symbol, current_price)
 
+    def sell_coin(self, symbol: str, current_price: float):
+        """Sell a coin and update the wallet balance"""
+        if symbol not in self.current_holdings:
+            return
+        
+        holding = self.current_holdings[symbol]
+        quantity = holding['quantity']
+        buy_price = holding['buy_price']
+        
+        # Calculate proceeds and profit/loss
+        proceeds = quantity * current_price
+        profit_loss = proceeds - (quantity * buy_price)
+        
+        # Update wallet balance
+        self.wallet_balance += proceeds
+        
+        # Update trade record in database
+        try:
+            sql = f"""
+            UPDATE trades 
+            SET sell_price = {current_price},
+                sell_time = '{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}',
+                profit = {profit_loss},
+                status = 'closed'
+            WHERE symbol = '{symbol}' AND status = 'open';
+            """
+            mysql_cmd = f"mysql -u root -p1304 -e \"{sql}\" {DB_NAME}"
+            subprocess.run(mysql_cmd, shell=True, check=True)
+        except subprocess.CalledProcessError as e:
+            print(f"[{self._get_timestamp()}] [ERROR] Error updating trade record: {e}")
+        
+        # Print trade information
+        print(f"[{self._get_timestamp()}] [TRADE] Sold {symbol}")
+        print(f"  Buy price : ${buy_price:.6f}")
+        print(f"  Sell price: ${current_price:.6f}")
+        print(f"  Profit/Loss: ${profit_loss:.2f}")
+        print(f"  Current wallet balance: ${self.wallet_balance:.2f}")
+        
+        # Remove from holdings
+        del self.current_holdings[symbol]
+        
+        # Force table header reprint with remaining coins
+        if self.current_holdings:
+            print("\n")  # Add some space
+            self._print_table_header(list(self.current_holdings.keys()))
+        else:
+            self.table_initialized = False
+            print("\n" + "="*50)
+            print("All positions closed. Waiting for new opportunities...")
+            print("="*50 + "\n")
+
+class RiskManager:
+    def __init__(self):
+        self.max_position_size = 0.1  # Max 10% of portfolio per trade
+        self.stop_loss_percentage = 0.02  # 2% stop loss
+        self.take_profit_percentage = 0.05  # 5% take profit
+        
+    def calculate_position_size(self, total_capital: float):
+        return total_capital * self.max_position_size
+
+class WalletError(Exception):
+    """Base exception class for Wallet errors"""
+    pass
+
+class InsufficientFundsError(WalletError):
+    """Raised when wallet has insufficient funds"""
+    pass
+
+class ExchangeConnectionError(WalletError):
+    """Raised when exchange connection fails"""
+    pass
+
+class ValidationError(WalletError):
+    """Raised when trade validation fails"""
+    pass
+
+class Wallet:
+    def __init__(self, exchange_client):
+        self.exchange = exchange_client
+        self.balances: Dict[str, float] = {}
+        self.reserved_funds: Dict[str, float] = {}
+        self._last_update = None
+        self.update_interval = 60  # Update balance cache every 60 seconds
+        
+    def get_balance(self, currency: str = 'USD') -> float:
+        """
+        Get current balance for specified currency with error handling
+        """
+        try:
+            # Check if we need to update cached balance
+            if self._should_update_balance():
+                self.update_balance()
+                
+            available = self.balances.get(currency, 0.0)
+            reserved = self.reserved_funds.get(currency, 0.0)
+            return available - reserved
+            
+        except BinanceAPIException as e:
+            raise ExchangeConnectionError(f"Failed to get balance: {e}")
+        except Exception as e:
+            raise WalletError(f"Unexpected error getting balance: {e}")
+    
+    def can_execute_trade(self, symbol: str, amount: float) -> Tuple[bool, Optional[str]]:
+        """
+        Validate if a trade can be executed with detailed error reporting
+        Returns: (can_execute: bool, error_message: Optional[str])
+        """
+        try:
+            # Get current balance with error handling
+            balance = self.get_balance()
+            
+            # Get trading fees
+            try:
+                fee_percentage = self.exchange.get_trading_fee(symbol)
+            except BinanceAPIException as e:
+                return False, f"Failed to get trading fees: {e}"
+                
+            total_with_fees = amount * (1 + fee_percentage)
+            
+            # Check sufficient funds
+            if total_with_fees > balance:
+                raise InsufficientFundsError(
+                    f"Insufficient funds: {balance:.2f} available, {total_with_fees:.2f} required"
+                )
+            
+            # Validate symbol and get trading rules
+            try:
+                symbol_info = self.exchange.get_symbol_info(symbol)
+                if not symbol_info:
+                    return False, f"Trading pair {symbol} not available"
+                    
+                # Check minimum trade amount
+                if amount < symbol_info['min_amount']:
+                    return False, f"Amount {amount} below minimum {symbol_info['min_amount']}"
+                    
+                # Check maximum trade amount
+                if amount > symbol_info['max_amount']:
+                    return False, f"Amount {amount} above maximum {symbol_info['max_amount']}"
+            except BinanceAPIException as e:
+                return False, f"Failed to validate trading rules: {e}"
+        
+            # All validations passed
+            return True, None
+            
+        except InsufficientFundsError as e:
+            return False, str(e)
+        except BinanceAPIException as e:
+            return False, f"Exchange error: {e}"
+        except Exception as e:
+            return False, f"Validation error: {e}"
+
+# Add this at the bottom of the file:
 if __name__ == "__main__":
-    bot = TradingBot()
-    bot.run()
+    try:
+        days_input = input("How old (in days) should the coins be? [default: 1]: ").strip()
+        days = int(days_input) if days_input else 1
+        
+        bot = TradingBot(days=days)
+        bot.setup_tables()  # This line is critical!
+        bot.run()
+    except KeyboardInterrupt:
+        print("\nExiting due to user interrupt...")
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        print("\033[0m")  # Reset terminal colors

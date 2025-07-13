@@ -8,7 +8,7 @@
 
 header('Content-Type: application/json');
 
-// Enable error reporting but don't display errors to the client
+// Enable error reporting but log instead of display
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
@@ -16,128 +16,60 @@ ini_set('error_log', '/opt/lampp/htdocs/NS/logs/php-error.log');
 
 // Include configuration
 require_once __DIR__ . '/../includes/config.php';
-
-// Debug: Log included files
-error_log('Included config file: ' . __DIR__ . '/../includes/config.php');
-
-// Direct database connection to avoid circular dependencies
-function getDBConnection() {
-    static $db = null;
-    
-    if ($db === null) {
-        try {
-            $db = new PDO(
-                'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8',
-                DB_USER,
-                DB_PASS,
-                [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::ATTR_EMULATE_PREPARES => false
-                ]
-            );
-        } catch (PDOException $e) {
-            error_log('Database connection failed: ' . $e->getMessage());
-            return false;
-        }
-    }
-    
-    return $db;
-}
+require_once __DIR__ . '/../includes/database.php';
 
 try {
     $db = getDBConnection();
-    
     if (!$db) {
         throw new Exception('Database connection failed');
     }
-    
+
     // Default user ID (can be updated later for multi-user support)
     $userId = 1;
-    
-    // Check if portfolio table exists
-    $stmt = $db->prepare("SHOW TABLES LIKE 'portfolio'");
+
+    // Get portfolio data with coin information
+    $query = "SELECT 
+        portfolio.*, 
+        COALESCE(c.price, cr.price) as current_price,
+        COALESCE(c.symbol, cr.symbol) as symbol,
+        COALESCE(c.coin_name, cr.name, portfolio.coin_id) as name
+    FROM portfolio 
+    LEFT JOIN coins c ON portfolio.coin_id = c.id
+    LEFT JOIN cryptocurrencies cr ON portfolio.coin_id = cr.id
+    WHERE portfolio.user_id = :user_id 
+    AND portfolio.amount > 0
+    ORDER BY portfolio.amount DESC";
+
+    $stmt = $db->prepare($query);
+    $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
     $stmt->execute();
-    $hasPortfolioTable = $stmt->rowCount() > 0;
     
-    // Create portfolio table if it doesn't exist
-    if (!$hasPortfolioTable) {
-        $db->exec("CREATE TABLE portfolio (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            user_id INT NOT NULL DEFAULT 1,
-            coin_id VARCHAR(50) NOT NULL,
-            amount DECIMAL(18,8) NOT NULL DEFAULT 0,
-            avg_buy_price DECIMAL(18,8) NOT NULL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY user_coin (user_id, coin_id)
-        )");
-    }
-    
-    // Get portfolio data
-    $portfolio = [];
-    
-    if ($hasPortfolioTable) {
-        // Get portfolio data with coin information
-        $query = "SELECT p.id, p.user_id, p.coin_id, p.amount, p.avg_buy_price, 
-                  c.symbol, c.name, c.current_price 
-                  FROM portfolio p 
-                  JOIN coins c ON p.coin_id = c.id 
-                  WHERE p.user_id = :user_id AND p.amount > 0
-                  ORDER BY p.amount * c.current_price DESC";
-        
-        $stmt = $db->prepare($query);
-        $stmt->bindParam(':user_id', $userId);
-        $stmt->execute();
-        $portfolio = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-    
-    // If no portfolio data, return empty array
-    if (empty($portfolio)) {
-        // Return empty portfolio
-        $response = [
-            'success' => true,
-            'message' => 'Portfolio is empty',
-            'portfolio' => [],
-            'summary' => [
-                'total_value' => 0,
-                'total_invested' => 0,
-                'total_profit_loss' => 0,
-                'total_profit_loss_percent' => 0,
-                'item_count' => 0
-            ]
-        ];
-        
-        echo json_encode($response);
-        exit();
-    }
-    
-    // Calculate total value and profit/loss
+    $portfolio = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Calculate totals and format data
     $totalValue = 0;
     $totalInvested = 0;
-    
+
     foreach ($portfolio as &$item) {
         // Ensure numeric values
         $item['amount'] = floatval($item['amount']);
         $item['avg_buy_price'] = floatval($item['avg_buy_price']);
         $item['current_price'] = floatval($item['current_price']);
-        
+
         // Calculate values
         $item['current_value'] = $item['amount'] * $item['current_price'];
         $item['invested_value'] = $item['amount'] * $item['avg_buy_price'];
         $item['profit_loss'] = $item['current_value'] - $item['invested_value'];
         $item['profit_loss_percent'] = $item['invested_value'] > 0 ? 
             ($item['profit_loss'] / $item['invested_value']) * 100 : 0;
-        
-        // Add to totals
+
+        // Update totals
         $totalValue += $item['current_value'];
         $totalInvested += $item['invested_value'];
     }
-    
-    // Success response
-    $response = [
+
+    echo json_encode([
         'success' => true,
-        'message' => 'Portfolio loaded successfully',
         'portfolio' => $portfolio,
         'summary' => [
             'total_value' => $totalValue,
@@ -147,9 +79,7 @@ try {
                 (($totalValue - $totalInvested) / $totalInvested) * 100 : 0,
             'item_count' => count($portfolio)
         ]
-    ];
-    
-    echo json_encode($response);
+    ]);
 
 } catch (PDOException $e) {
     error_log("PDO Error in get-portfolio.php: " . $e->getMessage());

@@ -118,6 +118,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     aValue = parseFloat(a.querySelector('td:nth-child(5)').textContent.replace('$', '').replace(/,/g, ''));
                     bValue = parseFloat(b.querySelector('td:nth-child(5)').textContent.replace('$', '').replace(/,/g, ''));
                     break;
+                case 'age':
+                    // Sort by Age (column 6, using data-sort timestamp if present)
+                    const aAgeCell = a.querySelector('td:nth-child(6)');
+                    const bAgeCell = b.querySelector('td:nth-child(6)');
+                    aValue = aAgeCell.getAttribute('data-sort') ? Number(aAgeCell.getAttribute('data-sort')) : new Date(aAgeCell.textContent).getTime();
+                    bValue = bAgeCell.getAttribute('data-sort') ? Number(bAgeCell.getAttribute('data-sort')) : new Date(bAgeCell.textContent).getTime();
+                    break;
             }
             
             // Handle NaN values

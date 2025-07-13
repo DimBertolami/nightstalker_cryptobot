@@ -5,6 +5,10 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/cron_manager.php';
 
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 $title = "Settings";
 
 // Add custom CSS for the slider

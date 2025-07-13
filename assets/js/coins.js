@@ -32,8 +32,14 @@ window.formatLargeNumber = function(num) {
 
 window.formatAge = function(timestamp) {
     if (!timestamp) return 'N/A';
-    const date = new Date(timestamp);
-    return date.toLocaleDateString();
+    const now = new Date();
+    const then = new Date(timestamp);
+    const diffMs = now - then;
+    const diffHours = diffMs / (1000 * 60 * 60);
+    if (diffHours < 24) {
+        return diffHours.toFixed(1) + 'h';
+    }
+    return then.toLocaleDateString();
 };
 
 window.formatStatus = function(isTrending, volumeSpike, source) {
@@ -104,12 +110,12 @@ window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
             
             // Global variables
             let autoRefreshInterval;
-            let isAutoRefreshEnabled = true;
+            let isAutoRefreshEnabled = false; // Default: auto-refresh OFF
             let showAllCoins = false; // Default: show filtered coins
             let filters = {
                 maxAge: 24, // hours
-                minMarketCap: 0,
-                minVolume: 0
+                minMarketCap: 1500000, // Default Market Cap filter
+                minVolume: 1500000    // Default Volume filter
             };
             let isProcessingTrade = false; // Track if a trade is in progress
             let defaultExchangeId = ''; // New variable to store default exchange ID
@@ -131,6 +137,18 @@ window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
             // Function to read URL parameters and update filters
             function updateFiltersFromUrl() {
                 const params = new URLSearchParams(window.location.search);
+                let anyParam = params.has('max_age') || params.has('min_marketcap') || params.has('min_volume');
+                // If no filter params, set UI to JS defaults
+                if (!anyParam) {
+                    // Age < 24h
+                    $('#filter-age').prop('checked', true);
+                    // Market Cap > 1,500,000
+                    $('#filter-marketcap-toggle').prop('checked', true);
+                    $('#filter-marketcap').val(1500000).prop('disabled', false);
+                    // 24h Volume > 1,500,000
+                    $('#filter-volume-toggle').prop('checked', true);
+                    $('#filter-volume').val(1500000).prop('disabled', false);
+                }
                 
                 // Update showAllCoins
                 showAllCoins = params.get('show_all') === '1';
@@ -149,6 +167,8 @@ window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
                     if (!isNaN(minMarketCap)) {
                         filters.minMarketCap = minMarketCap;
                         $('#filter-marketcap').val(minMarketCap);
+                        $('#filter-marketcap-toggle').prop('checked', true);
+                        $('#filter-marketcap').prop('disabled', false);
                     }
                 }
                 
@@ -157,6 +177,8 @@ window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
                     if (!isNaN(minVolume)) {
                         filters.minVolume = minVolume;
                         $('#filter-volume').val(minVolume);
+                        $('#filter-volume-toggle').prop('checked', true);
+                        $('#filter-volume').prop('disabled', false);
                     }
                 }
                 
@@ -221,7 +243,7 @@ window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
                 updateUrlParams(params);
                 
                 // Clear the current table data
-                if ($.fn.DataTable.isDataTable('#coins-table')) {
+                if (typeof coinsTable !== 'undefined' && $.fn.DataTable.isDataTable('#coins-table')) {
                     coinsTable.clear().draw();
                 }
                 
@@ -894,9 +916,15 @@ window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
                 }
             }
             
-            // Initialize auto-refresh
-            isAutoRefreshEnabled = true; // Start with auto-refresh enabled
+            // Initialize auto-refresh based on toggle state
+            isAutoRefreshEnabled = $('#auto-refresh-toggle').is(':checked');
             updateAutoRefresh();
+
+            // Listen for toggle changes
+            $('#auto-refresh-toggle').on('change', function() {
+                isAutoRefreshEnabled = $(this).is(':checked');
+                updateAutoRefresh();
+            });
         
             // Set up Show All Coins toggle
             $('#show-all-coins-toggle').on('change', function() {
@@ -1114,7 +1142,7 @@ function processCoinData(data) {
                 window.formatPrice(coin.current_price || coin.price || 0),
                 window.formatPercentage(coin.price_change_24h || 0),
                 window.formatLargeNumber(coin.volume_24h || 0),
-                window.formatLargeNumber(coin.market_cap || 0),
+                window.formatLargeNumber(coin.marketcap || 0),
                 window.formatAge(coin.date_added || coin.last_updated),
                 window.formatStatus(coin.is_trending, coin.volume_spike, coin.source || coin.data_source || ''),
                 window.formatTradeButtons(coin.id, coin.symbol, coin.current_price || coin.price || 0, canSell, userBalance)
@@ -1126,8 +1154,8 @@ function processCoinData(data) {
                     <td>${window.formatPrice(coin.current_price || coin.price || 0)}</td>
                     <td>${window.formatPercentage(coin.price_change_24h || 0)}</td>
                     <td>${window.formatLargeNumber(coin.volume_24h || 0)}</td>
-                    <td>${window.formatLargeNumber(coin.market_cap || 0)}</td>
-                    <td>${window.formatAge(coin.date_added || coin.last_updated)}</td>
+                    <td>${window.formatLargeNumber(coin.marketcap || 0)}</td>
+                    <td data-sort="${new Date(coin.date_added || coin.last_updated).getTime()}">${window.formatAge(coin.date_added || coin.last_updated)}</td>
                     <td>${window.formatStatus(coin.is_trending, coin.volume_spike, coin.source || coin.data_source || '')}</td>
                     <td>${window.formatTradeButtons(coin.id, coin.symbol, coin.current_price || coin.price || 0, canSell, userBalance)}</td>
                 </tr>

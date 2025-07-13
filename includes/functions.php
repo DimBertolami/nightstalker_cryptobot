@@ -107,7 +107,7 @@ function syncTradesWithLogger($strategy = 'main_strategy') {
         }
         
         // Get all trades
-        $query = "SELECT t.*, c.symbol, c.name 
+        $query = "SELECT t.*, c.symbol, c.coin_name 
                  FROM trades t 
                  LEFT JOIN cryptocurrencies c ON t.coin_id = c.id 
                  ORDER BY t.trade_time ASC";

@@ -1,36 +1,103 @@
-# Composer dependencies
-/vendor/
+# General dependencies and build artifacts
+node_modules/
+jspm_packages/
+bower_components/
 
-# Environment variables
-.env
+# Python virtual environments (top-level and nested)
+venv/
+venv2/
+backend/venv/
+tools/cmc/venv/
+**/venv/
+**/venv2/
+**/env/
+**/.env/
 
-# Logs
-/logs/*
-!/logs/.gitkeep
+# Python bytecode and cache
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# User-specific configuration
-/config/exchanges.json
+# Python test and coverage
+.pytest_cache/
+.coverage
+*.cover
+*.py,cover
+.hypothesis/
+coverage/
+*.lcov
+.nyc_output/
 
-# Temporary files
-*.tmp
-*.temp
-*.swp
-*.swo
+# Build outputs
+build/
+dist/
+out/
+storybook-static/
+.next/
+.nuxt/
+.vuepress/dist/
+**/.vitepress/dist/
+**/.vitepress/cache/
+.temp/
+.cache/
+.parcel-cache/
+.docusaurus/
 
-# IDE files
-.idea/
+# IDE and editor files
 .vscode/
-*.sublime-project
-*.sublime-workspace
+.idea/
+.vscode-test/
 
-# OS generated files
+# Logs and runtime data
+logs/
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Miscellaneous
+*.db
+.dynamodb/
+.yarn/
+.yarn-integrity
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+lib-cov/
+.grunt/
+.lock-wscript
+build/Release/
+web_modules/
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+.node_repl_history
+*.tgz
+.serverless/
+.fusebox/
+.tern-port
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
 
-# Composer local installation
-composer.phar
+# Exclude site-packages and all venv content
+**/site-packages/

@@ -5,6 +5,17 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/pdo_functions.php';
 
+// Start session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Check authentication
+if (!isLoggedIn()) {
+    header("Location: " . BASE_URL . "/login.php");
+    exit();
+}
+
 // Initialize showAll flag with default value (true to show all coins by default)
 $showAll = isset($_GET['show_all']) ? $_GET['show_all'] == '1' : true;
 
@@ -56,18 +67,7 @@ $customCSS = <<<'EOT'
         opacity: 1 !important;
         color: #007bff;
     }
-</style>
-        
 
-</script>
-<meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    script-src 'self' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.datatables.net 'unsafe-inline' 'unsafe-eval';
-    style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.datatables.net 'unsafe-inline';
-    img-src 'self' data: https: *;
-    font-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com 'unsafe-inline';
-">
-<style>
     div{
         background-color: #061e36;
         color: rgb(241, 207, 10);
@@ -155,6 +155,18 @@ $customCSS = <<<'EOT'
     .portfolio-alert {
         display: none;
     }
+</style>
+        
+
+</script>
+<meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.datatables.net 'unsafe-inline' 'unsafe-eval';
+    style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.datatables.net 'unsafe-inline';
+    img-src 'self' data: https: *;
+    font-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com 'unsafe-inline';
+">
+
 EOT;
 
 // Load configuration
@@ -193,13 +205,17 @@ try {
             
             // Query to get coins based on filter
             if (!$showAll) {
-                $query = "SELECT * FROM coins WHERE date_added > DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY market_cap DESC";
+                $query = "SELECT * FROM coins WHERE date_added > DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY marketcap DESC";
             } else {
-                $query = "SELECT * FROM coins ORDER BY market_cap DESC LIMIT 1000";
+                $query = "SELECT * FROM coins WHERE marketcap > ? AND volume_24h > ? ORDER BY marketcap DESC";
             }
             
             $stmt = $db->prepare($query);
-            $stmt->execute();
+            if ($showAll) {
+                $stmt->execute([$filterMarketCap, $filterVolume]);
+            } else {
+                $stmt->execute();
+            }
             $dbCoins = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             // Debug output
@@ -210,14 +226,14 @@ try {
                 $coins[] = [
                     'id' => $coin['id'],
                     'symbol' => $coin['symbol'],
-                    'name' => $coin['name'],
-                    'current_price' => $coin['current_price'],
+                    'name' => $coin['coin_name'],
+                    'current_price' => $coin['price'],
                     'price_change_24h' => $coin['price_change_24h'],
                     'volume_24h' => $coin['volume_24h'],
-                    'market_cap' => $coin['market_cap'],
+                    'market_cap' => $coin['marketcap'],
                     'date_added' => $coin['date_added'] ?? date('Y-m-d H:i:s'),
                     'age_hours' => isset($coin['date_added']) ? round((time() - strtotime($coin['date_added'])) / 3600, 1) : 0,
-                    'is_trending' => $coin['is_trending'] ?? 0,
+                    'is_trending' => isset($coin['volume_spike']) && $coin['volume_spike'] > 0,
                     'volume_spike' => $coin['volume_spike'] ?? 0,
                     'source' => 'Local'
                 ];
@@ -548,7 +564,7 @@ $coins = array_filter($coins, function($coin) {
                         </div>
                         <div id="last-updated" class="text-muted small"></div>
                         <div class="form-check form-switch d-inline-block">
-                            <input class="form-check-input" type="checkbox" id="auto-refresh-toggle" checked>
+                            <input class="form-check-input" type="checkbox" id="auto-refresh-toggle">
                             <label class="form-check-label text-white" for="auto-refresh-toggle">Auto-refresh</label>
                         </div>
                         <div class="form-check form-switch d-inline-block ms-3">
@@ -1171,9 +1187,7 @@ $(document).ready(function() {
 </script>
 
 <!-- Include table sorting functionality -->
-<script src="/js/table-sort.js"></script>
-
-<!-- Include our coin filtering script -->
-<script src="/js/filter-coins.js"></script>
+<script src="/NS/assets/js/table-sort.js"></script>
+<script src="/NS/assets/js/filter-coins.js"></script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

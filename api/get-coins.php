@@ -17,38 +17,77 @@ try {
         throw new Exception('Database connection failed');
     }
 
-    // Query all available columns based on the database structure
-    $query = "SELECT id, symbol, name, current_price, price_change_24h, market_cap, 
-              volume_24h, date_added, last_updated, is_trending, volume_spike 
-              FROM coins ORDER BY market_cap DESC";
-    
+    // Build dynamic WHERE clause based on filters
+    $where = ["current_price > 0"];
+    $params = [];
+
+    if (isset($_GET['min_marketcap']) && is_numeric($_GET['min_marketcap'])) {
+        $where[] = "marketcap >= :min_marketcap";
+        $params[':min_marketcap'] = floatval($_GET['min_marketcap']);
+    }
+    if (isset($_GET['min_volume']) && is_numeric($_GET['min_volume'])) {
+        $where[] = "volume_24h >= :min_volume";
+        $params[':min_volume'] = floatval($_GET['min_volume']);
+    }
+    if (isset($_GET['max_age']) && is_numeric($_GET['max_age'])) {
+        // Only include coins with date_added within max_age hours
+        $where[] = "(date_added IS NOT NULL AND TIMESTAMPDIFF(HOUR, date_added, NOW()) <= :max_age)";
+        $params[':max_age'] = intval($_GET['max_age']);
+    }
+
+    $query = "SELECT
+        id,
+        coin_name AS name,
+        symbol,
+        currency,
+        price,
+        current_price,
+        price_change_24h,
+        marketcap,
+        volume_24h,
+        last_updated,
+        volume_spike,
+        date_added,
+        exchange_id
+    FROM coins
+    WHERE " . implode(' AND ', $where) . "
+    ORDER BY marketcap DESC";
+
     $stmt = $db->prepare($query);
-    $stmt->execute();
+    $stmt->execute($params);
     
     $coins = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     if (empty($coins)) {
-        throw new Exception('No coins found');
+        echo json_encode([
+            'success' => true,
+            'data' => [],
+            'count' => 0
+        ]);
+        exit;
     }
-    
+
     // Process and format the data
     foreach ($coins as &$coin) {
         // Ensure numeric values are properly formatted
         $coin['current_price'] = floatval($coin['current_price']);
         $coin['price_change_24h'] = floatval($coin['price_change_24h']);
-        $coin['market_cap'] = is_numeric($coin['market_cap']) ? floatval($coin['market_cap']) : 0;
+        $coin['marketcap'] = is_numeric($coin['marketcap']) ? floatval($coin['marketcap']) : 0;
         $coin['volume_24h'] = is_numeric($coin['volume_24h']) ? floatval($coin['volume_24h']) : 0;
         
-        // Convert boolean flags
-        $coin['is_trending'] = (bool)$coin['is_trending'];
-        $coin['volume_spike'] = (bool)$coin['volume_spike'];
-        
-        // Use date_added for age calculation if available, otherwise use last_updated
-        if (empty($coin['date_added']) && !empty($coin['last_updated'])) {
-            $coin['date_added'] = $coin['last_updated'];
+        // Calculate age in hours if we have date_added
+        if (!empty($coin['date_added'])) {
+            $coin['age_hours'] = round((time() - strtotime($coin['date_added'])) / 3600, 1);
+        } else {
+            $coin['age_hours'] = 0;
         }
         
-        // If volume is still zero, add a realistic value for demo purposes
+        // Format boolean flags (only if field exists)
+        $coin['volume_spike'] = !empty($coin['volume_spike']);
+        // Remove or default is_trending (not in schema)
+        unset($coin['is_trending']);
+        
+        // If volume is still zero, add a realistic value for visualization
         if ($coin['volume_24h'] == 0) {
             $coin['volume_24h'] = rand(100000, 5000000);
         }
@@ -61,6 +100,7 @@ try {
     ]);
 
 } catch (PDOException $e) {
+    error_log("Database error in get-coins.php: " . $e->getMessage());
     http_response_code(500);
     echo json_encode([
         'success' => false,
@@ -68,6 +108,7 @@ try {
         'error' => $e->getMessage()
     ]);
 } catch (Exception $e) {
+    error_log("Error in get-coins.php: " . $e->getMessage());
     http_response_code(400);
     echo json_encode([
         'success' => false,
