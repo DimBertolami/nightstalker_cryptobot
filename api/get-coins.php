@@ -36,22 +36,24 @@ try {
     }
 
     $query = "SELECT
-        id,
-        coin_name AS name,
-        symbol,
-        currency,
-        price,
-        current_price,
-        price_change_24h,
-        marketcap,
-        volume_24h,
-        last_updated,
-        volume_spike,
-        date_added,
-        exchange_id
-    FROM coins
+        c.id,
+        c.coin_name AS name,
+        c.symbol,
+        c.currency,
+        c.price,
+        c.current_price,
+        c.price_change_24h,
+        c.marketcap,
+        c.volume_24h,
+        c.last_updated,
+        c.volume_spike,
+        c.date_added,
+        c.exchange_id,
+        e.exchange_name
+    FROM coins c
+    LEFT JOIN exchanges e ON c.exchange_id = e.id
     WHERE " . implode(' AND ', $where) . "
-    ORDER BY marketcap DESC";
+    ORDER BY c.marketcap DESC";
 
     $stmt = $db->prepare($query);
     $stmt->execute($params);

@@ -42,6 +42,21 @@ $customCSS = <<<'EOT'
     window.disableDataTables = true;
 </script>
 
+<!-- Custom styles for exchange logos alignment -->
+<style>
+    .exchange-logo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .exchange-logo img {
+        margin-right: 5px;
+    }
+    #coins-table td:nth-child(8) {
+        text-align: center;
+    }
+</style>
+
 <style>
     /* Sortable column styles */
     .sortable {
@@ -97,6 +112,31 @@ $customCSS = <<<'EOT'
     @keyframes highlight {
         0% { background-color: rgba(255, 255, 0, 0.5); }
         100% { background-color: transparent; }
+    }
+    
+    /* Exchange logo styles */
+    .exchange-logo {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+    
+    .exchange-icon {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+    }
+    
+    /* Trade column layout */
+    .trade-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .coin-indicators {
+        margin-bottom: 5px;
+        font-size: 0.85em;
     }
     
     #last-update {
@@ -203,11 +243,19 @@ try {
         try {
             $db = getDbConnection();
             
-            // Query to get coins based on filter
+            // Query to get coins based on filter with exchange information
             if (!$showAll) {
-                $query = "SELECT * FROM coins WHERE date_added > DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY marketcap DESC";
+                $query = "SELECT c.*, e.exchange_name, e.id as exchange_id 
+                          FROM coins c 
+                          LEFT JOIN exchanges e ON c.exchange_id = e.id 
+                          WHERE c.date_added > DATE_SUB(NOW(), INTERVAL 24 HOUR) 
+                          ORDER BY c.marketcap DESC";
             } else {
-                $query = "SELECT * FROM coins WHERE marketcap > ? AND volume_24h > ? ORDER BY marketcap DESC";
+                $query = "SELECT c.*, e.exchange_name, e.id as exchange_id 
+                          FROM coins c 
+                          LEFT JOIN exchanges e ON c.exchange_id = e.id 
+                          WHERE c.marketcap > ? AND c.volume_24h > ? 
+                          ORDER BY c.marketcap DESC";
             }
             
             $stmt = $db->prepare($query);
@@ -235,7 +283,9 @@ try {
                     'age_hours' => isset($coin['date_added']) ? round((time() - strtotime($coin['date_added'])) / 3600, 1) : 0,
                     'is_trending' => isset($coin['volume_spike']) && $coin['volume_spike'] > 0,
                     'volume_spike' => $coin['volume_spike'] ?? 0,
-                    'source' => 'Local'
+                    'exchange_id' => $coin['exchange_id'] ?? null,
+                    'exchange_name' => $coin['exchange_name'] ?? null,
+                    'source' => $coin['exchange_name'] ?? 'Local'
                 ];
             }
         } catch (PDOException $e) {
@@ -243,46 +293,8 @@ try {
             // Continue to try CMC data
         }
         
-        // Add CMC data if enabled
-        if (($config['data_sources']['coinmarketcap'] ?? false)) {
-            try {
-                $cmcCoins = getCMCTrendingCoins();
-                error_log("Fetched " . count($cmcCoins) . " coins from CMC");
-                
-                if (!empty($cmcCoins)) {
-                    foreach ($cmcCoins as $coin) {
-                        // Skip if we already have this coin
-                        $exists = false;
-                        foreach ($coins as $existingCoin) {
-                            if ($existingCoin['symbol'] == $coin['symbol']) {
-                                $exists = true;
-                                break;
-                            }
-                        }
-                        
-                        if (!$exists) {
-                            $coins[] = [
-                                'id' => 'cmc_' . ($coin['id'] ?? rand(10000, 99999)),
-                                'symbol' => $coin['symbol'],
-                                'name' => $coin['name'],
-                                'current_price' => $coin['quote']['USD']['price'],
-                                'price_change_24h' => $coin['quote']['USD']['percent_change_24h'],
-                                'volume_24h' => $coin['quote']['USD']['volume_24h'] ?? 0,
-                                'market_cap' => $coin['quote']['USD']['market_cap'] ?? 0,
-                                'date_added' => date('Y-m-d H:i:s'),
-                                'age_hours' => 0,
-                                'is_trending' => 1,
-                                'volume_spike' => 0,
-                                'source' => 'CMC'
-                            ];
-                        }
-                    }
-                }
-            } catch (Exception $e) {
-                error_log("CMC API error: " . $e->getMessage());
-                // Continue with just database coins
-            }
-        }
+        // CMC data is now handled by a separate script that adds it directly to the database
+        // No need to fetch CMC data here anymore
     }
     
     // Use mock data if explicitly requested or if no coins found
@@ -359,6 +371,42 @@ error_log('Final user balances: ' . print_r($userBalances, true));
 $coins = array_filter($coins, function($coin) {
     return isset($coin['current_price']) && floatval($coin['current_price']) > 0;
 });
+
+// Include exchange configuration to get default exchange
+require_once __DIR__ . '/includes/exchange_config.php';
+$default_exchange = get_default_exchange();
+
+// Get the default exchange database ID
+$default_exchange_db_id = null;
+try {
+    $db = getDbConnection();
+    $stmt = $db->prepare("SELECT id FROM exchanges WHERE exchange_name = ?");
+    $stmt->execute([strtolower($default_exchange)]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($result) {
+        $default_exchange_db_id = $result['id'];
+        error_log("Default exchange DB ID: " . $default_exchange_db_id);
+    }
+} catch (Exception $e) {
+    error_log("Error getting default exchange ID: " . $e->getMessage());
+}
+
+// Enhanced deduplication - prioritize coins from default exchange
+$uniqueCoins = [];
+foreach ($coins as $coin) {
+    $symbol = strtoupper(trim($coin['symbol']));
+    
+    // If we haven't seen this symbol yet, add it
+    if (!isset($uniqueCoins[$symbol])) {
+        $uniqueCoins[$symbol] = $coin;
+    } 
+    // If we have a default exchange and this coin is from that exchange, prefer it
+    else if ($default_exchange_db_id && isset($coin['exchange_id']) && $coin['exchange_id'] == $default_exchange_db_id) {
+        $uniqueCoins[$symbol] = $coin;
+    }
+}
+
+$coins = array_values($uniqueCoins); // Reset array keys
 ?>
 
 <style>
@@ -449,6 +497,31 @@ $coins = array_filter($coins, function($coin) {
     .badge-trending {
         background-color: #ffc107;
         color: #212529;
+    }
+    
+    /* Exchange logos */
+    .exchange-logo {
+        max-width: 24px;
+        max-height: 24px;
+        object-fit: contain;
+    }
+    
+    /* Trade column styling */
+    .trade-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 5px;
+    }
+    
+    .trade-actions .input-group {
+        width: auto;
+        flex-wrap: nowrap;
+    }
+    
+    .trade-actions .buy-amount {
+        width: 80px;
+        min-width: 60px;
     }
     
     /* Portfolio coin styling */
@@ -728,15 +801,33 @@ $coins = array_filter($coins, function($coin) {
                                             <span class="badge badge-volume-spike">Volume Spike</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="text-center"><?= $coin['source'] ?? 'Local' ?></td>
+                                    <td class="text-center">
+                                        <?php if (isset($coin['exchange_id'])): ?>
+                                            <?php if (strtolower($coin['exchange_name']) === 'binance'): ?>
+                                                <img src="assets/images/binance-logo.png" alt="Binance" class="exchange-logo" width="24" height="24">
+                                            <?php elseif (strtolower($coin['exchange_name']) === 'bitvavo'): ?>
+                                                <img src="assets/images/bitvavo-logo.png" alt="Bitvavo" class="exchange-logo" width="24" height="24">
+                                            <?php else: ?>
+                                                <?= $coin['exchange_name'] ?? $coin['source'] ?? 'Local' ?>
+                                            <?php endif; ?>
+                                        <?php else: ?>
+                                            <?= $coin['source'] ?? 'Local' ?>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
-                                        <div class="btn-group btn-group-sm">
-                                            <a href="dashboard/trading_dashboard.php?symbol=<?= $coin['symbol'] ?>" class="btn btn-outline-primary btn-sm">
+                                        <div class="d-flex align-items-center trade-actions">
+                                            <a href="dashboard/trading_dashboard.php?symbol=<?= $coin['symbol'] ?>" class="btn btn-outline-primary btn-sm me-2">
                                                 <i class="fas fa-chart-line"></i>
                                             </a>
-                                            <button class="btn btn-outline-success btn-sm buy-coin" data-symbol="<?= $coin['symbol'] ?>" data-price="<?= $coin['current_price'] ?>">
-                                                <i class="fas fa-shopping-cart"></i>
-                                            </button>
+                                            <div class="input-group input-group-sm">
+                                                <input type="number" class="form-control form-control-sm buy-amount" placeholder="Amount" style="width: 80px;">
+                                                <button class="btn btn-success btn-sm buy-button" 
+                                                        data-id="<?= $coin['id'] ?>" 
+                                                        data-symbol="<?= $coin['symbol'] ?>" 
+                                                        data-price="<?= $coin['current_price'] ?>">
+                                                    Buy
+                                                </button>
+                                            </div>
                                             <?php 
                                             // Check if the coin is in the user's portfolio
                                             $symbol = $coin['symbol'];

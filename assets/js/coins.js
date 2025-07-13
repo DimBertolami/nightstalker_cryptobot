@@ -42,12 +42,35 @@ window.formatAge = function(timestamp) {
     return then.toLocaleDateString();
 };
 
-window.formatStatus = function(isTrending, volumeSpike, source) {
-    let status = [];
-    if (isTrending) status.push('Trending');
-    if (volumeSpike) status.push('Volume Spike');
-    if (source) status.push(source);
-    return status.join(' • ') || 'Normal';
+window.formatStatus = function(isTrending, volumeSpike) {
+    let statusHtml = '';
+    
+    // Add trending and volume spike indicators
+    let indicators = [];
+    if (isTrending) indicators.push('Trending');
+    if (volumeSpike) indicators.push('Volume Spike');
+    
+    // Add indicators if any exist
+    if (indicators.length > 0) {
+        statusHtml += `<div class="coin-indicators">${indicators.join(' • ')}</div>`;
+    }
+    
+    return statusHtml || 'Normal';
+};
+
+window.formatSource = function(source, exchangeName) {
+    // Use exchangeName if available, otherwise fall back to source
+    const displaySource = exchangeName || source || 'Local';
+    let sourceHtml = '';
+    
+    // Just display the exchange name without logo
+    if (displaySource) {
+        sourceHtml = `<div style="text-align:center;">${displaySource}</div>`;
+    } else {
+        sourceHtml = '<div style="text-align:center;">Local</div>';
+    }
+    
+    return sourceHtml;
 };
 
 window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
@@ -56,7 +79,7 @@ window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
             <div class="input-group input-group-sm mb-1">
                 <input type="number" class="form-control buy-amount" placeholder="Amount" 
                        data-id="${id}" data-symbol="${symbol}" min="0.001" step="0.001">
-                <button class='btn btn-sm btn-success btn-buy' data-id='${id}' data-symbol='${symbol}' data-price='${price}'>
+                <button class='btn btn-sm btn-success buy-button' data-id='${id}' data-symbol='${symbol}' data-price='${price}'>
                     Buy
                 </button>
             </div>
@@ -993,7 +1016,7 @@ window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
 })();
 
 // Buy button click handler
-$(document).on('click', '.btn-buy', function() {
+$(document).on('click', '.buy-button', function() {
     const $button = $(this);
     const coinId = $button.data('id');
     const symbol = $button.data('symbol');
@@ -1144,7 +1167,8 @@ function processCoinData(data) {
                 window.formatLargeNumber(coin.volume_24h || 0),
                 window.formatLargeNumber(coin.marketcap || 0),
                 window.formatAge(coin.date_added || coin.last_updated),
-                window.formatStatus(coin.is_trending, coin.volume_spike, coin.source || coin.data_source || ''),
+                window.formatStatus(coin.is_trending, coin.volume_spike),
+                window.formatSource(coin.source || coin.data_source || '', coin.exchange_name),
                 window.formatTradeButtons(coin.id, coin.symbol, coin.current_price || coin.price || 0, canSell, userBalance)
             ]);
         } else {
@@ -1156,7 +1180,8 @@ function processCoinData(data) {
                     <td>${window.formatLargeNumber(coin.volume_24h || 0)}</td>
                     <td>${window.formatLargeNumber(coin.marketcap || 0)}</td>
                     <td data-sort="${new Date(coin.date_added || coin.last_updated).getTime()}">${window.formatAge(coin.date_added || coin.last_updated)}</td>
-                    <td>${window.formatStatus(coin.is_trending, coin.volume_spike, coin.source || coin.data_source || '')}</td>
+                    <td>${window.formatStatus(coin.is_trending, coin.volume_spike)}</td>
+                    <td>${window.formatSource(coin.source || coin.data_source || '', coin.exchange_name)}</td>
                     <td>${window.formatTradeButtons(coin.id, coin.symbol, coin.current_price || coin.price || 0, canSell, userBalance)}</td>
                 </tr>
             `;

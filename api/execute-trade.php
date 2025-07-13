@@ -83,6 +83,9 @@ try {
     $amount = $_POST['amount'];
     $price = $_POST['price'];
     
+    // Debug the incoming data
+    error_log("Execute trade - Coin ID: $coinId, Symbol: $symbol, Amount: $amount, Price: $price");
+    
     // Validate numeric values
     if (!is_numeric($amount) || $amount <= 0) {
         throw new Exception('Amount must be a positive number');
@@ -101,16 +104,31 @@ try {
         // Create portfolio table with all required columns
         $db->exec("CREATE TABLE portfolio (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            coin_id VARCHAR(50) NOT NULL,
-            symbol VARCHAR(20) NOT NULL,
-            amount DECIMAL(18,8) NOT NULL,
-            purchase_price DECIMAL(18,8) NOT NULL,
-            purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            user_id INT DEFAULT 1,
+            coin_id INT NOT NULL,
+            amount DECIMAL(32,12) NOT NULL,
+            buy_price DECIMAL(32,12) NOT NULL,
+            avg_buy_price DECIMAL(32,12) DEFAULT 0,
+            bought_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )");
     }
     
     // Process the trade based on action
     if ($action === 'buy') {
+        // First, try to find the coin in the database by symbol to get the correct coin_id
+        $stmt = $db->prepare("SELECT id FROM coins WHERE symbol = :symbol LIMIT 1");
+        $stmt->bindParam(':symbol', $symbol);
+        $stmt->execute();
+        $coinRecord = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // If we found the coin in the database, use its ID
+        if ($coinRecord) {
+            $coinId = $coinRecord['id'];
+            error_log("Found coin in database with ID: $coinId");
+        } else {
+            error_log("Could not find coin with symbol: $symbol in database");
+        }
+        
         // Check if coin already exists in portfolio
         $stmt = $db->prepare("SELECT id, amount, avg_buy_price FROM portfolio WHERE coin_id = :coin_id");
         $stmt->bindParam(':coin_id', $coinId);
@@ -137,8 +155,8 @@ try {
             $message = "Added $amount $symbol to your portfolio";
         } else {
             // Create new position
-            $stmt = $db->prepare("INSERT INTO portfolio (user_id, coin_id, amount, avg_buy_price) 
-                VALUES (:user_id, :coin_id, :amount, :price)");
+            $stmt = $db->prepare("INSERT INTO portfolio (user_id, coin_id, amount, buy_price, avg_buy_price) 
+                VALUES (:user_id, :coin_id, :amount, :price, :price)");
             $stmt->bindParam(':user_id', $userId);
             $stmt->bindParam(':coin_id', $coinId);
             $stmt->bindParam(':amount', $amount);
@@ -148,6 +166,20 @@ try {
             $message = "Bought $amount $symbol for your portfolio";
         }
     } else { // Sell action
+        // First, try to find the coin in the database by symbol to get the correct coin_id
+        $stmt = $db->prepare("SELECT id FROM coins WHERE symbol = :symbol LIMIT 1");
+        $stmt->bindParam(':symbol', $symbol);
+        $stmt->execute();
+        $coinRecord = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // If we found the coin in the database, use its ID
+        if ($coinRecord) {
+            $coinId = $coinRecord['id'];
+            error_log("Found coin in database with ID: $coinId");
+        } else {
+            error_log("Could not find coin with symbol: $symbol in database");
+        }
+        
         // Check if coin exists in portfolio
         $stmt = $db->prepare("SELECT id, amount FROM portfolio WHERE coin_id = :coin_id");
         $stmt->bindParam(':coin_id', $coinId);
