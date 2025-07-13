@@ -46,31 +46,51 @@ class TradeSynchronizer {
      */
     public function synchronizeTrades() {
         try {
+            $this->syncResults = [
+                'processed' => 0,
+                'synced' => 0,
+                'skipped' => 0,
+                'errors' => 0,
+                'details' => []
+            ];
+            
+            // Determine which table is referenced by trades.coin_id
+            $coinTable = $this->getReferencedCoinTable();
+            
+            if (!$coinTable) {
+                $this->syncResults['details'][] = [
+                    'status' => 'error',
+                    'message' => "Could not determine the coin table referenced by trades.coin_id. Sync aborted."
+                ];
+                return $this->syncResults;
+            }
+            
             // Get all trades from trade_log
-            $stmt = $this->db->query("SELECT * FROM trade_log ORDER BY trade_date ASC");
+            $stmt = $this->db->prepare("SELECT * FROM trade_log ORDER BY trade_date ASC");
+            $stmt->execute();
             $logTrades = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             $this->syncResults['processed'] = count($logTrades);
             
             foreach ($logTrades as $logTrade) {
                 try {
-                    // Check if this trade already exists in trades table
-                    $stmt = $this->db->prepare("
+                    // Check if trade already exists in trades table
+                    $existsStmt = $this->db->prepare("
                         SELECT COUNT(*) as count FROM trades 
-                        WHERE coin_id = ? AND amount = ? AND price = ? AND trade_type = ? AND 
-                              ABS(TIMESTAMPDIFF(SECOND, trade_time, ?)) < 10
+                        WHERE ABS(TIMESTAMPDIFF(SECOND, trade_time, ?)) < 5
+                        AND trade_type = ?
+                        AND ABS(amount - ?) < 0.000001
+                        AND ABS(price - ?) < 0.000001
                     ");
-                    $stmt->execute([
-                        $logTrade['coin_id'], 
-                        $logTrade['amount'], 
-                        $logTrade['price'], 
+                    $existsStmt->execute([
+                        $logTrade['trade_date'],
                         $logTrade['action'],
-                        $logTrade['trade_date']
+                        $logTrade['amount'],
+                        $logTrade['price']
                     ]);
-                    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $existsResult = $existsStmt->fetch(PDO::FETCH_ASSOC);
                     
-                    if ($result['count'] > 0) {
-                        // Trade already exists, skip
+                    if ($existsResult['count'] > 0) {
                         $this->syncResults['skipped']++;
                         $this->syncResults['details'][] = [
                             'status' => 'skipped',
@@ -83,40 +103,101 @@ class TradeSynchronizer {
                     // Insert into trades table
                     $this->db->beginTransaction();
                     
-                    $totalValue = $logTrade['amount'] * $logTrade['price'];
-                    $stmt = $this->db->prepare("
-                        INSERT INTO trades 
-                            (coin_id, trade_type, amount, price, total_value, trade_time) 
-                        VALUES 
-                            (?, ?, ?, ?, ?, ?)
-                    ");
-                    $stmt->execute([
-                        $logTrade['coin_id'],
-                        $logTrade['action'],
-                        $logTrade['amount'],
-                        $logTrade['price'],
-                        $totalValue,
-                        $logTrade['trade_date']
-                    ]);
+                    // Look up the correct coin_id from the referenced table based on symbol
+                    $coinStmt = $this->db->prepare("SELECT id FROM {$coinTable} WHERE symbol = ?");
+                    $coinStmt->execute([$logTrade['symbol']]);
+                    $coinResult = $coinStmt->fetch(PDO::FETCH_ASSOC);
                     
-                    // Update portfolio for buy trades
-                    if (strtolower($logTrade['action']) === 'buy') {
-                        $this->updatePortfolioAfterBuy(
-                            $logTrade['coin_id'],
-                            $logTrade['amount'],
-                            $logTrade['price']
-                        );
+                    if (!$coinResult) {
+                        // If coin not found, try to create it
+                        if ($coinTable === 'cryptocurrencies') {
+                            $coinId = $this->createMissingCoin($logTrade['symbol']);
+                            
+                            if (!$coinId) {
+                                // If creation failed, log error and skip
+                                $this->syncResults['errors']++;
+                                $this->syncResults['details'][] = [
+                                    'status' => 'error',
+                                    'message' => "Coin with symbol {$logTrade['symbol']} not found in {$coinTable} table and could not be created",
+                                    'trade_log_id' => $logTrade['id']
+                                ];
+                                
+                                if ($this->db->inTransaction()) {
+                                    $this->db->rollBack();
+                                }
+                                continue;
+                            }
+                            
+                            // Log that we created a new coin
+                            $this->syncResults['details'][] = [
+                                'status' => 'info',
+                                'message' => "Created missing coin {$logTrade['symbol']} in {$coinTable} table",
+                                'trade_log_id' => $logTrade['id']
+                            ];
+                        } else {
+                            // If not cryptocurrencies table, log error and skip
+                            $this->syncResults['errors']++;
+                            $this->syncResults['details'][] = [
+                                'status' => 'error',
+                                'message' => "Coin with symbol {$logTrade['symbol']} not found in {$coinTable} table",
+                                'trade_log_id' => $logTrade['id']
+                            ];
+                            
+                            if ($this->db->inTransaction()) {
+                                $this->db->rollBack();
+                            }
+                            continue;
+                        }
+                    } else {
+                        $coinId = $coinResult['id'];
                     }
                     
-                    $this->db->commit();
+                    $totalValue = $logTrade['amount'] * $logTrade['price'];
                     
-                    $this->syncResults['synced']++;
-                    $this->syncResults['details'][] = [
-                        'status' => 'synced',
-                        'message' => "synced: {$logTrade['symbol']} {$logTrade['action']} " . number_format((float)$logTrade['amount'], 6, '.', '') . " at " . number_format((float)$logTrade['price'], 2, '.', '') . " on {$logTrade['trade_date']}",
-                        'trade_log_id' => $logTrade['id']
-                    ];
-                    
+                    try {
+                        $stmt = $this->db->prepare("
+                            INSERT INTO trades 
+                                (coin_id, trade_type, amount, price, total_value, trade_time) 
+                            VALUES 
+                                (?, ?, ?, ?, ?, ?)
+                        ");
+                        $stmt->execute([
+                            $coinId,
+                            $logTrade['action'],
+                            $logTrade['amount'],
+                            $logTrade['price'],
+                            $totalValue,
+                            $logTrade['trade_date']
+                        ]);
+                        
+                        // Update portfolio for buy trades
+                        if (strtolower($logTrade['action']) === 'buy') {
+                            $this->updatePortfolioAfterBuy(
+                                $coinId,
+                                $logTrade['amount'],
+                                $logTrade['price']
+                            );
+                        }
+                        
+                        $this->db->commit();
+                        $this->syncResults['synced']++;
+                        $this->syncResults['details'][] = [
+                            'status' => 'synced',
+                            'message' => "synced: {$logTrade['symbol']} {$logTrade['action']} " . number_format((float)$logTrade['amount'], 6, '.', '') . " at " . number_format((float)$logTrade['price'], 2, '.', '') . " on {$logTrade['trade_date']}",
+                            'trade_log_id' => $logTrade['id']
+                        ];
+                    } catch (Exception $insertException) {
+                        // If insert fails, provide detailed error information
+                        if ($this->db->inTransaction()) {
+                            $this->db->rollBack();
+                        }
+                        $this->syncResults['errors']++;
+                        $this->syncResults['details'][] = [
+                            'status' => 'error',
+                            'message' => "Failed to insert trade: {$insertException->getMessage()} (Symbol: {$logTrade['symbol']}, ID: $coinId)",
+                            'trade_log_id' => $logTrade['id']
+                        ];
+                    }
                 } catch (Exception $e) {
                     if ($this->db->inTransaction()) {
                         $this->db->rollBack();
@@ -135,6 +216,57 @@ class TradeSynchronizer {
             
         } catch (Exception $e) {
             die("Synchronization failed: " . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Create a missing coin in the cryptocurrencies table
+     * 
+     * @param string $symbol The coin symbol
+     * @return int|null The ID of the created coin, or null if creation failed
+     */
+    private function createMissingCoin($symbol) {
+        try {
+            // First check if the coin exists in the coins table
+            $stmt = $this->db->prepare("SELECT * FROM coins WHERE symbol = ?");
+            $stmt->execute([$symbol]);
+            $coinData = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($coinData) {
+                // If found in coins table, use that data to create in cryptocurrencies
+                $insertStmt = $this->db->prepare("
+                    INSERT INTO cryptocurrencies 
+                    (name, symbol, slug, price, market_cap, volume_24h, percent_change_24h, created_at, updated_at) 
+                    VALUES 
+                    (?, ?, ?, ?, 0, 0, 0, NOW(), NOW())
+                ");
+                $insertStmt->execute([
+                    $coinData['name'] ?? $symbol,
+                    $symbol,
+                    strtolower(str_replace(' ', '-', $coinData['name'] ?? $symbol)),
+                    $coinData['price'] ?? 0
+                ]);
+                
+                return $this->db->lastInsertId();
+            } else {
+                // If not found in coins table, create a minimal entry
+                $insertStmt = $this->db->prepare("
+                    INSERT INTO cryptocurrencies 
+                    (name, symbol, slug, price, market_cap, volume_24h, percent_change_24h, created_at, updated_at) 
+                    VALUES 
+                    (?, ?, ?, 0, 0, 0, 0, NOW(), NOW())
+                ");
+                $insertStmt->execute([
+                    $symbol,
+                    $symbol,
+                    strtolower($symbol)
+                ]);
+                
+                return $this->db->lastInsertId();
+            }
+        } catch (Exception $e) {
+            error_log("Error creating missing coin: " . $e->getMessage());
+            return null;
         }
     }
     
@@ -170,6 +302,21 @@ class TradeSynchronizer {
                     (1, ?, ?, ?)
             ");
             $stmt->execute([$coinId, $amount, $price]);
+        }
+    }
+    
+    /**
+     * Determine which table is referenced by trades.coin_id
+     */
+    private function getReferencedCoinTable() {
+        $stmt = $this->db->prepare("SHOW TABLES LIKE 'cryptocurrencies'");
+        $stmt->execute();
+        $hasCryptocurrenciesTable = $stmt->rowCount() > 0;
+        
+        if ($hasCryptocurrenciesTable) {
+            return 'cryptocurrencies';
+        } else {
+            return 'coins';
         }
     }
 }

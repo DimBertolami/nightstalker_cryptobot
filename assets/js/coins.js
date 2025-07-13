@@ -1003,6 +1003,76 @@ window.formatTradeButtons = function(id, symbol, price, canSell, balance) {
             fetchAndUpdateData();
             updatePortfolioDisplay();
         
+            // Portfolio sell button click handler
+            $(document).on('click', '.sell-portfolio-btn', function() {
+                const $button = $(this);
+                const coinId = $button.data('coin');
+                const symbol = $button.data('symbol');
+                
+                // Disable button to prevent double-clicks
+                $button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+                
+                // First, fetch the current price for this coin
+                $.ajax({
+                    url: '/NS/api/get-coin-price.php',
+                    method: 'GET',
+                    data: {
+                        symbol: symbol
+                    },
+                    dataType: 'json',
+                    success: function(priceData) {
+                        if (!priceData.success) {
+                            showToast('Could not get current price for ' + symbol, 'error');
+                            $button.prop('disabled', false).html(`<i class="fas fa-money-bill-wave me-1"></i>${symbol}`);
+                            return;
+                        }
+                        
+                        const currentPrice = priceData.price;
+                        
+                        // Now execute the sell with the current price
+                        $.ajax({
+                            url: '/NS/api/execute-trade.php',
+                            method: 'POST',
+                            data: {
+                                action: 'sell',
+                                coin_id: coinId,
+                                symbol: symbol,
+                                amount: 'all', // Special flag to sell all
+                                price: currentPrice
+                            },
+                            dataType: 'json',
+                            success: function(response) {
+                                if (response.success) {
+                                    showToast(`Successfully sold all ${symbol}!`, 'success');
+                                    // Update portfolio display
+                                    updatePortfolioDisplay();
+                                } else {
+                                    showToast(response.message || 'Trade failed', 'error');
+                                }
+                            },
+                            error: function(xhr) {
+                                let errorMsg = 'Server error while processing trade';
+                                try {
+                                    const response = JSON.parse(xhr.responseText);
+                                    if (response && response.message) {
+                                        errorMsg = response.message;
+                                    }
+                                } catch (e) {}
+                                showToast(errorMsg, 'error');
+                            },
+                            complete: function() {
+                                // Re-enable button
+                                $button.prop('disabled', false).html(`<i class="fas fa-money-bill-wave me-1"></i>${symbol}`);
+                            }
+                        });
+                    },
+                    error: function() {
+                        showToast('Failed to get current price for ' + symbol, 'error');
+                        $button.prop('disabled', false).html(`<i class="fas fa-money-bill-wave me-1"></i>${symbol}`);
+                    }
+                });
+            });
+
             // End of document.ready function
         });
         } else {
