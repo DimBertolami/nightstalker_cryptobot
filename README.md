@@ -494,39 +494,35 @@ The following issues were identified and fixed in the exchange configuration sys
 
 These fixes resolved issues preventing successful addition of cryptocurrency exchanges like Kraken to the platform.
 
-## Troubleshooting
+### Coin Data Fetching and Display Fixes (July 2025)
 
-- **API Connection Issues**:
-  - Check `logs/api_errors.log` for detailed error messages
-  - Verify API keys are correctly entered and have proper permissions
-  - Ensure your IP is not blocked by the exchange
+Several critical issues with the coin data fetching, storage, and display were identified and fixed:
 
-- **Database Problems**:
-  - Verify database connection in `includes/config.php`
-  - Check MySQL service is running: `sudo service mysql status`
-  - Run database diagnostics: `php tools/db_check.php`
-  - delete from coins table: `DELETE FROM coins WHERE id IN (886, 887, 888);`
-  - delete from cryptocurrencies table: `DELETE FROM cryptocurrencies WHERE symbol = 'SC1';`
-  - other handy commands:   `"SHOW DATABASES"` 
-                            `"SHOW TABLES FROM night_stalker"` 
-                            `"SELECT * FROM coins;"` 
-                            `"SELECT * FROM cryptocurrencies;"`
-                            `"SELECT count(*) FROM coins;"`
-                            `"DESCRIBE night_stalker.cryptocurrencies"`
-                            `"DESCRIBE night_stalker.coins"`
+1. **Binance Price Fetching Script (`binanceFromCMC4NS.py`)**:
+   - Fixed SQL query to include both `price` and `current_price` columns
+   - Updated SQL UPDATE statement to update both columns with the same value
+   - Resolved issue where coins were being saved with zero prices
+   - Added proper error handling for database operations
 
-- **Scheduled Tasks**:
-  - Make sure cron jobs are running: `crontab -l`
-  - Check cron logs: `grep CRON /var/log/syslog`
-  - Verify PHP CLI is working: `php -v`
+2. **API Endpoint Enhancement (`api/get-coins.php`)**:
+   - Added debug information to help diagnose empty coin list issues
+   - Improved filtering logic for coin retrieval
+   - Added counts for total coins and coins with prices > 0
+   - Enhanced error reporting in API responses
 
-- **Exchange Integration**:
-  - Test exchange connection through the Settings page
-  - Check CCXT library is installed: `composer show ccxt/ccxt`
-  - Verify exchange API status on their official status page
-  - Ensure config directory has proper write permissions: `chmod -R 777 /opt/lampp/htdocs/NS/config`
-  - Check browser console for JavaScript errors when adding exchanges
-  - Verify `api_url` parameter is included in exchange credentials
+3. **Frontend JavaScript Fixes (`coins.php`)**:
+   - Fixed "filters is not defined" error after commenting out filter-coins.js
+   - Added minimal filters object definition directly in coins.php
+   - Implemented basic applyCustomFilters() function
+   - Improved error handling in coin display logic
+
+4. **Troubleshooting Tools**:
+   - Created comprehensive debug script (`debug_coins_table.php`) to inspect database state
+   - Added detailed troubleshooting guide (`TROUBLESHOOTING-EMPTY-COINS.md`)
+   - Documented common issues and their solutions
+   - Provided quick 5-minute fix checklist for empty coin list problems
+
+These fixes ensure that coin prices are correctly fetched from Binance, properly stored in the database, and accurately displayed in the UI with working filters.
 
 ## Security Considerations
 

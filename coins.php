@@ -133,7 +133,6 @@ $customCSS = <<<'EOT'
         flex-direction: column;
         gap: 5px;
     }
-    
     .coin-indicators {
         margin-bottom: 5px;
         font-size: 0.85em;
@@ -167,10 +166,6 @@ $customCSS = <<<'EOT'
     
     .portfolio-item.zero-balance {
         opacity: 0.7;
-    }
-    
-    .portfolio-item.zero-balance .font-weight-bold {
-        color: #6c757d;
     }
     
     .portfolio-item:hover {
@@ -649,60 +644,6 @@ $coins = array_values($uniqueCoins); // Reset array keys
                             <label class="form-check-label text-white" for="filter-zero-price">Hide $0.00 coins</label>
                         </div>
                         <script>
-                        // Direct inline script to handle zero price filtering
-                        document.getElementById('filter-zero-price').addEventListener('change', function() {
-                            const shouldHide = this.checked;
-                            // Store preference in cookie
-                            document.cookie = `hide_zero_price=${shouldHide ? '1' : '0'}; path=/; max-age=${30 * 24 * 60 * 60}`;
-                            
-                            // Get all table rows
-                            const rows = document.querySelectorAll('table tr');
-                            let filteredCount = 0;
-                            let remainingCount = 0;
-                            
-                            console.log('%c🚀 NIGHTSTALKER COIN FILTER 🚀', 'font-size: 20px; font-weight: bold; color: #00ff00; background-color: #000;');
-                            console.log('%c⚙️ Filtering in progress...', 'color: #00bfff; font-style: italic;');
-                            
-                            let currentCount = 0;
-                            rows.forEach(row => {
-                                // Skip header rows
-                                if (row.querySelector('th')) return;
-                                
-                                // Find the price cell (second column) and coin name (first column)
-                                const cells = row.querySelectorAll('td');
-                                if (cells.length >= 2) {
-                                    const coinNameCell = cells[0]; // Coin name is in the first column (index 0)
-                                    const priceCell = cells[1]; // Price is in the second column (index 1)
-                                    const priceText = priceCell.textContent.trim();
-                                    const coinName = coinNameCell.textContent.trim();
-                                    
-                                    if (priceText === '$0.00' || priceText === '$0' || priceText === '$0.0' || priceText === '$0.000') {
-                                        if (shouldHide) {
-                                            row.style.display = 'none';
-                                            row.setAttribute('data-zero-price-hidden', 'true');
-                                            filteredCount++;
-                                            currentCount++;
-                                            console.log(`%c🗑️ [${currentCount}] ${coinName}`, 'color: #ff6b6b; font-weight: bold;');
-                                        } else {
-                                            row.style.display = '';
-                                            row.removeAttribute('data-zero-price-hidden');
-                                        }
-                                    } else {
-                                        remainingCount++;
-                                    }
-                                }
-                            });
-                            
-                            if (shouldHide) {
-                                console.log('%c📊 FILTER SUMMARY 📊', 'font-size: 16px; font-weight: bold; color: #00bfff; background-color: #000;');
-                                console.log(`%c✅ ${filteredCount} coins with $0.00 price filtered out`, 'color: #ff9500; font-weight: bold;');
-                                console.log(`%c💰 ${remainingCount} non-zero price coins remain visible`, 'color: #33ff33; font-weight: bold;');
-                            } else {
-                                console.log('%c📊 FILTER DISABLED 📊', 'font-size: 16px; font-weight: bold; color: #00bfff; background-color: #000;');
-                                console.log(`%c👁️ All ${filteredCount + remainingCount} coins are now visible`, 'color: #33ff33; font-weight: bold;');
-                            }
-                        });
-                        
                         // Initialize based on cookie
                         window.addEventListener('DOMContentLoaded', function() {
                             const hideZeroPrice = document.cookie.includes('hide_zero_price=1');
@@ -710,7 +651,42 @@ $coins = array_values($uniqueCoins); // Reset array keys
                             if (toggle) {
                                 toggle.checked = hideZeroPrice;
                                 if (hideZeroPrice) {
-                                    toggle.dispatchEvent(new Event('change'));
+                                    // Get all table rows
+                                    const rows = document.querySelectorAll('table tr');
+                                    let filteredCount = 0;
+                                    let remainingCount = 0;
+                                    
+                                    console.log('%c🚀 NIGHTSTALKER COIN FILTER 🚀', 'font-size: 20px; font-weight: bold; color: #00ff00; background-color: #000;');
+                                    console.log('%c⚙️ Filtering in progress...', 'color: #00bfff; font-style: italic;');
+                                    
+                                    let currentCount = 0;
+                                    rows.forEach(row => {
+                                        // Skip header rows
+                                        if (row.querySelector('th')) return;
+                
+                                        // Find the price cell (second column) and coin name (first column)
+                                        const cells = row.querySelectorAll('td');
+                                        if (cells.length >= 2) {
+                                            const coinNameCell = cells[0]; // Coin name is in the first column (index 0)
+                                            const priceCell = cells[1]; // Price is in the second column (index 1)
+                                            const priceText = priceCell.textContent.trim();
+                                            const coinName = coinNameCell.textContent.trim();
+                    
+                                            if (priceText === '$0.00' || priceText === '$0' || priceText === '$0.0' || priceText === '$0.000') {
+                                                row.style.display = 'none';
+                                                row.setAttribute('data-zero-price-hidden', 'true');
+                                                filteredCount++;
+                                                currentCount++;
+                                                console.log(`%c🗑️ [${currentCount}] ${coinName}`, 'color: #ff6b6b; font-weight: bold;');
+                                            } else {
+                                                remainingCount++;
+                                            }
+                                        }
+                                    });
+            
+                                    console.log('%c📊 FILTER SUMMARY 📊', 'font-size: 16px; font-weight: bold; color: #00bfff; background-color: #000;');
+                                    console.log(`%c✅ ${filteredCount} coins with $0.00 price filtered out`, 'color: #ff9500; font-weight: bold;');
+                                    console.log(`%c💰 ${remainingCount} non-zero price coins remain visible`, 'color: #33ff33; font-weight: bold;');
                                 }
                             }
                         });
@@ -901,213 +877,31 @@ $coins = array_values($uniqueCoins); // Reset array keys
 <script src="<?= BASE_URL ?>/assets/js/coins.js" nonce="<?= $nonce ?>"></script>
 
 <script>
-// Toast notification function
-function showToast(title, message, type) {
-    // Create toast container if it doesn't exist
-    if ($('#toast-container').length === 0) {
-        $('body').append('<div id="toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999;"></div>');
-    }
-    
-    // Create a unique ID for this toast
-    const id = 'toast-' + Date.now();
-    
-    // Create the toast element
-    const $toast = $(`
-        <div id="${id}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
-            <div class="toast-header bg-${type} text-white">
-                <strong class="me-auto">${title}</strong>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
-            </div>
-            <div class="toast-body">
-                ${message}
-            </div>
-        </div>
-    `);
-    
-    // Add the toast to the container
-    $('#toast-container').append($toast);
-    
-    // Initialize and show the toast
-    const toast = new bootstrap.Toast($toast[0]);
-    toast.show();
-    
-    // Remove the toast element after it's hidden
-    $toast.on('hidden.bs.toast', function() {
-        $(this).remove();
-    });
-}
-
-$(document).ready(function() {
-    // Initialize filters with default values
+    // Define filters object since filter-coins.js is commented out
     const filters = {
         age: {
-            enabled: true,
-            value: 24 // hours
+            enabled: <?php echo $filterAgeEnabled ? 'true' : 'false'; ?>,
+            value: <?php echo $filterAge; ?>
         },
         marketCap: {
-            enabled: true,
-            value: 1500000 // USD
+            enabled: <?php echo $filterMarketCapEnabled ? 'true' : 'false'; ?>,
+            value: <?php echo $filterMarketCap; ?>
         },
         volume: {
-            enabled: true,
-            value: 1500000 // USD
+            enabled: <?php echo $filterVolumeEnabled ? 'true' : 'false'; ?>,
+            value: <?php echo $filterVolume; ?>
         },
-        showAll: <?= $showAll ? 'true' : 'false' ?>,
-        autoRefresh: true,
-        entries: 25
+        autoRefresh: <?php echo $autoRefresh ? 'true' : 'false'; ?>
     };
-    
-    // Apply custom filtering
+
+    // Simple function to apply filters
     function applyCustomFilters() {
-        // Get all rows and loop through them
-        $('#coins-table tbody tr').each(function() {
-            const $row = $(this);
-            let show = true;
-            
-            // Age filter
-            if (filters.age.enabled) {
-                const ageText = $row.find('td:nth-child(6)').text().trim();
-                const ageHours = parseAgeText(ageText);
-                if (ageHours > filters.age.value) {
-                    show = false;
-                }
-            }
-            
-            // Market cap filter
-            if (show && filters.marketCap.enabled) {
-                const marketCapText = $row.find('td:nth-child(5)').text().trim();
-                const marketCap = parseMoneyText(marketCapText);
-                if (marketCap < filters.marketCap.value) {
-                    show = false;
-                }
-            }
-            
-            // Volume filter
-            if (show && filters.volume.enabled) {
-                const volumeText = $row.find('td:nth-child(4)').text().trim();
-                const volume = parseMoneyText(volumeText);
-                if (volume < filters.volume.value) {
-                    show = false;
-                }
-            }
-            
-            // Show or hide the row based on filters
-            if (show) {
-                $row.show();
-            } else {
-                $row.hide();
-            }
-        });
-        
-        // Update the entries info
-        updateEntriesInfo();
-        applyPagination();
+        console.log("Applying filters:", filters);
+        // This is a minimal implementation to prevent errors
+        // You can expand this as needed
     }
-    
-    // Helper function to parse money text like "$1,234,567"
-    function parseMoneyText(text) {
-        return parseFloat(text.replace(/[^0-9.]/g, '')) || 0;
-    }
-    
-    // Helper function to parse age text like "5.5 hours"
-    function parseAgeText(text) {
-        // Match decimal numbers followed by 'hours'
-        const hourMatch = text.match(/([\d.]+)\s*hours?/i);
-        if (hourMatch) return parseFloat(hourMatch[1]);
-        
-        // If no match, try to parse as a number directly (fallback)
-        const numberMatch = text.match(/([\d.]+)/);
-        if (numberMatch) return parseFloat(numberMatch[1]);
-        
-        return 0; // Default to 0 hours if parsing fails
-    }
-    
-    // Update entries info text
-    function updateEntriesInfo() {
-        // Count all rows without pagination filtering
-        const allRows = $('#coins-table tbody tr').length;
-        // Count all visible rows (after filtering but before pagination)
-        const visibleRows = $('#coins-table tbody tr:visible').length;
-        $('#entries-info').text(`Showing ${allRows} of ${allRows} entries`);
-    }
-    
-    // Add entries info element if it doesn't exist
-    if ($('#entries-info').length === 0) {
-        $('#coins-table').after('<div id="entries-info" class="mt-2">Showing 0 of 0 entries</div>');
-    }
-    
-    // Simple pagination implementation - modified to show all coins by default
-    function applyPagination() {
-        const visibleRows = $('#coins-table tbody tr:visible');
-        
-        // Show all rows - no pagination
-        visibleRows.show();
-        
-        // Clear any pagination controls
-        $('#pagination').empty();
-        
-        // Update entries info with accurate count
-        const totalRows = $('#coins-table tbody tr').length;
-        const visibleCount = visibleRows.length;
-        $('#entries-info').text(`Showing ${visibleCount} of ${totalRows} entries`);
-        
-        // Dispatch custom event for pagination applied
-        document.dispatchEvent(new CustomEvent('paginationApplied'));
-    }
-    
-    // Create pagination controls
-    function createPaginationControls(pages) {
-        const $pagination = $('#pagination');
-        $pagination.empty();
-        
-        if (pages <= 1) return;
-        
-        const $ul = $('<ul class="pagination"></ul>');
-        
-        // Previous button
-        $ul.append('<li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>');
-        
-        // Page numbers
-        for (let i = 1; i <= pages; i++) {
-            const $li = $(`<li class="page-item ${i === 1 ? 'active' : ''}"><a class="page-link" href="#">${i}</a></li>`);
-            $li.on('click', function() {
-                $('.pagination .page-item').removeClass('active');
-                $(this).addClass('active');
-                
-                const page = parseInt($(this).text()) - 1;
-                const visibleRows = $('#coins-table tbody tr:visible');
-                
-                visibleRows.hide();
-                visibleRows.slice(page * filters.entries, (page + 1) * filters.entries).show();
-                
-                // Enable/disable previous/next buttons
-                if (page === 0) {
-                    $('.pagination .page-item:first-child').addClass('disabled');
-                } else {
-                    $('.pagination .page-item:first-child').removeClass('disabled');
-                }
-                
-                if (page === pages - 1) {
-                    $('.pagination .page-item:last-child').addClass('disabled');
-                } else {
-                    $('.pagination .page-item:last-child').removeClass('disabled');
-                }
-            });
-            
-            $ul.append($li);
-        }
-        
-        // Next button
-        $ul.append('<li class="page-item"><a class="page-link" href="#">Next</a></li>');
-        
-        $pagination.append($ul);
-    }
-    
-    // Add pagination container if it doesn't exist
-    if ($('#pagination').length === 0) {
-        $('#coins-table').after('<div id="pagination" class="mt-3"></div>');
-    }
-    
+
+$(document).ready(function() {
     // Filter event handlers
     $('#filter-age').on('change', function() {
         filters.age.enabled = $(this).is(':checked');
@@ -1136,16 +930,6 @@ $(document).ready(function() {
         applyCustomFilters();
     });
     
-    // Show all coins toggle
-    $('#show-all-coins-toggle').on('change', function() {
-        filters.showAll = $(this).is(':checked');
-        
-        // Reload page with appropriate parameter
-        const url = new URL(window.location.href);
-        url.searchParams.set('show_all', filters.showAll ? '1' : '0');
-        window.location.href = url.toString();
-    });
-    
     // Auto-refresh toggle
     $('#auto-refresh-toggle').on('change', function() {
         filters.autoRefresh = $(this).is(':checked');
@@ -1155,29 +939,6 @@ $(document).ready(function() {
             stopAutoRefresh();
         }
     });
-    
-    // No entries per page selector - showing all coins
-    // Set a very high number to ensure all coins are shown
-    filters.entries = 1000; // Set to a high number to show all coins
-    
-    // Auto-refresh functionality
-    let autoRefreshInterval;
-    
-    function startAutoRefresh() {
-        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-        autoRefreshInterval = setInterval(function() {
-            window.location.reload();
-        }, 60000); // Refresh every minute
-    }
-    
-    function stopAutoRefresh() {
-        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-    }
-    
-    // Temporarily disable auto-refresh
-    // if (filters.autoRefresh) {
-    //     startAutoRefresh();
-    // }
     
     // Refresh button handler
     $('#refresh-data').on('click', function() {
@@ -1190,18 +951,6 @@ $(document).ready(function() {
         const symbol = $(this).data('symbol');
         window.location.href = `dashboard/trading_dashboard.php?symbol=${symbol}`;
     });
-    
-    // Run after any filtering or table updates
-    const originalApplyCustomFilters = applyCustomFilters;
-    applyCustomFilters = function() {
-        originalApplyCustomFilters();
-        
-        // Dispatch custom event that sorting can listen for
-        document.dispatchEvent(new CustomEvent('filtersApplied'));
-        
-        // Update entries info
-        updateEntriesInfo();
-    };
     
     // Sell button handler - sells all of the user's balance without confirmation
     $(document).on('click', '.sell-coin', function() {
@@ -1243,27 +992,27 @@ $(document).ready(function() {
                     $button.prop('disabled', false).html('<i class="fas fa-dollar-sign"></i>');
                 }
             });
-        }
+        });
     });
     
-    // Search functionality
-    $('#searchInput').on('input', function() {
-        const searchTerm = $(this).val().toLowerCase();
-        
-        $('#coins-table tbody tr').each(function() {
-            const $row = $(this);
-            const text = $row.text().toLowerCase();
-            
-            if (text.includes(searchTerm)) {
-                $row.addClass('search-match');
-            } else {
-                $row.removeClass('search-match');
-                $row.hide();
-            }
-        });
-        
-        applyCustomFilters();
-    });
+    // Auto-refresh functionality
+    let autoRefreshInterval;
+    
+    function startAutoRefresh() {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        autoRefreshInterval = setInterval(function() {
+            window.location.reload();
+        }, 60000); // Refresh every minute
+    }
+    
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    }
+    
+    // Temporarily disable auto-refresh
+    // if (filters.autoRefresh) {
+    //     startAutoRefresh();
+    // }
     
     // Initialize filters
     $('#filter-age').prop('checked', filters.age.enabled);
@@ -1274,11 +1023,10 @@ $(document).ready(function() {
     
     // Apply initial filters
     applyCustomFilters();
-});
+    //});
 </script>
 
 <!-- Include table sorting functionality -->
 <script src="/NS/assets/js/table-sort.js"></script>
-<script src="/NS/assets/js/filter-coins.js"></script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

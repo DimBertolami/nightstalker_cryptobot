@@ -1,0 +1,146 @@
+/**
+ * Bitvavo Data Auto-Refresh Styles
+ * 
+ * CSS styles for the auto-refresh functionality and loading indicators
+ */
+
+/* Loading overlay */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.loading-spinner {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+}
+
+.loading-spinner i {
+    color: #007bff;
+    margin-bottom: 15px;
+}
+
+.loading-spinner p {
+    margin: 0;
+    font-weight: bold;
+    color: #333;
+}
+
+/* Auto-refresh switch styling */
+.auto-refresh-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.auto-refresh-container label {
+    margin-right: 10px;
+    font-weight: bold;
+}
+
+/* Switch toggle */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: #2196F3;
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 1px #2196F3;
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+/* Notification container */
+#notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    max-width: 350px;
+}
+
+#notification-container .alert {
+    margin-bottom: 10px;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Refresh button styling */
+#refresh-data-btn {
+    margin-left: 15px;
+}
+
+/* Status indicator */
+.refresh-status {
+    margin-left: 15px;
+    font-style: italic;
+    color: #666;
+}
+
+.refresh-timestamp {
+    font-size: 0.85em;
+    color: #777;
+    margin-top: 5px;
+}

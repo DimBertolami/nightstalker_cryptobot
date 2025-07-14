@@ -169,25 +169,31 @@ try {
             throw new Exception("Database error: " . $e->getMessage());
         }
     } else { // Sell action
-        // First, try to find the coin in the database by symbol to get the correct coin_id
-        $stmt = $db->prepare("SELECT id FROM coins WHERE symbol = :symbol LIMIT 1");
-        $stmt->bindParam(':symbol', $symbol);
-        $stmt->execute();
-        $coinRecord = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        // If we found the coin in the database, use its ID
-        if ($coinRecord) {
-            $coinId = $coinRecord['id'];
-            error_log("Found coin in database with ID: $coinId");
-        } else {
-            error_log("Could not find coin with symbol: $symbol in database");
-        }
-        
-        // Check if coin exists in portfolio
+        // Instead of looking up the coin by symbol, directly check if it exists in portfolio by coin_id
         $stmt = $db->prepare("SELECT id, amount FROM portfolio WHERE coin_id = :coin_id");
         $stmt->bindParam(':coin_id', $coinId);
         $stmt->execute();
         $existingCoin = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // If not found by coin_id, try to find by symbol (more reliable)
+        if (!$existingCoin) {
+            $stmt = $db->prepare("
+                SELECT p.id, p.amount, p.coin_id 
+                FROM portfolio p 
+                JOIN coins c ON p.coin_id = c.id 
+                WHERE c.symbol = :symbol
+                LIMIT 1
+            ");
+            $stmt->bindParam(':symbol', $symbol);
+            $stmt->execute();
+            $existingCoin = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            // If found by symbol, update the coin_id to match
+            if ($existingCoin) {
+                $coinId = $existingCoin['coin_id'];
+                error_log("Found portfolio entry by symbol: $symbol with coin_id: $coinId");
+            }
+        }
         
         if (!$existingCoin) {
             throw new Exception("You don't own any $symbol to sell");

@@ -74,13 +74,14 @@ def main():
         for coin in matched_coins:
             sql = """
                 INSERT INTO coins (
-                    coin_name, symbol, currency, price, price_change_24h, marketcap, volume_24h,
+                    coin_name, symbol, currency, price, current_price, price_change_24h, marketcap, volume_24h,
                     last_updated, volume_spike, date_added, exchange_id
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, NULL, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, %s, %s
                 )
                 ON DUPLICATE KEY UPDATE
                     price = VALUES(price),
+                    current_price = VALUES(current_price),
                     price_change_24h = VALUES(price_change_24h),
                     marketcap = VALUES(marketcap),
                     volume_24h = VALUES(volume_24h),
@@ -89,14 +90,14 @@ def main():
             coin_name = coin['name']
             symbol = coin['symbol']
             currency = 'USD'
-            price = coin['quote']['USD']['price']
+            current_price = coin['quote']['USD']['price']
             price_change_24h = coin['quote']['USD'].get('percent_change_24h', 0)
             marketcap = coin['quote']['USD'].get('market_cap')
             if marketcap is None:
-                price = coin['quote']['USD']['price']
+                current_price = coin['quote']['USD']['price']
                 circulating_supply = coin.get('circulating_supply')
-                if price and circulating_supply:
-                    marketcap = price * circulating_supply
+                if current_price and circulating_supply:
+                    marketcap = current_price * circulating_supply
                 else:
                     # Skip this coin if we can't determine marketcap
                     continue
@@ -106,7 +107,7 @@ def main():
             # volume_spike is left as NULL for now
 
             values = (
-                coin_name, symbol, currency, price, price_change_24h, marketcap, volume_24h,
+                coin_name, symbol, currency, current_price, current_price, price_change_24h, marketcap, volume_24h,
                 last_updated, date_added, exchange_id
             )
             cursor.execute(sql, values)

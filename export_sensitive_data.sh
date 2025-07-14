@@ -27,9 +27,10 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Set default variables
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 BACKUP_DIR="$(pwd)/backup_$TIMESTAMP"
-DB_NAME="night_stalker"
+#DB_NAME="night_stalker"
+DB_NAME="NS"
 DB_USER="root"
-DB_PASS=""  # Default empty password
+DB_PASS="1304"  # Default empty password
 DRY_RUN=false
 
 # Parse command line arguments

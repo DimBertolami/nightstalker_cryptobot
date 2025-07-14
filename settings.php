@@ -162,7 +162,7 @@ $cronStatus = get_fetch_coins_cron_status();
                                 <label class="form-check-label fw-bold" for="masterFetchToggle">
                                     Enable Fetching of New Coins
                                 </label>
-                                <small class="text-muted d-block">Master switch to turn on/off all coin fetching</small>
+                                <small class="text-muted d-block">Master switch to turn on/off all coin fetching. When off, price monitoring is activated.</small>
                             </div>
                         </div>
                         
@@ -499,7 +499,8 @@ $cronStatus = get_fetch_coins_cron_status();
 // Add scripts to the footer
 $additional_scripts = [
     'assets/js/exchange-config.js',
-    'assets/js/cron-settings.js'
+    'assets/js/cron-settings.js',
+    'assets/js/settings.js'
 ];
 include 'includes/footer.php'; 
 ?>

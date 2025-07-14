@@ -17,6 +17,20 @@ try {
         throw new Exception('Database connection failed');
     }
 
+    // Debug: Check if there are any coins in the database
+    $checkStmt = $db->query("SELECT COUNT(*) as count FROM coins");
+    $totalCount = $checkStmt->fetch(PDO::FETCH_ASSOC)['count'];
+    
+    // Debug: Check if there are any coins with current_price > 0
+    $priceCheckStmt = $db->query("SELECT COUNT(*) as count FROM coins WHERE current_price > 0");
+    $priceCount = $priceCheckStmt->fetch(PDO::FETCH_ASSOC)['count'];
+    
+    // Debug: Add to response
+    $debugInfo = [
+        'total_coins' => $totalCount,
+        'coins_with_price' => $priceCount
+    ];
+
     // Build dynamic WHERE clause based on filters
     $where = ["current_price > 0"];
     $params = [];
@@ -64,7 +78,8 @@ try {
         echo json_encode([
             'success' => true,
             'data' => [],
-            'count' => 0
+            'count' => 0,
+            'debug' => $debugInfo
         ]);
         exit;
     }
@@ -98,7 +113,8 @@ try {
     echo json_encode([
         'success' => true,
         'data' => $coins,
-        'count' => count($coins)
+        'count' => count($coins),
+        'debug' => $debugInfo
     ]);
 
 } catch (PDOException $e) {
