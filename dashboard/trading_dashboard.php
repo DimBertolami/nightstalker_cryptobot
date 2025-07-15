@@ -332,7 +332,7 @@ include __DIR__ . '/../includes/header.php';
                                         <i class="bi bi-gear"></i> Manage
                                     </button>
                                 <?php else: ?>
-                                    <a href="/NS/link-wallet.php" class="btn btn-sm btn-primary">
+                                    <a href="/NS/link-wallet.php" class="btn btn-primary">
                                         <i class="bi bi-plus-circle"></i> Connect Wallet
                                     </a>
                                 <?php endif; ?>
