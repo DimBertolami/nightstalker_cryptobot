@@ -39,22 +39,51 @@ function loadPriceHistoryData() {
     
     // Fetch price history data
     fetch(`/NS/api/trading/price-history.php?exchange=${exchange}`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 renderPriceHistoryTable(data.data);
             } else {
-                showToast(data.message || 'Failed to load price history', 'error');
+                displayErrorMessage(data.message || 'Failed to load price history');
             }
         })
         .catch(error => {
             console.error('Error fetching price history:', error);
-            showToast('Error loading price history data', 'error');
+            displayErrorMessage('Error loading price history data');
         })
         .finally(() => {
             if (loadingElement) loadingElement.style.display = 'none';
             if (tableElement) tableElement.style.display = 'table';
         });
+}
+
+/**
+ * Display error message in the table area
+ * @param {string} message - Error message to display
+ */
+function displayErrorMessage(message) {
+    const tableBody = document.getElementById('price-history-tbody');
+    if (!tableBody) return;
+    
+    // Clear existing rows
+    tableBody.innerHTML = '';
+    
+    // Create error row
+    const errorRow = document.createElement('tr');
+    errorRow.innerHTML = `<td colspan="8" class="text-center py-4 text-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>${message}
+    </td>`;
+    tableBody.appendChild(errorRow);
+    
+    // If toast function exists, use it
+    if (typeof showToast === 'function') {
+        showToast(message, 'danger');
+    }
 }
 
 /**

@@ -9,11 +9,46 @@ require_once __DIR__ . '/includes/database.php';
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+// Debug database connection and trade_log table
+try {
+    $db = getDBConnection();
+    if (!$db) {
+        error_log("Database connection failed in trades.php");
+    } else {
+        // Check if trade_log table exists
+        $checkTable = $db->query("SHOW TABLES LIKE 'trade_log'");
+        if ($checkTable->rowCount() > 0) {
+            error_log("trade_log table exists");
+            
+            // Check count of records
+            $countStmt = $db->query("SELECT COUNT(*) as count FROM trade_log");
+            $countResult = $countStmt->fetch(PDO::FETCH_ASSOC);
+            error_log("trade_log record count: " . ($countResult['count'] ?? 'unknown'));
+            
+            // Check structure
+            $structureStmt = $db->query("DESCRIBE trade_log");
+            $columns = $structureStmt->fetchAll(PDO::FETCH_COLUMN);
+            error_log("trade_log columns: " . implode(", ", $columns));
+        } else {
+            error_log("trade_log table does not exist");
+        }
+    }
+} catch (Exception $e) {
+    error_log("Database debug error: " . $e->getMessage());
+}
+
 $title = "Trade History";
 require_once __DIR__ . '/includes/header.php';
 
 try {
-    $trades = getRecentTradesWithMarketDataPDO(100);
+    // Use the new function to get trade data from trade_log table
+    $trades = getTradeLogWithMarketDataPDO(100);
+    
+    // Debug output
+    error_log("Trade data fetched: " . json_encode([
+        'count' => count($trades),
+        'first_few' => array_slice($trades, 0, 3)
+    ]));
     
     // Sort trades by date descending (newest first)
     usort($trades, function($a, $b) {
@@ -90,62 +125,59 @@ if (!empty($trades)) {
                     <?php if (empty($trades)): ?>
                         <div class="alert alert-warning">
                             No trade history found or market data unavailable.
+                            <?php error_log("No trades available to display in trades.php"); ?>
                         </div>
                     <?php else: ?>
                         <div class="table-responsive">
                             <table class="table table-striped datatable background-color: #061e36; color: rgb(241, 207, 10);">
-                                <thead background-color: #061e36; color: rgb(241, 207, 10);>
+                                <thead background-color: #061e36; color: rgb(241, 207, 10);">
                                     <tr>
                                         <th>Date</th>
                                         <th>Coin</th>
                                         <th>Type</th>
                                         <th>Amount</th>
-                                        <th>Entry Price</th>
-                                        <th>Current Price</th>
-                                        <th>Invested</th>
-                                        
-                                        <th>P/L</th>
+                                        <th>Price</th>
+                                        <th>Current</th>
+                                        <th>Value</th>
+                                        <th>Strategy</th>
                                     </tr>
                                 </thead>
-                                <tbody background-color: #061e36; color: rgb(241, 207, 10);>
+                                <tbody background-color: #061e36; color: rgb(241, 207, 10);">
                                     <?php foreach ($trades as $trade): ?>
                                     <?php
-                                        // Use backend-calculated values
-                                        $entryPrice = $trade['entry_price'];
-                                        $currentPrice = $trade['current_price'];
-                                        $invested = $trade['invested'];
-                                        $profitLoss = $trade['profit_loss'];
-                                        $profitLossPercent = $trade['profit_loss_percent'];
-                                        $isBuy = strtolower($trade['trade_type']) === 'buy';
+                                        $currentPrice = $trade['current_price'] ?? 0;
+                                        $entryPrice = $trade['price'] ?? 0;
+                                        $amount = $trade['amount'] ?? 0;
+                                        $invested = $trade['total_value'] ?? ($amount * $entryPrice);
+                                        $symbol = $trade['symbol'] ?? 'UNKNOWN';
+                                        $tradeType = strtolower($trade['trade_type'] ?? 'unknown');
+                                        $isBuy = $tradeType === 'buy';
+                                        $tradeTime = $trade['trade_time'] ?? date('Y-m-d H:i:s');
+                                        $strategy = $trade['strategy'] ?? 'manual';
                                     ?>
                                     <tr>
-                                        <td><?= htmlspecialchars(date('Y-m-d H:i', strtotime($trade['trade_time']))) ?></td>
+                                        <td><?= htmlspecialchars(date('Y-m-d H:i', strtotime($tradeTime))) ?></td>
                                         <td>
-                                            <?= htmlspecialchars($trade['symbol']) ?>
-                                            <?php if ($trade['price_change_24h']): ?>
-                                                <span class="badge bg-<?= $trade['price_change_24h'] >= 0 ? 'success' : 'danger' ?> ms-1">
-                                                    <?= number_format($trade['price_change_24h'], 2) ?>%
-                                                </span>
-                                            <?php endif; ?>
+                                            <div class="d-flex align-items-center">
+                                                <img src="assets/img/coins/<?= strtolower($symbol) ?>.png" 
+                                                     alt="<?= htmlspecialchars($symbol) ?>"
+                                                     class="coin-icon me-2"
+                                                     onerror="this.onerror=null; this.src='assets/img/coins/generic.png';">
+                                                <div>
+                                                    <strong><?= htmlspecialchars($symbol) ?></strong>
+                                                </div>
+                                            </div>
                                         </td>
                                         <td>
-                                            <span class="badge bg-<?= $trade['trade_type'] === 'buy' ? 'success' : 'danger' ?>">
-                                                <?= strtoupper($trade['trade_type']) ?>
+                                            <span class="badge <?= $isBuy ? 'bg-success' : 'bg-danger' ?>">
+                                                <?= strtoupper($tradeType) ?>
                                             </span>
                                         </td>
-                                        <td><?= is_numeric($trade['amount']) ? rtrim(rtrim(number_format($trade['amount'], 4, '.', ''), '0'), '.') : '–' ?></td>
+                                        <td><?= number_format($amount, 8) ?></td>
                                         <td>$<?= is_numeric($entryPrice) ? rtrim(rtrim(number_format($entryPrice, 4, '.', ''), '0'), '.') : '–' ?></td>
                                         <td>$<?= is_numeric($currentPrice) ? rtrim(rtrim(number_format($currentPrice, 4, '.', ''), '0'), '.') : '–' ?></td>
                                         <td>$<?= is_numeric($invested) ? number_format($invested, 2) : '–' ?></td>
-                                        
-                                        <td class="<?= (is_numeric($profitLoss) && $profitLoss >= 0) ? 'text-success' : ((is_numeric($profitLoss)) ? 'text-danger' : '') ?>">
-                                            <?php if (!is_numeric($profitLoss)): ?>
-                                                –
-                                            <?php else: ?>
-                                                $<?= number_format($profitLoss, 2) ?>
-                                                (<?= is_numeric($profitLossPercent) ? number_format($profitLossPercent, 2) : '–' ?>%)
-                                            <?php endif; ?>
-                                        </td>
+                                        <td><?= htmlspecialchars($strategy) ?></td>
                                     </tr>
                                     <?php endforeach; ?>
                                 </tbody>

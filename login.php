@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Set page title before including header
-$title = "Login - Night Stalker";
+$title = "Night Stalker: Built from a decommissioned early-warning tsunami Artificial Intelligence system with new mission objectives: to track, target and exploit new crypto's success or failure prediction on exchanges around the world, starting with Bitvavo and Binance";
 require_once __DIR__ . '/includes/header.php';
 ?>
 

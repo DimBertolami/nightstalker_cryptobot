@@ -25,7 +25,8 @@ try {
         'cmc_fetch_coins' => '/opt/lampp/htdocs/NS/tools/fetch_cmc_coins.php',
         'trending_fetcher' => '/opt/lampp/htdocs/NS/crypto_sources/crypto_trending_fetcher.py',
         'cron_manager' => '/opt/lampp/htdocs/NS/tools/cron_manager_tool.php',
-        'exchange_monitor' => '/opt/lampp/htdocs/NS/system-tools/run_exchange_monitor.php'
+        'exchange_monitor' => '/opt/lampp/htdocs/NS/system-tools/run_exchange_monitor.php',
+        'export_sensitive_data' => '/opt/lampp/htdocs/NS/export_sensitive_data.sh'
     ];
     
     // Get requested tool
@@ -46,11 +47,30 @@ try {
     // Execute the script and capture output
     ob_start();
     
-    // Include the script
-    require $allowedTools[$tool];
+    // Check file extension to determine execution method
+    $fileExtension = pathinfo($allowedTools[$tool], PATHINFO_EXTENSION);
     
-    // Get output
-    $scriptOutput = ob_get_clean();
+    if ($fileExtension === 'sh') {
+        // Execute shell script
+        $command = 'bash ' . escapeshellarg($allowedTools[$tool]);
+        if (isset($_GET['dry_run']) && $_GET['dry_run'] === 'true') {
+            $command .= ' --dry-run';
+        }
+        
+        $output = [];
+        $returnCode = 0;
+        exec($command . ' 2>&1', $output, $returnCode);
+        
+        $scriptOutput = implode("\n", $output);
+        
+        if ($returnCode !== 0) {
+            throw new Exception("Shell script execution failed with code $returnCode");
+        }
+    } else {
+        // Include PHP script
+        require $allowedTools[$tool];
+        $scriptOutput = ob_get_clean();
+    }
     
     // Save output to log file
     file_put_contents($logFile, $scriptOutput);
@@ -90,4 +110,3 @@ try {
 
 // End output buffering and flush
 ob_end_flush();
-

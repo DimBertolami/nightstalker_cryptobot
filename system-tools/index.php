@@ -66,6 +66,14 @@ $tools = [
         'category' => 'Maintenance',
         'last_run' => null
     ],
+    'export_sensitive_data' => [
+        'name' => 'Export Sensitive Data',
+        'description' => 'Backs up all sensitive data including database, config files, and credentials',
+        'script' => '/opt/lampp/htdocs/NS/export_sensitive_data.sh',
+        'icon' => 'fa-shield-alt',
+        'category' => 'Maintenance',
+        'last_run' => null
+    ],
     // Add more tools here as they are created
 ];
 

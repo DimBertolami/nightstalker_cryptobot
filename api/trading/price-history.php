@@ -7,26 +7,36 @@
  * Optimized for autonomous trading strategy visualization
  */
 
-require_once __DIR__ . '/../../includes/config.php';
-require_once __DIR__ . '/../../includes/functions.php';
-require_once __DIR__ . '/../../includes/pdo_functions.php';
-require_once __DIR__ . '/../../includes/auth.php';
+// Prevent any output before our JSON response
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
 
-// Start session and check authentication
-session_start();
-requireAuth();
-
-// Set headers
-header('Content-Type: application/json');
-
-// Get selected exchange from request or session
-$exchange = $_GET['exchange'] ?? $_SESSION['selected_exchange'] ?? 'binance';
-
-// Get interval parameter (optional)
-$interval = $_GET['interval'] ?? 'auto';
+// Buffer all output to prevent headers already sent errors
+ob_start();
 
 try {
+    require_once __DIR__ . '/../../includes/config.php';
+    require_once __DIR__ . '/../../includes/functions.php';
+    require_once __DIR__ . '/../../includes/pdo_functions.php';
+    require_once __DIR__ . '/../../includes/auth.php';
+    
+    // Start session and check authentication
+    session_start();
+    requireAuth();
+    
+    // Set headers
+    header('Content-Type: application/json');
+    
+    // Get selected exchange from request or session
+    $exchange = $_GET['exchange'] ?? $_SESSION['selected_exchange'] ?? 'binance';
+    
+    // Get interval parameter (optional)
+    $interval = $_GET['interval'] ?? 'auto';
+    
     $db = getDBConnection();
+    if (!$db) {
+        throw new Exception("Database connection failed");
+    }
     
     // Get all coins with price history data
     $stmt = $db->prepare("SELECT DISTINCT coin_id FROM price_history");
@@ -45,6 +55,9 @@ try {
     
     // Get price history data for each coin
     $priceHistoryData = [];
+    
+    // Get current user ID safely
+    $userId = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 0;
     
     foreach ($availableCoins as $coinId) {
         // Get the most recent price data
@@ -167,7 +180,7 @@ try {
         
         // Get portfolio amount if available
         $stmt = $db->prepare("SELECT SUM(amount) as total_amount FROM portfolio WHERE user_id = ? AND coin_id = ?");
-        $stmt->execute([getCurrentUserId(), $coinId]);
+        $stmt->execute([$userId, $coinId]);
         $portfolioData = $stmt->fetch(PDO::FETCH_ASSOC);
         $portfolioAmount = $portfolioData ? (float)$portfolioData['total_amount'] : 0;
         
@@ -207,13 +220,31 @@ try {
     ]);
     
 } catch (Exception $e) {
+    // Clear any previous output
+    ob_clean();
+    
     // Return error response
     error_log("Price history API error: " . $e->getMessage());
+    header('Content-Type: application/json');
     echo json_encode([
         'success' => false,
         'message' => 'Error retrieving price history data: ' . $e->getMessage()
     ]);
+} catch (Throwable $e) {
+    // Catch any other errors
+    ob_clean();
+    
+    // Return error response
+    error_log("Price history API critical error: " . $e->getMessage());
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => false,
+        'message' => 'Critical error retrieving price history data'
+    ]);
 }
+
+// End output buffering and flush
+ob_end_flush();
 
 /**
  * Calculate percent change between two prices

@@ -2950,7 +2950,7 @@ if (confirm(`Confirm purchase of ${amount} ${symbol} at $${price} per coin?\nTot
             }
         }
     });
-}
+});
 
 // Sell button click handler
 $(document).on('click', '.btn-sell', function() {
@@ -3086,4 +3086,4 @@ function processCoinData(data) {
         }
     });
 }
-})
+

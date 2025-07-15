@@ -789,3 +789,111 @@ function executeSellPDO($coinId, $amount, $price) {
         ];
     }
 }
+
+/**
+ * Get recent trades from trade_log table - direct query
+ */
+function getTradeLogPDO(int $limit = 100): array {
+    try {
+        $db = getDBConnection();
+        if (!$db) {
+            throw new Exception("Database connection failed");
+        }
+
+        // First check the structure of the table to see what columns are available
+        try {
+            $structureStmt = $db->query("DESCRIBE trade_log");
+            $columns = $structureStmt->fetchAll(PDO::FETCH_COLUMN);
+            error_log("Available trade_log columns: " . implode(", ", $columns));
+        } catch (Exception $e) {
+            error_log("Could not get trade_log structure: " . $e->getMessage());
+        }
+
+        // Query directly from trade_log table with minimal assumptions about structure
+        $stmt = $db->query("SELECT * FROM trade_log ORDER BY id DESC LIMIT $limit");
+        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        if (empty($result)) {
+            error_log("No trades found in trade_log table");
+            return [];
+        }
+        
+        // Debug the first result to see actual structure
+        if (!empty($result)) {
+            error_log("First trade from trade_log: " . json_encode($result[0]));
+        }
+        
+        // Return the raw data for now - we'll process it in the calling function
+        return $result;
+    } catch (Exception $e) {
+        error_log("[getTradeLogPDO] " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Get recent trades from trade_log table with market data
+ */
+function getTradeLogWithMarketDataPDO(int $limit = 100): array {
+    try {
+        $db = getDBConnection();
+        if (!$db) {
+            throw new Exception("Database connection failed");
+        }
+
+        // First, get the raw trade data
+        $rawTrades = getTradeLogPDO($limit);
+        
+        if (empty($rawTrades)) {
+            error_log("No trades returned from getTradeLogPDO");
+            return [];
+        }
+
+        // Process the raw trades into a consistent format
+        $trades = [];
+        foreach ($rawTrades as $row) {
+            // Map fields from whatever structure we have to our expected structure
+            // Use null coalescing to handle potential missing fields
+            $trade = [
+                'id' => $row['id'] ?? null,
+                'coin_id' => $row['coin_id'] ?? null,
+                'symbol' => $row['symbol'] ?? $row['coin'] ?? 'UNKNOWN',
+                'name' => $row['symbol'] ?? $row['coin'] ?? 'Unknown',
+                'amount' => $row['amount'] ?? 0,
+                'price' => $row['price'] ?? 0,
+                'trade_type' => $row['action'] ?? $row['trade_type'] ?? 'unknown',
+                'trade_time' => $row['trade_date'] ?? $row['date'] ?? $row['trade_time'] ?? date('Y-m-d H:i:s'),
+                'total_value' => isset($row['amount']) && isset($row['price']) ? ($row['amount'] * $row['price']) : 0,
+                'strategy' => $row['strategy'] ?? 'manual'
+            ];
+            
+            $trades[] = $trade;
+        }
+
+        // Get current prices for all symbols
+        $symbols = array_unique(array_column($trades, 'symbol'));
+        $currentPrices = [];
+        
+        if (!empty($symbols)) {
+            $placeholders = implode(',', array_fill(0, count($symbols), '?'));
+            $stmt = $db->prepare("SELECT symbol, current_price FROM coins WHERE symbol IN ($placeholders)");
+            $stmt->execute($symbols);
+            $priceData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            foreach ($priceData as $row) {
+                $currentPrices[$row['symbol']] = $row['current_price'];
+            }
+        }
+        
+        // Enrich trade data with current prices
+        foreach ($trades as &$trade) {
+            $symbol = $trade['symbol'];
+            $trade['current_price'] = $currentPrices[$symbol] ?? 0;
+        }
+        
+        return $trades;
+    } catch (Exception $e) {
+        error_log("[getTradeLogWithMarketDataPDO] " . $e->getMessage());
+        return [];
+    }
+}

@@ -358,7 +358,7 @@ $cronStatus = get_fetch_coins_cron_status();
                         <button type="button" name="resetData" class="btn btn-outline-danger" onclick="if(confirm('Are you sure? This cannot be undone!')) document.getElementById('reset-data').submit();">
                             <i class="fas fa-trash-alt"></i> Reset All Data
                         </button>
-                        <small class="text-muted d-block mt-2">This will delete all tracked coins and settings.</small>
+                        <small class="text-muted d-block">This will delete all tracked coins and settings.</small>
                     </div>
                     <input type="hidden" name="reset_action" value="reset_data" form="settings-form" id="reset-data">
                 </div>
