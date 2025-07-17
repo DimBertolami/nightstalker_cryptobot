@@ -135,10 +135,7 @@ class CoinFetcher {
     // Fetch from CoinMarketCap, CoinGecko, and other APIs
     private function fetchCoins() {
         $results = [];
-        $whitelist = array_map(function($coin) {
-            return str_replace('COIN_', '', $coin);
-        }, COIN_WHITELIST);
-        $symbolString = implode(',', $whitelist);
+        $symbolString = 'USUAL,LOOM,BCH,ETH,RED,TLM';
 
         // Fetch from CoinMarketCap
         if(!empty($cmcData = $this->fetchFromCMC($symbolString))) {
@@ -223,9 +220,6 @@ class CoinFetcher {
 
         // Process each coin
         foreach ($processedCoins as $coinId => $coin) {
-            if (!in_array($coinId, COIN_WHITELIST)) {
-                continue; // Skip non-whitelisted coins
-            }
             try {
                 // Get the symbol and source
                 $symbol = $coin['symbol'];

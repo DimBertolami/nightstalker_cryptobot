@@ -42,21 +42,6 @@ $customCSS = <<<'EOT'
     window.disableDataTables = true;
 </script>
 
-<!-- Custom styles for exchange logos alignment -->
-<style>
-    .exchange-logo {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    .exchange-logo img {
-        margin-right: 5px;
-    }
-    #coins-table td:nth-child(8) {
-        text-align: center;
-    }
-</style>
-
 <style>
     /* Sortable column styles */
     .sortable {
@@ -114,30 +99,6 @@ $customCSS = <<<'EOT'
         100% { background-color: transparent; }
     }
     
-    /* Exchange logo styles */
-    .exchange-logo {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-    }
-    
-    .exchange-icon {
-        width: 24px;
-        height: 24px;
-        object-fit: contain;
-    }
-    
-    /* Trade column layout */
-    .trade-controls {
-        display: flex;
-        flex-direction: column;
-        gap: 5px;
-    }
-    .coin-indicators {
-        margin-bottom: 5px;
-        font-size: 0.85em;
-    }
-    
     #last-update {
         font-size: 0.8rem;
         color: #6c757d;
@@ -166,6 +127,10 @@ $customCSS = <<<'EOT'
     
     .portfolio-item.zero-balance {
         opacity: 0.7;
+    }
+    
+    .portfolio-item.zero-balance .font-weight-bold {
+        color: #6c757d;
     }
     
     .portfolio-item:hover {
@@ -238,19 +203,11 @@ try {
         try {
             $db = getDbConnection();
             
-            // Query to get coins based on filter with exchange information
+            // Query to get coins based on filter
             if (!$showAll) {
-                $query = "SELECT c.*, e.exchange_name, e.id as exchange_id 
-                          FROM coins c 
-                          LEFT JOIN exchanges e ON c.exchange_id = e.id 
-                          WHERE c.date_added > DATE_SUB(NOW(), INTERVAL 24 HOUR) 
-                          ORDER BY c.marketcap DESC";
+                $query = "SELECT * FROM coins WHERE date_added > DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY marketcap DESC";
             } else {
-                $query = "SELECT c.*, e.exchange_name, e.id as exchange_id 
-                          FROM coins c 
-                          LEFT JOIN exchanges e ON c.exchange_id = e.id 
-                          WHERE c.marketcap > ? AND c.volume_24h > ? 
-                          ORDER BY c.marketcap DESC";
+                $query = "SELECT * FROM coins WHERE marketcap > ? AND volume_24h > ? ORDER BY marketcap DESC";
             }
             
             $stmt = $db->prepare($query);
@@ -278,18 +235,63 @@ try {
                     'age_hours' => isset($coin['date_added']) ? round((time() - strtotime($coin['date_added'])) / 3600, 1) : 0,
                     'is_trending' => isset($coin['volume_spike']) && $coin['volume_spike'] > 0,
                     'volume_spike' => $coin['volume_spike'] ?? 0,
-                    'exchange_id' => $coin['exchange_id'] ?? null,
-                    'exchange_name' => $coin['exchange_name'] ?? null,
-                    'source' => $coin['exchange_name'] ?? 'Local'
+                    'source' => 'Local',
+                    'source_exchange' => $coin['source_exchange'] ?? 'binance', // Default to binance if not present
                 ];
             }
+
+            // --- Filter by default exchange ---
+            $selectedExchange = $_SESSION['default_exchange'] ?? 'binance';
+            $coins = array_filter($coins, function($coin) use ($selectedExchange) {
+                return isset($coin['source_exchange']) && strtolower($coin['source_exchange']) === strtolower($selectedExchange);
+            });
+
+            // --- Remove old deduplication (move to after all sources) ---
         } catch (PDOException $e) {
             error_log("Database error: " . $e->getMessage());
             // Continue to try CMC data
         }
         
-        // CMC data is now handled by a separate script that adds it directly to the database
-        // No need to fetch CMC data here anymore
+        // Add CMC data if enabled
+        if (($config['data_sources']['coinmarketcap'] ?? false)) {
+            try {
+                $cmcCoins = getCMCTrendingCoins();
+                error_log("Fetched " . count($cmcCoins) . " coins from CMC");
+                
+                if (!empty($cmcCoins)) {
+                    foreach ($cmcCoins as $coin) {
+                        // Skip if we already have this coin
+                        $exists = false;
+                        foreach ($coins as $existingCoin) {
+                            if ($existingCoin['symbol'] == $coin['symbol']) {
+                                $exists = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!$exists) {
+                            $coins[] = [
+                                'id' => 'cmc_' . ($coin['id'] ?? rand(10000, 99999)),
+                                'symbol' => $coin['symbol'],
+                                'name' => $coin['name'],
+                                'current_price' => $coin['quote']['USD']['price'],
+                                'price_change_24h' => $coin['quote']['USD']['percent_change_24h'],
+                                'volume_24h' => $coin['quote']['USD']['volume_24h'] ?? 0,
+                                'market_cap' => $coin['quote']['USD']['market_cap'] ?? 0,
+                                'date_added' => date('Y-m-d H:i:s'),
+                                'age_hours' => 0,
+                                'is_trending' => 1,
+                                'volume_spike' => 0,
+                                'source' => 'CMC'
+                            ];
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                error_log("CMC API error: " . $e->getMessage());
+                // Continue with just database coins
+            }
+        }
     }
     
     // Use mock data if explicitly requested or if no coins found
@@ -299,6 +301,21 @@ try {
         // No coins and not using mock data
         $_SESSION['error'] = "Market data temporarily unavailable. <a href='?use_mock=1'>Click here to use mock data</a> or <a href='?refresh=1'>Try again</a>.";
     }
+
+    // --- Robust deduplication: by symbol (case-insensitive, trimmed) ---
+    $uniqueCoins = [];
+    foreach ($coins as $coin) {
+        $symbolKey = strtoupper(trim($coin['symbol']));
+        if (!isset($uniqueCoins[$symbolKey])) {
+            $uniqueCoins[$symbolKey] = $coin;
+        } else {
+            // Prefer the entry with the lowest age_hours
+            if ($coin['age_hours'] < $uniqueCoins[$symbolKey]['age_hours']) {
+                $uniqueCoins[$symbolKey] = $coin;
+            }
+        }
+    }
+    $coins = array_values($uniqueCoins);
 
 } catch (Exception $e) {
     error_log("Market data error: " . $e->getMessage());
@@ -366,42 +383,6 @@ error_log('Final user balances: ' . print_r($userBalances, true));
 $coins = array_filter($coins, function($coin) {
     return isset($coin['current_price']) && floatval($coin['current_price']) > 0;
 });
-
-// Include exchange configuration to get default exchange
-require_once __DIR__ . '/includes/exchange_config.php';
-$default_exchange = get_default_exchange();
-
-// Get the default exchange database ID
-$default_exchange_db_id = null;
-try {
-    $db = getDbConnection();
-    $stmt = $db->prepare("SELECT id FROM exchanges WHERE exchange_name = ?");
-    $stmt->execute([strtolower($default_exchange)]);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    if ($result) {
-        $default_exchange_db_id = $result['id'];
-        error_log("Default exchange DB ID: " . $default_exchange_db_id);
-    }
-} catch (Exception $e) {
-    error_log("Error getting default exchange ID: " . $e->getMessage());
-}
-
-// Enhanced deduplication - prioritize coins from default exchange
-$uniqueCoins = [];
-foreach ($coins as $coin) {
-    $symbol = strtoupper(trim($coin['symbol']));
-    
-    // If we haven't seen this symbol yet, add it
-    if (!isset($uniqueCoins[$symbol])) {
-        $uniqueCoins[$symbol] = $coin;
-    } 
-    // If we have a default exchange and this coin is from that exchange, prefer it
-    else if ($default_exchange_db_id && isset($coin['exchange_id']) && $coin['exchange_id'] == $default_exchange_db_id) {
-        $uniqueCoins[$symbol] = $coin;
-    }
-}
-
-$coins = array_values($uniqueCoins); // Reset array keys
 ?>
 
 <style>
@@ -492,31 +473,6 @@ $coins = array_values($uniqueCoins); // Reset array keys
     .badge-trending {
         background-color: #ffc107;
         color: #212529;
-    }
-    
-    /* Exchange logos */
-    .exchange-logo {
-        max-width: 24px;
-        max-height: 24px;
-        object-fit: contain;
-    }
-    
-    /* Trade column styling */
-    .trade-actions {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 5px;
-    }
-    
-    .trade-actions .input-group {
-        width: auto;
-        flex-wrap: nowrap;
-    }
-    
-    .trade-actions .buy-amount {
-        width: 80px;
-        min-width: 60px;
     }
     
     /* Portfolio coin styling */
@@ -644,6 +600,60 @@ $coins = array_values($uniqueCoins); // Reset array keys
                             <label class="form-check-label text-white" for="filter-zero-price">Hide $0.00 coins</label>
                         </div>
                         <script>
+                        // Direct inline script to handle zero price filtering
+                        document.getElementById('filter-zero-price').addEventListener('change', function() {
+                            const shouldHide = this.checked;
+                            // Store preference in cookie
+                            document.cookie = `hide_zero_price=${shouldHide ? '1' : '0'}; path=/; max-age=${30 * 24 * 60 * 60}`;
+                            
+                            // Get all table rows
+                            const rows = document.querySelectorAll('table tr');
+                            let filteredCount = 0;
+                            let remainingCount = 0;
+                            
+                            console.log('%c🚀 NIGHTSTALKER COIN FILTER 🚀', 'font-size: 20px; font-weight: bold; color: #00ff00; background-color: #000;');
+                            console.log('%c⚙️ Filtering in progress...', 'color: #00bfff; font-style: italic;');
+                            
+                            let currentCount = 0;
+                            rows.forEach(row => {
+                                // Skip header rows
+                                if (row.querySelector('th')) return;
+                                
+                                // Find the price cell (second column) and coin name (first column)
+                                const cells = row.querySelectorAll('td');
+                                if (cells.length >= 2) {
+                                    const coinNameCell = cells[0]; // Coin name is in the first column (index 0)
+                                    const priceCell = cells[1]; // Price is in the second column (index 1)
+                                    const priceText = priceCell.textContent.trim();
+                                    const coinName = coinNameCell.textContent.trim();
+                                    
+                                    if (priceText === '$0.00' || priceText === '$0' || priceText === '$0.0' || priceText === '$0.000') {
+                                        if (shouldHide) {
+                                            row.style.display = 'none';
+                                            row.setAttribute('data-zero-price-hidden', 'true');
+                                            filteredCount++;
+                                            currentCount++;
+                                            console.log(`%c🗑️ [${currentCount}] ${coinName}`, 'color: #ff6b6b; font-weight: bold;');
+                                        } else {
+                                            row.style.display = '';
+                                            row.removeAttribute('data-zero-price-hidden');
+                                        }
+                                    } else {
+                                        remainingCount++;
+                                    }
+                                }
+                            });
+                            
+                            if (shouldHide) {
+                                console.log('%c📊 FILTER SUMMARY 📊', 'font-size: 16px; font-weight: bold; color: #00bfff; background-color: #000;');
+                                console.log(`%c✅ ${filteredCount} coins with $0.00 price filtered out`, 'color: #ff9500; font-weight: bold;');
+                                console.log(`%c💰 ${remainingCount} non-zero price coins remain visible`, 'color: #33ff33; font-weight: bold;');
+                            } else {
+                                console.log('%c📊 FILTER DISABLED 📊', 'font-size: 16px; font-weight: bold; color: #00bfff; background-color: #000;');
+                                console.log(`%c👁️ All ${filteredCount + remainingCount} coins are now visible`, 'color: #33ff33; font-weight: bold;');
+                            }
+                        });
+                        
                         // Initialize based on cookie
                         window.addEventListener('DOMContentLoaded', function() {
                             const hideZeroPrice = document.cookie.includes('hide_zero_price=1');
@@ -651,42 +661,7 @@ $coins = array_values($uniqueCoins); // Reset array keys
                             if (toggle) {
                                 toggle.checked = hideZeroPrice;
                                 if (hideZeroPrice) {
-                                    // Get all table rows
-                                    const rows = document.querySelectorAll('table tr');
-                                    let filteredCount = 0;
-                                    let remainingCount = 0;
-                                    
-                                    console.log('%c🚀 NIGHTSTALKER COIN FILTER 🚀', 'font-size: 20px; font-weight: bold; color: #00ff00; background-color: #000;');
-                                    console.log('%c⚙️ Filtering in progress...', 'color: #00bfff; font-style: italic;');
-                                    
-                                    let currentCount = 0;
-                                    rows.forEach(row => {
-                                        // Skip header rows
-                                        if (row.querySelector('th')) return;
-                
-                                        // Find the price cell (second column) and coin name (first column)
-                                        const cells = row.querySelectorAll('td');
-                                        if (cells.length >= 2) {
-                                            const coinNameCell = cells[0]; // Coin name is in the first column (index 0)
-                                            const priceCell = cells[1]; // Price is in the second column (index 1)
-                                            const priceText = priceCell.textContent.trim();
-                                            const coinName = coinNameCell.textContent.trim();
-                    
-                                            if (priceText === '$0.00' || priceText === '$0' || priceText === '$0.0' || priceText === '$0.000') {
-                                                row.style.display = 'none';
-                                                row.setAttribute('data-zero-price-hidden', 'true');
-                                                filteredCount++;
-                                                currentCount++;
-                                                console.log(`%c🗑️ [${currentCount}] ${coinName}`, 'color: #ff6b6b; font-weight: bold;');
-                                            } else {
-                                                remainingCount++;
-                                            }
-                                        }
-                                    });
-            
-                                    console.log('%c📊 FILTER SUMMARY 📊', 'font-size: 16px; font-weight: bold; color: #00bfff; background-color: #000;');
-                                    console.log(`%c✅ ${filteredCount} coins with $0.00 price filtered out`, 'color: #ff9500; font-weight: bold;');
-                                    console.log(`%c💰 ${remainingCount} non-zero price coins remain visible`, 'color: #33ff33; font-weight: bold;');
+                                    toggle.dispatchEvent(new Event('change'));
                                 }
                             }
                         });
@@ -777,33 +752,15 @@ $coins = array_values($uniqueCoins); // Reset array keys
                                             <span class="badge badge-volume-spike">Volume Spike</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="text-center">
-                                        <?php if (isset($coin['exchange_id'])): ?>
-                                            <?php if (strtolower($coin['exchange_name']) === 'binance'): ?>
-                                                <img src="assets/images/binance-logo.png" alt="Binance" class="exchange-logo" width="24" height="24">
-                                            <?php elseif (strtolower($coin['exchange_name']) === 'bitvavo'): ?>
-                                                <img src="assets/images/bitvavo-logo.png" alt="Bitvavo" class="exchange-logo" width="24" height="24">
-                                            <?php else: ?>
-                                                <?= $coin['exchange_name'] ?? $coin['source'] ?? 'Local' ?>
-                                            <?php endif; ?>
-                                        <?php else: ?>
-                                            <?= $coin['source'] ?? 'Local' ?>
-                                        <?php endif; ?>
-                                    </td>
+                                    <td class="text-center"><?= $coin['source'] ?? 'Local' ?></td>
                                     <td>
-                                        <div class="d-flex align-items-center trade-actions">
-                                            <a href="dashboard/trading_dashboard.php?symbol=<?= $coin['symbol'] ?>" class="btn btn-outline-primary btn-sm me-2">
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="dashboard/trading_dashboard.php?symbol=<?= $coin['symbol'] ?>" class="btn btn-outline-primary btn-sm">
                                                 <i class="fas fa-chart-line"></i>
                                             </a>
-                                            <div class="input-group input-group-sm">
-                                                <input type="number" class="form-control form-control-sm buy-amount" placeholder="Amount" style="width: 80px;">
-                                                <button class="btn btn-success btn-sm buy-button" 
-                                                        data-id="<?= $coin['id'] ?>" 
-                                                        data-symbol="<?= $coin['symbol'] ?>" 
-                                                        data-price="<?= $coin['current_price'] ?>">
-                                                    Buy
-                                                </button>
-                                            </div>
+                                            <button class="btn btn-outline-success btn-sm buy-coin" data-symbol="<?= $coin['symbol'] ?>" data-price="<?= $coin['current_price'] ?>">
+                                                <i class="fas fa-shopping-cart"></i>
+                                            </button>
                                             <?php 
                                             // Check if the coin is in the user's portfolio
                                             $symbol = $coin['symbol'];
@@ -877,31 +834,213 @@ $coins = array_values($uniqueCoins); // Reset array keys
 <script src="<?= BASE_URL ?>/assets/js/coins.js" nonce="<?= $nonce ?>"></script>
 
 <script>
-    // Define filters object since filter-coins.js is commented out
-    const filters = {
-        age: {
-            enabled: <?php echo $filterAgeEnabled ? 'true' : 'false'; ?>,
-            value: <?php echo $filterAge; ?>
-        },
-        marketCap: {
-            enabled: <?php echo $filterMarketCapEnabled ? 'true' : 'false'; ?>,
-            value: <?php echo $filterMarketCap; ?>
-        },
-        volume: {
-            enabled: <?php echo $filterVolumeEnabled ? 'true' : 'false'; ?>,
-            value: <?php echo $filterVolume; ?>
-        },
-        autoRefresh: <?php echo $autoRefresh ? 'true' : 'false'; ?>
-    };
-
-    // Simple function to apply filters
-    function applyCustomFilters() {
-        console.log("Applying filters:", filters);
-        // This is a minimal implementation to prevent errors
-        // You can expand this as needed
+// Toast notification function
+function showToast(title, message, type) {
+    // Create toast container if it doesn't exist
+    if ($('#toast-container').length === 0) {
+        $('body').append('<div id="toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999;"></div>');
     }
+    
+    // Create a unique ID for this toast
+    const id = 'toast-' + Date.now();
+    
+    // Create the toast element
+    const $toast = $(`
+        <div id="${id}" class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000">
+            <div class="toast-header bg-${type} text-white">
+                <strong class="me-auto">${title}</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                ${message}
+            </div>
+        </div>
+    `);
+    
+    // Add the toast to the container
+    $('#toast-container').append($toast);
+    
+    // Initialize and show the toast
+    const toast = new bootstrap.Toast($toast[0]);
+    toast.show();
+    
+    // Remove the toast element after it's hidden
+    $toast.on('hidden.bs.toast', function() {
+        $(this).remove();
+    });
+}
 
 $(document).ready(function() {
+    // Initialize filters with default values
+    const filters = {
+        age: {
+            enabled: true,
+            value: 24 // hours
+        },
+        marketCap: {
+            enabled: true,
+            value: 1500000 // USD
+        },
+        volume: {
+            enabled: true,
+            value: 1500000 // USD
+        },
+        showAll: <?= $showAll ? 'true' : 'false' ?>,
+        autoRefresh: true,
+        entries: 25
+    };
+    
+    // Apply custom filtering
+    function applyCustomFilters() {
+        // Get all rows and loop through them
+        $('#coins-table tbody tr').each(function() {
+            const $row = $(this);
+            let show = true;
+            
+            // Age filter
+            if (filters.age.enabled) {
+                const ageText = $row.find('td:nth-child(6)').text().trim();
+                const ageHours = parseAgeText(ageText);
+                if (ageHours > filters.age.value) {
+                    show = false;
+                }
+            }
+            
+            // Market cap filter
+            if (show && filters.marketCap.enabled) {
+                const marketCapText = $row.find('td:nth-child(5)').text().trim();
+                const marketCap = parseMoneyText(marketCapText);
+                if (marketCap < filters.marketCap.value) {
+                    show = false;
+                }
+            }
+            
+            // Volume filter
+            if (show && filters.volume.enabled) {
+                const volumeText = $row.find('td:nth-child(4)').text().trim();
+                const volume = parseMoneyText(volumeText);
+                if (volume < filters.volume.value) {
+                    show = false;
+                }
+            }
+            
+            // Show or hide the row based on filters
+            if (show) {
+                $row.show();
+            } else {
+                $row.hide();
+            }
+        });
+        
+        // Update the entries info
+        updateEntriesInfo();
+        applyPagination();
+    }
+    
+    // Helper function to parse money text like "$1,234,567"
+    function parseMoneyText(text) {
+        return parseFloat(text.replace(/[^0-9.]/g, '')) || 0;
+    }
+    
+    // Helper function to parse age text like "5.5 hours"
+    function parseAgeText(text) {
+        // Match decimal numbers followed by 'hours'
+        const hourMatch = text.match(/([\d.]+)\s*hours?/i);
+        if (hourMatch) return parseFloat(hourMatch[1]);
+        
+        // If no match, try to parse as a number directly (fallback)
+        const numberMatch = text.match(/([\d.]+)/);
+        if (numberMatch) return parseFloat(numberMatch[1]);
+        
+        return 0; // Default to 0 hours if parsing fails
+    }
+    
+    // Update entries info text
+    function updateEntriesInfo() {
+        // Count all rows without pagination filtering
+        const allRows = $('#coins-table tbody tr').length;
+        // Count all visible rows (after filtering but before pagination)
+        const visibleRows = $('#coins-table tbody tr:visible').length;
+        $('#entries-info').text(`Showing ${allRows} of ${allRows} entries`);
+    }
+    
+    // Add entries info element if it doesn't exist
+    if ($('#entries-info').length === 0) {
+        $('#coins-table').after('<div id="entries-info" class="mt-2">Showing 0 of 0 entries</div>');
+    }
+    
+    // Simple pagination implementation - modified to show all coins by default
+    function applyPagination() {
+        const visibleRows = $('#coins-table tbody tr:visible');
+        
+        // Show all rows - no pagination
+        visibleRows.show();
+        
+        // Clear any pagination controls
+        $('#pagination').empty();
+        
+        // Update entries info with accurate count
+        const totalRows = $('#coins-table tbody tr').length;
+        const visibleCount = visibleRows.length;
+        $('#entries-info').text(`Showing ${visibleCount} of ${totalRows} entries`);
+        
+        // Dispatch custom event for pagination applied
+        document.dispatchEvent(new CustomEvent('paginationApplied'));
+    }
+    
+    // Create pagination controls
+    function createPaginationControls(pages) {
+        const $pagination = $('#pagination');
+        $pagination.empty();
+        
+        if (pages <= 1) return;
+        
+        const $ul = $('<ul class="pagination"></ul>');
+        
+        // Previous button
+        $ul.append('<li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>');
+        
+        // Page numbers
+        for (let i = 1; i <= pages; i++) {
+            const $li = $(`<li class="page-item ${i === 1 ? 'active' : ''}"><a class="page-link" href="#">${i}</a></li>`);
+            $li.on('click', function() {
+                $('.pagination .page-item').removeClass('active');
+                $(this).addClass('active');
+                
+                const page = parseInt($(this).text()) - 1;
+                const visibleRows = $('#coins-table tbody tr:visible');
+                
+                visibleRows.hide();
+                visibleRows.slice(page * filters.entries, (page + 1) * filters.entries).show();
+                
+                // Enable/disable previous/next buttons
+                if (page === 0) {
+                    $('.pagination .page-item:first-child').addClass('disabled');
+                } else {
+                    $('.pagination .page-item:first-child').removeClass('disabled');
+                }
+                
+                if (page === pages - 1) {
+                    $('.pagination .page-item:last-child').addClass('disabled');
+                } else {
+                    $('.pagination .page-item:last-child').removeClass('disabled');
+                }
+            });
+            
+            $ul.append($li);
+        }
+        
+        // Next button
+        $ul.append('<li class="page-item"><a class="page-link" href="#">Next</a></li>');
+        
+        $pagination.append($ul);
+    }
+    
+    // Add pagination container if it doesn't exist
+    if ($('#pagination').length === 0) {
+        $('#coins-table').after('<div id="pagination" class="mt-3"></div>');
+    }
+    
     // Filter event handlers
     $('#filter-age').on('change', function() {
         filters.age.enabled = $(this).is(':checked');
@@ -930,6 +1069,16 @@ $(document).ready(function() {
         applyCustomFilters();
     });
     
+    // Show all coins toggle
+    $('#show-all-coins-toggle').on('change', function() {
+        filters.showAll = $(this).is(':checked');
+        
+        // Reload page with appropriate parameter
+        const url = new URL(window.location.href);
+        url.searchParams.set('show_all', filters.showAll ? '1' : '0');
+        window.location.href = url.toString();
+    });
+    
     // Auto-refresh toggle
     $('#auto-refresh-toggle').on('change', function() {
         filters.autoRefresh = $(this).is(':checked');
@@ -939,6 +1088,29 @@ $(document).ready(function() {
             stopAutoRefresh();
         }
     });
+    
+    // No entries per page selector - showing all coins
+    // Set a very high number to ensure all coins are shown
+    filters.entries = 1000; // Set to a high number to show all coins
+    
+    // Auto-refresh functionality
+    let autoRefreshInterval;
+    
+    function startAutoRefresh() {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        autoRefreshInterval = setInterval(function() {
+            window.location.reload();
+        }, 60000); // Refresh every minute
+    }
+    
+    function stopAutoRefresh() {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    }
+    
+    // Temporarily disable auto-refresh
+    // if (filters.autoRefresh) {
+    //     startAutoRefresh();
+    // }
     
     // Refresh button handler
     $('#refresh-data').on('click', function() {
@@ -951,6 +1123,18 @@ $(document).ready(function() {
         const symbol = $(this).data('symbol');
         window.location.href = `dashboard/trading_dashboard.php?symbol=${symbol}`;
     });
+    
+    // Run after any filtering or table updates
+    const originalApplyCustomFilters = applyCustomFilters;
+    applyCustomFilters = function() {
+        originalApplyCustomFilters();
+        
+        // Dispatch custom event that sorting can listen for
+        document.dispatchEvent(new CustomEvent('filtersApplied'));
+        
+        // Update entries info
+        updateEntriesInfo();
+    };
     
     // Sell button handler - sells all of the user's balance without confirmation
     $(document).on('click', '.sell-coin', function() {
@@ -992,27 +1176,27 @@ $(document).ready(function() {
                     $button.prop('disabled', false).html('<i class="fas fa-dollar-sign"></i>');
                 }
             });
-        });
+        }
     });
     
-    // Auto-refresh functionality
-    let autoRefreshInterval;
-    
-    function startAutoRefresh() {
-        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-        autoRefreshInterval = setInterval(function() {
-            window.location.reload();
-        }, 60000); // Refresh every minute
-    }
-    
-    function stopAutoRefresh() {
-        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-    }
-    
-    // Temporarily disable auto-refresh
-    // if (filters.autoRefresh) {
-    //     startAutoRefresh();
-    // }
+    // Search functionality
+    $('#searchInput').on('input', function() {
+        const searchTerm = $(this).val().toLowerCase();
+        
+        $('#coins-table tbody tr').each(function() {
+            const $row = $(this);
+            const text = $row.text().toLowerCase();
+            
+            if (text.includes(searchTerm)) {
+                $row.addClass('search-match');
+            } else {
+                $row.removeClass('search-match');
+                $row.hide();
+            }
+        });
+        
+        applyCustomFilters();
+    });
     
     // Initialize filters
     $('#filter-age').prop('checked', filters.age.enabled);
@@ -1023,10 +1207,11 @@ $(document).ready(function() {
     
     // Apply initial filters
     applyCustomFilters();
-    //});
+});
 </script>
 
 <!-- Include table sorting functionality -->
 <script src="/NS/assets/js/table-sort.js"></script>
+<script src="/NS/assets/js/filter-coins.js"></script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

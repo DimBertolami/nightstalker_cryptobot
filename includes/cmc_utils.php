@@ -80,3 +80,40 @@ function getCMCGainersLosers() {
     
     return $result;
 }
+
+function fetch_coin_price_from_cmc($symbol) {
+    $apiKey = getenv('CMC_API_KEY');
+    $url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol=' . urlencode($symbol);
+    
+    $headers = [
+        'Accepts: application/json',
+        'X-CMC_PRO_API_KEY: ' . $apiKey
+    ];
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    
+    $response = curl_exec($ch);
+    $error = curl_error($ch);
+    curl_close($ch);
+    
+    if ($error) {
+        error_log("CMC API Error: " . $error);
+        return ['success' => false, 'message' => $error];
+    }
+    
+    $decoded = json_decode($response, true);
+    
+    if (isset($decoded['status']) && $decoded['status']['error_code'] != 0) {
+        error_log("CMC API Error: " . $decoded['status']['error_message']);
+        return ['success' => false, 'message' => $decoded['status']['error_message']];
+    }
+    
+    if (isset($decoded['data']) && isset($decoded['data'][$symbol]) && isset($decoded['data'][$symbol]['quote']['USD']['price'])) {
+        return ['success' => true, 'price' => $decoded['data'][$symbol]['quote']['USD']['price']];
+    } else {
+        return ['success' => false, 'message' => 'Price data not found for symbol.'];
+    }
+}

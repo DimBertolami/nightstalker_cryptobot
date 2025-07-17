@@ -22,7 +22,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
     default-src 'self';
     script-src 'self' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.datatables.net 'unsafe-inline' 'unsafe-eval';
     style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.datatables.net 'unsafe-inline';
-    img-src 'self' data: https: *;
+    img-src 'self' data: https: http://localhost;
     font-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com 'unsafe-inline';
 ">
 

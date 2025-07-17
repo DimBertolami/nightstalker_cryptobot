@@ -189,7 +189,7 @@ function testPortfolioLookup($coinId) {
                 echo "<td>" . $coin['coin_id'] . "</td>";
                 echo "<td>" . $coin['amount'] . "</td>";
                 echo "<td>" . $coin['avg_buy_price'] . "</td>";
-                echo "<td>" . $coin['last_updated'] . "</td>";
+                echo "<td>" . (isset($coin['last_updated']) ? $coin['last_updated'] : '') . "</td>";
                 echo "</tr>";
             }
             

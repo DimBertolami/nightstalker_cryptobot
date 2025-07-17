@@ -433,6 +433,32 @@ To add a new tool to the dashboard:
   - Verify `api_url` parameter is included in exchange credentials
 
 ## Recent Fixes
+###   Phase 1: Backend - Price History API Endpoint (Already Done)
+   * We have crons/portfolio_price_monitor.php running in the background, populating price_history.
+   * We have api/get-price-history.php ready to serve price history data.
+
+###  Phase 2: Frontend - Portfolio Card UI with Mini-Graphs
+
+***Step 1:*** Add Chart.js and new CSS to `coins.php` (Carefully)
+       * I have already added the Chart.js library link to coins.php.
+       * add the new CSS for the crypto widgets to coins.php within a new <style> block, ensuring it doesn't interfere with existing styles.
+   ***Step 2:*** Modify `coins.php` HTML for Portfolio Display
+       * change the div with id="portfolio" to be the container for the new card-style widgets. The main coin table will remain separate.
+   ***Step 3:*** Update `assets/js/coins.js` for Portfolio Cards
+       * I should modify the updatePortfolioDisplay function to:
+           * Fetch portfolio data.
+           * For each coin in the portfolio, dynamically create the HTML for the "coin-card" including a <canvas> element for the mini-graph.
+           * Call api/get-price-history.php for each coin to get its price history.
+           * Use Chart.js to draw the mini-graph on the canvas.
+           * Remove the "Buy" button from these portfolio cards.
+           * Ensure the "Sell" button on the cards sells the entire holding of that coin with a single confirmation click.Step 3: Update `assets/js/coins.js` for Portfolio Cards
+       * I should modify the updatePortfolioDisplay function to:
+           * Fetch portfolio data.
+           * For each coin in the portfolio, dynamically create the HTML for the "coin-card" including a <canvas> element for the mini-graph.
+           * Call api/get-price-history.php for each coin to get its price history.
+           * Use Chart.js to draw the mini-graph on the canvas.
+           * Remove the "Buy" button from these portfolio cards.
+           * Ensure the "Sell" button on the cards sells the entire holding of that coin with a single confirmation click.
 
 ### New Coin Detection & Display Enhancement (June 2025)
 ### New Coin Discovery & Display Enhancement (June 2025)
