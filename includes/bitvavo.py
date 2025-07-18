@@ -103,9 +103,28 @@ class BitvavoImplementation:
     # calls to Bitvavo to respond to market conditions.
     def a_trading_strategy_callback(self, response):
       if not self.first_data_received:
+          connection = mysql.connector.connect(unix_socket="/opt/lampp/var/mysql/mysql.sock", host="127.0.0.1", user="root", password="1304", database="NS", port=3307)
+          cursor = connection.cursor()
+          # Fetch all coin symbols and their ids once to avoid multiple queries
+          cursor.execute("SELECT symbol, id FROM cryptocurrencies")
+          coin_map = {row[0]: row[1] for row in cursor.fetchall()}
           for market in response:
               if market["market"] in self.tracked_symbols:
-                  print(f"{market['market']}: {market['bid']}")
+                  # Extract coin symbol before the dash, e.g. "AAVE" from "AAVE-EUR"
+                  coin_symbol = market["market"].split('-')[0]
+                  coin_id = coin_map.get(coin_symbol)
+                  if coin_id:
+                      price = market['bid']
+                      # Insert into price_history
+                      try:
+                          cursor.execute("INSERT INTO price_history (coin_id, price) VALUES (%s, %s)", (coin_id, price))
+                          connection.commit()
+                      except Exception as e:
+                          print(f"Error inserting price for {coin_symbol}: {e}")
+                  else:
+                      print(f"Coin ID not found for symbol: {coin_symbol}")
+          cursor.close()
+          connection.close()
           self.first_data_received = True
           # Close the socket after first data batch is processed
           # Use a timer to close socket outside of callback thread to avoid join current thread error
