@@ -1,0 +1,179 @@
+   /* Sortable column styles */
+    .sortable {
+        cursor: pointer;
+        position: relative;
+        user-select: none;
+    }
+    
+    .sortable:hover {
+        background-color: rgba(0, 123, 255, 0.1);
+    }
+    
+    .sortable i {
+        margin-left: 5px;
+        opacity: 0.5;
+    }
+    
+    .sortable:hover i {
+        opacity: 0.8;
+    }
+    
+    .fa-sort-up, .fa-sort-down {
+        opacity: 1 !important;
+        color: #48b101;
+    }
+
+    div{
+        color: rgb(241, 207, 10);
+        font-weight: bolder;
+    }
+    
+    @keyframes blink {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+    }
+    .text-field{
+        background-color: #061e36;
+        color: rgb(241, 207, 10);
+        font-weight: bold;
+    }
+    .new-coin {
+        animation: blink 1s infinite;
+        font-weight: bold;
+        color: #dc3545;
+    }
+    .data-updated {
+        animation: highlight 2s ease-out;
+    }
+    
+    @keyframes highlight {
+        0% { background-color: rgba(255, 255, 0, 0.5); }
+        100% { background-color: transparent; }
+    }
+    
+    #last-update {
+        font-size: 0.8rem;
+        color: #6c757d;
+        margin-left: 10px;
+    }
+    
+    #refresh-btn {
+        margin-left: 10px;
+    }
+    
+    #auto-refresh {
+        margin-left: 10px;
+    }
+    
+     /* Tooltip styles */
+    .tooltip-inner {
+        max-width: 300px;
+        padding: 8px 12px;
+        background-color: #343a40;
+        font-size: 0.875rem;
+        text-align: left;
+    }
+    
+    .bs-tooltip-auto[x-placement^=left] .arrow::before, 
+    .bs-tooltip-left .arrow::before {
+        border-left-color: #343a40;
+    }
+/* Table styles */
+#coins-table {
+    color: rgb(241, 207, 10);
+    width: 100%;
+    margin: 20px 0;
+}
+#coins-table th {
+    background: #722e2e;
+    color: rgb(187, 255, 0);
+    padding: 10px;
+    white-space: nowrap;
+}
+
+/* Sortable columns */
+.sortable {
+    cursor: pointer;
+    position: relative;
+}
+
+.sortable:hover {
+    background-color: #495057;
+}
+
+.sortable .fa-sort-up,
+.sortable .fa-sort-down,
+.sortable .fa-sort {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+#coins-table td {
+    background-color: #000000;
+    color: rgb(255, 251, 196);
+    padding: 0px 3px;
+    vertical-align: right; ;
+}
+.positive-change {
+    color: #28a745;
+}
+.negative-change {
+    color: #dc3545;
+}
+.table-responsive {
+    overflow-x: auto;
+}
+
+/* Trading form styles */
+.trade-form {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 5px;
+}
+.trade-form input[type="number"] {
+    width: 80px;
+}
+.btn-buy {
+    background-color: #28a745;
+    border-color: #28a745;
+}
+.btn-sell {
+    background-color: #dc3545;
+    border-color: #dc3545;
+}
+
+/* Balance display */
+.balance-badge {
+    margin-right: 8px;
+    margin-bottom: 5px;
+}
+
+/* Price indicators */
+.price-up {
+    color: #28a745;
+}
+.price-down {
+    color: #dc3545;
+}
+
+/* Status badges */
+.badge-trending {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+/* Portfolio buttons */
+.sell-portfolio-btn {
+    transition: all 0.5s ease-in-out;
+    box-shadow: 0 1px 3px rgba(255, 0, 0, 0.12);
+    background-color: rgb(3, 142, 223);
+    border: 2px solid rgb(247, 210, 2);
+    width: 100%;
+    height: 50px;
+    }
+.sell-portfolio-btn:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}

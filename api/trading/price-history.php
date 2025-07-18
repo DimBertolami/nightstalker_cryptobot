@@ -62,11 +62,11 @@ try {
     foreach ($availableCoins as $coinId) {
         // Get the most recent price data
         $stmt = $db->prepare("
-            SELECT price, recorded_at, volume, market_cap
-            FROM price_history 
-            WHERE coin_id = ? 
-            ORDER BY recorded_at DESC 
-            LIMIT 1
+        SELECT price, recorded_at
+        FROM price_history 
+        WHERE coin_id = ? 
+        ORDER BY recorded_at DESC 
+        LIMIT 1
         ");
         $stmt->execute([$coinId]);
         $latestData = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -197,8 +197,8 @@ try {
             'interval_labels' => $intervalLabels,
             'price_points' => $pricePoints,
             'amount' => $portfolioAmount,
-            'volume' => (float)$latestData['volume'],
-            'market_cap' => (float)$latestData['market_cap'],
+            //'volume' => (float)$latestData['volume'],
+            //'market_cap' => (float)$latestData['market_cap'],
             'in_portfolio' => $portfolioAmount > 0
         ];
     }

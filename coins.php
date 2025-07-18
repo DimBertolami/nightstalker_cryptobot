@@ -30,7 +30,7 @@ $autoRefresh = isset($_COOKIE['auto_refresh']) ? $_COOKIE['auto_refresh'] == '1'
 $entriesPerPage = isset($_COOKIE['entries_per_page']) ? (int)$_COOKIE['entries_per_page'] : 25;
 
 // Set title before including header
-$title = "Crypto Stalker - an early tsunami detection system but for crypto";
+$title = "Crypto Stalker - built from the discarded remains of an early tsunami detection artificial intelligence, with new mission objectives to track and exploit a flaw discovered in new cryptocoins which causes them to be predictable in their price movements.";
 
 require_once __DIR__ . '/includes/header.php';
 
@@ -42,123 +42,6 @@ $customCSS = <<<'EOT'
     window.disableDataTables = true;
 </script>
 
-<style>
-    /* Sortable column styles */
-    .sortable {
-        cursor: pointer;
-        position: relative;
-        user-select: none;
-    }
-    
-    .sortable:hover {
-        background-color: rgba(0, 123, 255, 0.1);
-    }
-    
-    .sortable i {
-        margin-left: 5px;
-        opacity: 0.5;
-    }
-    
-    .sortable:hover i {
-        opacity: 1;
-    }
-    
-    .fa-sort-up, .fa-sort-down {
-        opacity: 1 !important;
-        color: #007bff;
-    }
-
-    div{
-        background-color: #061e36;
-        color: rgb(241, 207, 10);
-        font-weight: bold;
-    }
-    
-    @keyframes blink {
-        0% { opacity: 1; }
-        50% { opacity: 0.5; }
-        100% { opacity: 1; }
-    }
-    .text-field{
-        background-color: #061e36;
-        color: rgb(241, 207, 10);
-        font-weight: bold;
-    }
-    .new-coin {
-        animation: blink 1s infinite;
-        font-weight: bold;
-        color: #dc3545;
-    }
-    
-    .data-updated {
-        animation: highlight 2s ease-out;
-    }
-    
-    @keyframes highlight {
-        0% { background-color: rgba(255, 255, 0, 0.5); }
-        100% { background-color: transparent; }
-    }
-    
-    #last-update {
-        font-size: 0.8rem;
-        color: #6c757d;
-        margin-left: 10px;
-    }
-    
-    #refresh-btn {
-        margin-left: 10px;
-    }
-    
-    #auto-refresh {
-        margin-left: 10px;
-    }
-    
-    /* Portfolio item styles */
-    .portfolio-item {
-        background-color: #061e36;
-        color: rgb(241, 207, 10);
-        font-weight: bold;
-        portfolio-padding: 1px;
-        portfolio-border-radius: 1px;
-        portfolio-border: 1px solid #320755;
-        portfolio-box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        transition: all 0.3s ease;
-    }
-    
-    .portfolio-item.zero-balance {
-        opacity: 0.7;
-    }
-    
-    .portfolio-item.zero-balance .font-weight-bold {
-        color: #6c757d;
-    }
-    
-    .portfolio-item:hover {
-        background-color: rgba(0, 0, 0, 0.03);
-    }
-    
-    /* Tooltip styles */
-    .tooltip-inner {
-        max-width: 300px;
-        padding: 8px 12px;
-        background-color: #343a40;
-        font-size: 0.875rem;
-        text-align: left;
-    }
-    
-    .bs-tooltip-auto[x-placement^=left] .arrow::before, 
-    .bs-tooltip-left .arrow::before {
-        border-left-color: #343a40;
-    }
-    
-    /* Disable portfolio display */
-    .portfolio-alert {
-        display: none;
-    }
-</style>
-        
-
-</script>
 <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src 'self' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.datatables.net 'unsafe-inline' 'unsafe-eval';
@@ -385,124 +268,7 @@ $coins = array_filter($coins, function($coin) {
 });
 ?>
 
-<style>
-    /* Table styles */
-    #coins-table {
-        background-color: #061e36;
-        color: rgb(241, 207, 10);
-        border-left: 4px solid #17a2b8;
-        width: 100%;
-        margin: 20px 0;
-    }
-    #coins-table th {
-        background: #343a40;
-        color: white;
-        padding: 12px;
-        white-space: nowrap;
-    }
-    
-    /* Sortable columns */
-    .sortable {
-        cursor: pointer;
-        position: relative;
-    }
-    
-    .sortable:hover {
-        background-color: #495057;
-    }
-    
-    .sortable .fa-sort-up,
-    .sortable .fa-sort-down,
-    .sortable .fa-sort {
-        position: absolute;
-        right: 8px;
-        top: 50%;
-        transform: translateY(-50%);
-    }
-    #coins-table td {
-        background-color: #061e36;
-        color: rgb(241, 207, 10);
-        border-left: 4px solid #17a2b8;
-        padding: 8px 12px;
-        border-bottom: 1px solid #dee2e6;
-        vertical-align: middle;
-    }
-    .positive-change {
-        color: #28a745;
-    }
-    .negative-change {
-        color: #dc3545;
-    }
-    .table-responsive {
-        overflow-x: auto;
-    }
-    
-    /* Trading form styles */
-    .trade-form {
-        display: flex;
-        gap: 5px;
-        margin-bottom: 5px;
-    }
-    .trade-form input[type="number"] {
-        width: 80px;
-    }
-    .btn-buy {
-        background-color: #28a745;
-        border-color: #28a745;
-    }
-    .btn-sell {
-        background-color: #dc3545;
-        border-color: #dc3545;
-    }
-    
-    /* Balance display */
-    .balance-badge {
-        margin-right: 8px;
-        margin-bottom: 5px;
-    }
-    
-    /* Price indicators */
-    .price-up {
-        color: #28a745;
-    }
-    .price-down {
-        color: #dc3545;
-    }
-    
-    /* Status badges */
-    .badge-trending {
-        background-color: #ffc107;
-        color: #212529;
-    }
-    
-    /* Portfolio coin styling */
-    .portfolio-coin {
-        background-color: rgba(255, 193, 7, 0.05) !important;
-        border-left: 3px solid #ffc107 !important;
-    }
-    
-    .portfolio-indicator {
-        display: inline-block;
-        width: 16px;
-        height: 16px;
-        text-align: center;
-        line-height: 16px;
-    }
-    .badge-volume-spike {
-        background-color:rgb(20, 5, 63);
-        color: rgb(241, 207, 10);
-    }
-    
-    /* Portfolio buttons */
-    .sell-portfolio-btn {
-        min-width: 100px;
-        transition: all 0.2s;
-    }
-    .sell-portfolio-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    }
-</style>
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/coins.css">
 
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -537,7 +303,7 @@ $coins = array_filter($coins, function($coin) {
             
             <!-- User Balances Display -->
             <div class="alert portfolio-alert">
-                <div class="d-flex align-items-center">
+                <div class="d-flex align-items-center" style="gap: 10px;">
                     <strong>Your Portfolio:</strong>
                     <div id="portfolio-loading" class="ms-2"></div>
                     <div id="portfolio" class="ms-2 d-flex flex-wrap gap-2">
@@ -555,7 +321,7 @@ $coins = array_filter($coins, function($coin) {
     <div class="row">
         <div class="col-12">
             <div class="card shadow">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header">
                     <h5 class="card-title mb-0">
                         <i class="fas fa-coins me-2"></i>
                         <?php echo isset($_GET['show_all']) ? 'All Coins' : 'High-Value Coins'; ?>
@@ -832,6 +598,7 @@ $coins = array_filter($coins, function($coin) {
 
 <!-- Load coins.js -->
 <script src="<?= BASE_URL ?>/assets/js/coins.js" nonce="<?= $nonce ?>"></script>
+<script src="<?= BASE_URL ?>/assets/js/portfolio-price-updater.js" nonce="<?= $nonce ?>"></script>
 
 <script>
 // Toast notification function

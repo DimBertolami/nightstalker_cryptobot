@@ -17,21 +17,21 @@ body {
     box-shadow: 0 10px 20px rgba(10, 4, 61, 0.1);
 }
 #card-header {
-    background-color: #110327;
+    background-color: #6303ff;
     font-weight: bold;
     color: rgb(125, 151, 9);
 }
-.card-header bg-dark text-white{
-    background-color: #110327;
+#card-header bg-dark text-white{
+    background-color: #6200ff;
     font-weight: bold;
     color: rgb(192, 180, 14);
 }
-.card-header.bg-warning.text-dark {
+#card-header.bg-warning.text-dark {
     background-color: #71077a54 !important;
     color: #917808     !important;
   }
 .card-footer.bg-warning.text-light {
-    background-color: #123456 !important;
+    background-color: #0080ff !important;
     color: #d4e207     !important;
   }  
 .card-footer {
@@ -78,20 +78,32 @@ body {
 
 /* Portfolio styles */
 .portfolio-item {
-    background: #310636;
-    border: 1px solid #505f0d;
+    border: 2px solid #eeff00;
     border-radius: 0.5rem;
     transition: all 0.2s ease;
-    min-width: 180px;
+    min-width: 100px;
+    max-width: 300px
+    
 }
-.portfolio{
-    background-color: #061e36;
+#portfolio{
+    background-color: #8400f0;
     color: rgb(241, 207, 10);
-    border-left: 4px solid #17a2b8;
+    border-left: 14px solid #04e3f3;
+    border-right: 14px solid #00f7ff;
+    border-top: 14px solid #00027c;
+    border-bottom: 14px solid #000296;
+    border-radius: 2rem;
+    padding: 15px;
+    padding-left: 15px;
+    padding-right: 15px;
+    margin-top: 10px;
+    margin-bottom: 15px;
+    font-weight: bold;
 }
 .portfolio-item:hover {
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
-    transform: translateY(-2px);
+    border-color: #00ff00;
+    box-shadow: 1rem 1rem 1rem rgb(131, 245, 1);
+    transform: translateY(+4px) scale(0.9) !important;
 }
 
 .portfolio-item .btn {
@@ -101,7 +113,7 @@ body {
 .portfolio-alert {
     background-color: #061e36;
     color: #f1cf0a;
-    border: 1px solid #17a2b8;
+    border: 3px solid #a6ff00;
   }
 /* Portfolio alert override */
 .alert.alert-dark {
@@ -124,11 +136,11 @@ body {
 }
 .sell-btn:hover {
     background-color: #3b0057;
-    transform: translateY(-2px);
+    transform: scale(1.2) !important;
     box-shadow: 0 6px 8px rgba(0,0,0,0.15);
 }
 .sell-btn:active {
-    transform: translateY(0);
+    transform: scale(1.2);
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
 }
 
@@ -283,18 +295,18 @@ body {
   }
   /* Trades‐table card overrides */
 .card {
-    background-color: #061e36 !important;  /* same dark blue */
+    background-color: #ae00ff !important;  /* same dark blue */
     color: #f1cf0a     !important;  /* same yellow */
   }
   
   /* If you want a slightly darker header */
   .card .card-header {
-    background-color: #110327 !important;
+    background-color: #6200ff !important;
     color: #f1cf0a     !important;
   }
   
   /* Make the body match */
   .card .card-body {
-    background-color: #061e36 !important;
-    color: #f1cf0a     !important;
+    background-color: #b90072 !important;
+    color: #ffd900     !important;
   }

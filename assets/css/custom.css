@@ -1,0 +1,43 @@
+.golden-border {
+    border: 25px solid #07f7ff !important;
+}
+
+.portfolio-item {
+    background-color: #12c3f8
+ }
+
+.portfolio-item.zero-balance {
+    opacity: 0.7;
+}
+
+.portfolio-item.zero-balance .font-weight-bold {
+    color: #07e97f;
+}
+
+.portfolio-item:hover {
+    background-color: rgb(50, 5, 252);
+}
+
+/* Tooltip styles */
+.tooltip-inner {
+    max-width: 300px;
+    padding: 8px 12px;
+    background-color: #343a40;
+    font-size: 0.875rem;
+    text-align: left;
+}
+
+.bs-tooltip-auto[x-placement^=left] .arrow::before, 
+.bs-tooltip-left .arrow::before {
+    border-left-color: #343a40;
+}
+
+/* Disable portfolio display */
+.portfolio-alert {
+    display: none;
+}
+#input-group-text {
+    background-color: #0080ff;
+    color: rgb(241, 207, 10);
+    font-weight: bold;
+}

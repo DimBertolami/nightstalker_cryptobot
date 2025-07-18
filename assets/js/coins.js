@@ -3,6 +3,7 @@ window.formatCoinName = function(name, symbol) {
     return `<span class='coin-name'>${name}</span> <span class='coin-symbol'>${symbol}</span>`;
 };
 
+
 window.formatPrice = function(price) {
     if (price === null || price === undefined) return 'N/A';
     return parseFloat(price).toLocaleString('en-US', {
@@ -326,95 +327,80 @@ window.showToast = function(message, type = 'info') {
                     });
                 }
 
-                window.updatePortfolioDisplay = function() {
-                    const $portfolio = $('#portfolio');
-                    const $totalValue = $('#total-portfolio-value');
-                    if ($portfolio.length === 0 || $totalValue.length === 0) {
-                        return;
-                    }
-                    $portfolio.html('<div class="text-center py-3"><i class="fas fa-spinner fa-spin me-2"></i>Loading portfolio...</div>');
-                    $totalValue.html('Total: $0.00');
-                    $.ajax({
-                        url: '/NS/api/get-portfolio.php',
-                        method: 'GET',
-                        dataType: 'json',
-                        cache: false,
-                        success: function(response) {
-                            $portfolio.empty();
-                            if (!response.success || !response.portfolio || response.portfolio.length === 0) {
-                                $portfolio.html('<div class="text-muted">No coins in portfolio.</div>');
-                                return;
-                            }
-                            let totalValue = 0;
-                            const validCoins = response.portfolio.filter(coin => {
-                                const amount = parseFloat(coin.amount || 0);
-                                if (amount > 0) {
-                                    const priceUsd = parseFloat(coin.current_price_usd || 0);
-                                    totalValue += amount * priceUsd;
-                                    return true;
-                                }
-                                return false;
-                            });
-                            $totalValue.html(`Total: $${totalValue.toFixed(2)}`);
-                            if (validCoins.length === 0) {
-                                $portfolio.html('<div class="text-muted">No coins with balance found.</div>');
-                                return;
-                            }
-                            validCoins.sort((a, b) => parseFloat(b.amount || 0) - parseFloat(a.amount || 0));
-                            const widgetSettings = JSON.parse(localStorage.getItem('cryptoWidgetSettings') || '{}');
-                            const theme = widgetSettings.theme || 'blue';
-                            const showChange = widgetSettings.showChange !== false;
-                            const roundDecimals = parseInt(widgetSettings.roundDecimals || 2);
-                            validCoins.forEach(coin => {
-                                const symbol = (coin.symbol || coin.coin_id.replace('COIN_', '')).trim();
-                                const name = coin.name || symbol;
-                                const amount = parseFloat(coin.amount || 0);
-                                const coinId = coin.coin_id;
-                                const priceUsd = parseFloat(coin.current_price || 0);
-                                const totalCoinValue = amount * priceUsd;
-                                const priceChange = parseFloat(coin.price_change_percentage_24h || 0);
-                                const iconLetter = symbol.charAt(0).toUpperCase();
-                                const widgetHtml = `
-                                <div class="crypto-widget theme-${theme}" data-coin="${coinId}" data-symbol="${symbol}">
-                                    <div class="crypto-widget-header">
-                                        <div class="crypto-widget-icon">${iconLetter}</div>
-                                        <div class="crypto-widget-name">${name}</div>
-                                    </div>
-                                    <div class="crypto-widget-body">
-                                        <div class="crypto-widget-price-container">
-                                            <div class="crypto-widget-price">$${priceUsd.toFixed(roundDecimals)}</div>
-                                            ${showChange ? `<div class="crypto-widget-change ${priceChange >= 0 ? 'positive' : 'negative'}">
-                                                ${priceChange >= 0 ? '+' : ''}${priceChange.toFixed(2)}%
-                                            </div>` : ''}
-                                        </div>
-                                        <div class="crypto-widget-amount">
-                                            <div class="crypto-widget-amount-value">${amount.toFixed(roundDecimals)}</div>
-                                            <div class="crypto-widget-amount-label">$${totalCoinValue.toFixed(2)}</div>
-                                        </div>
-                                    </div>
-                                    <div class="crypto-widget-footer">
-                                        <a href="/NS/dashboard/trading_dashboard.php?symbol=${symbol}" class="crypto-widget-action chart">
-                                            <i class="fas fa-chart-line me-1"></i> Chart
-                                        </a>
-                                        <button class="crypto-widget-action buy" data-coin="${coinId}" data-symbol="${symbol}">
-                                            <i class="fas fa-plus-circle me-1"></i> Buy
-                                        </button>
-                                        <button class="crypto-widget-action sell sell-portfolio-btn" data-coin="${coinId}" data-symbol="${symbol}" data-price="${priceUsd}" data-amount="${amount}">
-                                            <i class="fas fa-minus-circle me-1"></i> Sell
-                                        </button>
-                                    </div>
-                                </div>
-                            `;
-                                $portfolio.append(widgetHtml);
-                            });
-                        },
-                        error: function(xhr, status, error) {
-                            console.error('Failed to load portfolio:', { status: status, error: error });
-                            $portfolio.html('<div class="alert alert-danger">Failed to load portfolio data.</div>');
-                            showToast('Failed to load portfolio data', 'error');
-                        }
-                    });
+window.updatePortfolioDisplay = function() {
+    const $portfolio = $('#portfolio');
+    const $totalValue = $('#total-portfolio-value');
+    if ($portfolio.length === 0 || $totalValue.length === 0) {
+        return;
+    }
+    $portfolio.html('<div class="text-center py-3"><i class="fas fa-spinner fa-spin me-2"></i>Loading portfolio...</div>');
+    $totalValue.html('Total: $0.00');
+    $.ajax({
+        url: '/NS/api/get-portfolio.php',
+        method: 'GET',
+        dataType: 'json',
+        cache: false,
+        success: function(response) {
+            $portfolio.empty();
+            if (!response.success || !response.portfolio || response.portfolio.length === 0) {
+                $portfolio.html('<div class="text-muted">No coins in portfolio.</div>');
+                return;
+            }
+            let totalValue = 0;
+            const validCoins = response.portfolio.filter(coin => {
+                const amount = parseFloat(coin.amount || 0);
+                if (amount > 0) {
+                    const priceUsd = parseFloat(coin.current_price_usd || 0);
+                    totalValue += amount * priceUsd;
+                    return true;
                 }
+                return false;
+            });
+            $totalValue.html(`Total: $${totalValue.toFixed(2)}`);
+            if (validCoins.length === 0) {
+                $portfolio.html('<div class="text-muted">No coins with balance found.</div>');
+                return;
+            }
+            validCoins.sort((a, b) => parseFloat(b.amount || 0) - parseFloat(a.amount || 0));
+            const widgetSettings = JSON.parse(localStorage.getItem('cryptoWidgetSettings') || '{}');
+            const theme = widgetSettings.theme || 'blue';
+            const showChange = widgetSettings.showChange !== false;
+            const roundDecimals = parseInt(widgetSettings.roundDecimals || 2);
+            validCoins.forEach(coin => {
+                const symbol = (coin.symbol || coin.coin_id.replace('COIN_', '')).trim();
+                const name = coin.name || symbol;
+                const amount = parseFloat(coin.amount || 0);
+                const coinId = coin.coin_id;
+                const priceUsd = parseFloat(coin.current_price || 0);
+                const totalCoinValue = amount * priceUsd;
+                const priceChange = parseFloat(coin.price_change_percentage_24h || 0);
+                const iconLetter = symbol.charAt(0).toUpperCase();
+            const widgetHtml = `
+                <div class="card portfolio-item" data-symbol="${symbol}" data-coin="${coinId}" data-purchase-price="${coin.avg_buy_price}">
+                    <div class="card-header">
+                        <div class="crypto-widget-header-inline">
+                            ${amount.toFixed(2)} ${name} at $${priceUsd.toFixed(2)}
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="crypto-widget-price">new-price: $${priceUsd.toFixed(2)}</div>
+                        <div class="crypto-widget-amount-label">potential profit: $${(priceUsd * amount * 10).toFixed(2)}</div>
+                        <button class="crypto-widget-action sell sell-portfolio-btn" data-coin="${coinId}" data-symbol="${symbol}" data-price="${priceUsd}" data-amount="${amount}">
+                            Sell
+                        </button>
+                    </div>
+                </div>
+            `;
+                $portfolio.append(widgetHtml);
+            });
+        },
+        error: function(xhr, status, error) {
+            console.error('Failed to load portfolio:', { status: status, error: error });
+            $portfolio.html('<div class="alert alert-danger">Failed to load portfolio data.</div>');
+            showToast('Failed to load portfolio data', 'error');
+        }
+    });
+}
 
                 function buyCoin(coinId, amount) {
                     if (isProcessingTrade) {
