@@ -30,12 +30,13 @@ try {
     // Get portfolio data with coin information
     $query = "SELECT 
         portfolio.*, 
-        COALESCE(c.price, cr.price) as current_price,
+        COALESCE(c.current_price, cr.price) as current_price,
+        COALESCE(c.current_price, cr.price) as current_price_usd,
         COALESCE(c.symbol, cr.symbol) as symbol,
         COALESCE(c.coin_name, cr.name, portfolio.coin_id) as name
     FROM portfolio 
     LEFT JOIN coins c ON portfolio.coin_id = c.id
-    LEFT JOIN cryptocurrencies cr ON portfolio.coin_id = cr.id
+    LEFT JOIN cryptocurrencies cr ON (portfolio.coin_id = cr.id OR portfolio.coin_id = CONCAT('COIN_', cr.id))
     WHERE portfolio.user_id = :user_id 
     AND portfolio.amount > 0
     ORDER BY portfolio.amount DESC";

@@ -41,15 +41,6 @@ $customCSS = <<<'EOT'
     // This script runs immediately to prevent DataTables from initializing
     window.disableDataTables = true;
 </script>
-
-<meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    script-src 'self' https://cdn.jsdelivr.net https://code.jquery.com https://cdn.datatables.net 'unsafe-inline' 'unsafe-eval';
-    style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.datatables.net 'unsafe-inline';
-    img-src 'self' data: https: *;
-    font-src 'self' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com 'unsafe-inline';
-">
-
 EOT;
 
 // Load configuration
@@ -308,7 +299,7 @@ $coins = array_filter($coins, function($coin) {
                     <div id="portfolio-loading" class="ms-2"></div>
                     <div id="portfolio" class="ms-2 d-flex flex-wrap gap-2">
                         <!-- Portfolio items will be loaded here via JavaScript -->
-                        <span class="text-muted">Portfolio temporarily disabled during database update</span>
+                        
                     </div>
                     <div id="total-portfolio-value" class="ms-auto fw-bold">
                         Total: $0.00
@@ -596,9 +587,8 @@ $coins = array_filter($coins, function($coin) {
     const BASE_URL = '<?= BASE_URL ?>';
 </script>
 
-<!-- Load coins.js -->
-<script src="<?= BASE_URL ?>/assets/js/coins.js" nonce="<?= $nonce ?>"></script>
-<script src="<?= BASE_URL ?>/assets/js/portfolio-price-updater.js" nonce="<?= $nonce ?>"></script>
+
+<!-- <script src="<?= BASE_URL ?>/assets/js/portfolio-price-updater.js" nonce="<?= $nonce ?>"></script> -->
 
 <script>
 // Toast notification function
@@ -943,7 +933,6 @@ $(document).ready(function() {
                     $button.prop('disabled', false).html('<i class="fas fa-dollar-sign"></i>');
                 }
             });
-        }
     });
     
     // Search functionality
@@ -981,4 +970,6 @@ $(document).ready(function() {
 <script src="/NS/assets/js/table-sort.js"></script>
 <script src="/NS/assets/js/filter-coins.js"></script>
 
+<!-- Load coins.js -->
+<script src="<?= BASE_URL ?>/assets/js/coins.js"></script>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

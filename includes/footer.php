@@ -80,7 +80,7 @@
     </script>
 <?php if(defined('BASE_URL')): ?>
 <script src="<?= BASE_URL ?>/assets/js/script.js"></script>
-<script src="<?= BASE_URL ?>/assets/js/coins.js"></script>
+
 <?php endif; ?>
 </body>
 </html>

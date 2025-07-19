@@ -479,6 +479,59 @@ function getUserBalancesPDO(): array {
  * @param string|int $coinId The coin ID to check balance for
  * @return array Balance information with amount, avg_buy_price and coin_id
  */
+
+function syncPortfolioCoinsToCryptocurrenciesPDO() {
+    $db = getDBConnection();
+    if (!$db) return false;
+
+    // Get distinct coin_ids from portfolio
+    $query = "SELECT DISTINCT coin_id FROM portfolio";
+    $stmt = $db->query($query);
+    if (!$stmt) {
+        error_log("[syncPortfolioCoinsToCryptocurrenciesPDO] Failed to query portfolio: " . $db->errorInfo()[2]);
+        return false;
+    }
+
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $coinId = $row['coin_id'];
+
+        // Check if coinId is numeric (from coins table)
+        if (is_numeric($coinId)) {
+            // Get symbol and name from coins table
+            $coinStmt = $db->prepare("SELECT symbol, coin_name FROM coins WHERE id = ?");
+            if (!$coinStmt) {
+                error_log("[syncPortfolioCoinsToCryptocurrenciesPDO] Failed to prepare coins query: " . $db->errorInfo()[2]);
+                continue;
+            }
+            $coinStmt->execute([$coinId]);
+            $coinRow = $coinStmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($coinRow) {
+                $symbol = $coinRow['symbol'];
+                $name = $coinRow['coin_name'];
+
+                // Check if symbol exists in cryptocurrencies
+                $checkStmt = $db->prepare("SELECT id FROM cryptocurrencies WHERE symbol = ? LIMIT 1");
+                if (!$checkStmt) {
+                    error_log("[syncPortfolioCoinsToCryptocurrenciesPDO] Failed to prepare crypto check query: " . $db->errorInfo()[2]);
+                    continue;
+                }
+                $checkStmt->execute([$symbol]);
+                
+                if ($checkStmt->rowCount() == 0) {
+                    // Insert into cryptocurrencies
+                    $insertStmt = $db->prepare("INSERT INTO cryptocurrencies (id, symbol, name, created_at) VALUES (?, ?, ?, NOW())");
+                    if ($insertStmt) {
+                        $insertStmt->execute([$symbol, $symbol, $name]);
+                        error_log("[syncPortfolioCoinsToCryptocurrenciesPDO] Inserted coin $symbol into cryptocurrencies");
+                    }
+                }
+            }
+        }
+    }
+    return true;
+}
+
 function getUserCoinBalancePDO($coinId): array {
     try {
         $db = getDBConnection();
@@ -714,6 +767,7 @@ function executeSellPDO($coinId, $amount, $price) {
         
         $userBalance = isset($portfolioData['amount']) ? $portfolioData['amount'] : 0;
         $avgBuyPrice = isset($portfolioData['avg_buy_price']) ? $portfolioData['avg_buy_price'] : 0;
+        $portfolioCoinId = isset($portfolioData['coin_id']) ? $portfolioData['coin_id'] : $coinId; // Use the coin_id from portfolioData
         
         // Validate amount
         if ($amount <= 0) {
@@ -733,12 +787,29 @@ function executeSellPDO($coinId, $amount, $price) {
         // Start transaction
         $db->beginTransaction();
         
+        // Get the numeric coin_id from the cryptocurrencies table
+        $crypto_id_query = "SELECT id FROM cryptocurrencies WHERE symbol = :symbol";
+        $stmt_crypto = $db->prepare($crypto_id_query);
+        $stmt_crypto->bindParam(':symbol', $coinId); // Use the symbol to find the numeric ID
+        $stmt_crypto->execute();
+        $crypto_data = $stmt_crypto->fetch(PDO::FETCH_ASSOC);
+
+        if (!$crypto_data) {
+            error_log("[executeSellPDO] Error: Coin symbol '{$coinId}' not found in cryptocurrencies table.");
+            return ['success' => false, 'message' => 'Coin not found in cryptocurrencies table.'];
+        }
+
+        $numeric_coin_id = $crypto_data['id'];
+
         // Insert sell trade record
         $tradeStmt = $db->prepare("INSERT INTO trades 
                                   (coin_id, trade_type, price, amount, total_value, profit_loss) 
                                   VALUES (?, 'sell', ?, ?, ?, ?)");
         
-        $tradeStmt->bindParam(1, $coinId, PDO::PARAM_STR);
+        if (!$tradeStmt) {
+            throw new Exception("Failed to prepare trade statement: " . $db->errorInfo()[2]);
+        }
+        $tradeStmt->bindParam(1, $numeric_coin_id, PDO::PARAM_INT); // Bind as INT
         $tradeStmt->bindParam(2, $price, PDO::PARAM_STR);
         $tradeStmt->bindParam(3, $amount, PDO::PARAM_STR);
         $tradeStmt->bindParam(4, $sellValue, PDO::PARAM_STR);
@@ -753,12 +824,18 @@ function executeSellPDO($coinId, $amount, $price) {
         if ($newAmount <= 0.000001) { // Effectively zero
             // Delete the portfolio entry if no coins left
             $portfolioStmt = $db->prepare("DELETE FROM portfolio WHERE coin_id = ? AND user_id = 1");
-            $portfolioStmt->bindParam(1, $coinId, PDO::PARAM_STR);
+            if (!$portfolioStmt) {
+                throw new Exception("Failed to prepare portfolio delete statement: " . $db->errorInfo()[2]);
+            }
+            $portfolioStmt->bindParam(1, $portfolioCoinId, PDO::PARAM_STR);
         } else {
             // Update the portfolio with new amount
             $portfolioStmt = $db->prepare("UPDATE portfolio SET amount = ? WHERE coin_id = ? AND user_id = 1");
+            if (!$portfolioStmt) {
+                throw new Exception("Failed to prepare portfolio update statement: " . $db->errorInfo()[2]);
+            }
             $portfolioStmt->bindParam(1, $newAmount, PDO::PARAM_STR);
-            $portfolioStmt->bindParam(2, $coinId, PDO::PARAM_STR);
+            $portfolioStmt->bindParam(2, $portfolioCoinId, PDO::PARAM_STR);
         }
         
         $portfolioStmt->execute();
@@ -790,7 +867,127 @@ function executeSellPDO($coinId, $amount, $price) {
     }
 }
 
-/**
+function executeBuyPDO($coinId, $amount, $price) {
+    $db = getDBConnection();
+    if (!$db) return false;
+
+    syncPortfolioCoinsToCryptocurrenciesPDO();
+
+    $totalValue = $amount * $price;
+
+    $finalCoinIdForDb = null; // This will be the ID used for trades and portfolio
+    $coinSymbol = null; // This will be the symbol (e.g., KMD)
+
+    if (is_numeric($coinId)) {
+        // If numeric, get symbol from 'coins' table
+        $symbolStmt = $db->prepare("SELECT symbol FROM coins WHERE id = ?");
+        if (!$symbolStmt) {
+            error_log("[executeBuyPDO] Failed to prepare symbol query: " . $db->errorInfo()[2]);
+            return false;
+        }
+        $symbolStmt->execute([$coinId]);
+        $symbolRow = $symbolStmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($symbolRow) {
+            $coinSymbol = $symbolRow['symbol'];
+            error_log("[executeBuyPDO] Determined coinSymbol from numeric ID: " . $coinSymbol);
+        } else {
+            error_log("[executeBuyPDO] Could not find symbol for numeric coin ID: " . $coinId);
+            return false; // Cannot proceed without a symbol
+        }
+    } else {
+        // If not numeric, assume $coinId is already the symbol
+        $coinSymbol = $coinId;
+        error_log("[executeBuyPDO] Using coinId as coinSymbol: " . $coinSymbol);
+    }
+
+    // Now, ensure the symbol exists in the 'cryptocurrencies' table and get its ID
+    // The 'cryptocurrencies' table uses the symbol itself as the ID (VARCHAR)
+    $checkCryptoStmt = $db->prepare("SELECT id FROM cryptocurrencies WHERE symbol = ? LIMIT 1");
+    if (!$checkCryptoStmt) {
+        error_log("[executeBuyPDO] Failed to prepare cryptocurrencies check query: " . $db->errorInfo()[2]);
+        return false;
+    }
+    $checkCryptoStmt->execute([$coinSymbol]);
+    $cryptoRow = $checkCryptoStmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($cryptoRow) {
+        $finalCoinIdForDb = $cryptoRow['id'];
+        error_log("[executeBuyPDO] Coin found in cryptocurrencies: " . $finalCoinIdForDb);
+    } else {
+        // If not found in cryptocurrencies, insert it
+        $finalCoinIdForDb = $coinSymbol; // Use symbol as ID for cryptocurrencies table
+        error_log("[executeBuyPDO] Coin not found in cryptocurrencies, attempting insert: " . $finalCoinIdForDb);
+        $insertCryptoStmt = $db->prepare("INSERT INTO cryptocurrencies 
+                                           (id, symbol, name, created_at, price) 
+                                           VALUES (?, ?, ?, NOW(), ?)");
+        if ($insertCryptoStmt) {
+            $coinName = $coinSymbol; // Default name to symbol if not found
+            try {
+                $insertSuccess = $insertCryptoStmt->execute([$finalCoinIdForDb, $coinSymbol, $coinName, $price]);
+                if ($insertSuccess) {
+                    error_log("[executeBuyPDO] Successfully inserted into cryptocurrencies: " . $finalCoinIdForDb);
+                } else {
+                    error_log("[executeBuyPDO] Failed to insert into cryptocurrencies (execute failed): " . json_encode($insertCryptoStmt->errorInfo()));
+                    return false; // Critical failure, cannot proceed
+                }
+            } catch (PDOException $e) {
+                // Catch duplicate entry errors specifically, as INSERT IGNORE was removed
+                if ($e->getCode() == '23000') { // Integrity constraint violation
+                    error_log("[executeBuyPDO] Duplicate entry for cryptocurrencies: " . $finalCoinIdForDb . " - " . $e->getMessage());
+                    // If it's a duplicate, it means it exists, so we can proceed
+                } else {
+                    error_log("[executeBuyPDO] PDOException during cryptocurrencies insert: " . $e->getMessage());
+                    return false; // Other database error, cannot proceed
+                }
+            }
+        } else {
+            error_log("[executeBuyPDO] Failed to prepare cryptocurrencies insert query: " . $db->errorInfo()[2]);
+            return false;
+        }
+    }
+
+    error_log("[executeBuyPDO] Final coin ID for trades/portfolio: " . $finalCoinIdForDb);
+
+    // Now insert the trade with the correct finalCoinIdForDb
+    try {
+        $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) VALUES (?, 'buy', ?, ?, ?, NOW())");
+        if (!$stmt) {
+            error_log("[executeBuyPDO] Failed to prepare trades insert query: " . $db->errorInfo()[2]);
+            return false;
+        }
+        $stmt->execute([$finalCoinIdForDb, $amount, $price, $totalValue]);
+
+        if ($stmt->rowCount() > 0) {
+            $tradeId = $db->lastInsertId();
+
+            // Update the portfolio table
+            $portfolioStmt = $db->prepare("INSERT INTO portfolio (user_id, coin_id, amount, avg_buy_price, last_updated) 
+                                         VALUES (1, ?, ?, ?, NOW()) 
+                                         ON DUPLICATE KEY UPDATE 
+                                         amount = amount + VALUES(amount),
+                                         avg_buy_price = ((amount * avg_buy_price) + (VALUES(amount) * ?)) / (amount + VALUES(amount)),
+                                         last_updated = NOW()");
+
+            if ($portfolioStmt) {
+                $portfolioStmt->execute([$coinSymbol, $amount, $price, $price]);
+                error_log("[executeBuyPDO] Updated portfolio for coin: $coinSymbol, amount: $amount, price: $price");
+            } else {
+                error_log("[executeBuyPDO] Failed to update portfolio: " . $db->errorInfo()[2]);
+            }
+
+            return $tradeId;
+        } else {
+            error_log("[executeBuyPDO] Failed to insert trade (no rows affected): " . $stmt->errorInfo()[2]);
+            return false;
+        }
+    } catch (PDOException $e) {
+        error_log("[executeBuyPDO] PDOException during trades insert: " . $e->getMessage());
+        return false;
+    }
+}
+
+    /**
  * Get recent trades from trade_log table - direct query
  */
 function getTradeLogPDO(int $limit = 100): array {

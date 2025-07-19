@@ -16,31 +16,8 @@ ini_set('error_log', '/opt/lampp/htdocs/NS/logs/php-error.log');
 
 // Include configuration
 require_once '../includes/config.php';
-
-// Direct database connection to avoid circular dependencies
-function getDBConnection() {
-    static $db = null;
-    
-    if ($db === null) {
-        try {
-            $db = new PDO(
-                'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8',
-                DB_USER,
-                DB_PASS,
-                [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::ATTR_EMULATE_PREPARES => false
-                ]
-            );
-        } catch (PDOException $e) {
-            error_log('Database connection failed: ' . $e->getMessage());
-            return false;
-        }
-    }
-    
-    return $db;
-}
+require_once '../includes/database.php';
+require_once '../includes/pdo_functions.php';
 
 // Function to validate request parameters
 function validateRequest($requiredParams) {
@@ -117,117 +94,18 @@ try {
     
     // Process the trade based on action
     if ($action === 'buy') {
-        // First, try to find the coin in the database by symbol to get the correct coin_id
-        $stmt = $db->prepare("SELECT id FROM coins WHERE symbol = :symbol LIMIT 1");
-        $stmt->bindParam(':symbol', $symbol);
-        $stmt->execute();
-        $coinRecord = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        // If we found the coin in the database, use its ID
-        if ($coinRecord) {
-            $coinId = $coinRecord['id'];
-            error_log("Found coin in database with ID: $coinId");
+        $tradeId = executeBuyPDO($coinId, $amount, $price);
+        if ($tradeId) {
+            $message = "Successfully bought $amount of $symbol";
         } else {
-            error_log("Could not find coin with symbol: $symbol in database");
-        }
-        
-        try {
-            // Check if coin exists in portfolio
-            $stmt = $db->prepare("SELECT id, amount, avg_buy_price FROM portfolio WHERE coin_id = :coin_id");
-            $stmt->bindParam(':coin_id', $coinId);
-            $stmt->execute();
-            $existingCoin = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($existingCoin) {
-                // Update existing position with new average price
-                $totalAmount = $existingCoin['amount'] + $amount;
-                $totalCost = ($existingCoin['amount'] * $existingCoin['avg_buy_price']) + ($amount * $price);
-                $newAvgPrice = $totalCost / $totalAmount;
-                
-                $stmt = $db->prepare("UPDATE portfolio SET amount = :amount, avg_buy_price = :avg_price WHERE id = :id");
-                $stmt->bindParam(':amount', $totalAmount);
-                $stmt->bindParam(':avg_price', $newAvgPrice);
-                $stmt->bindParam(':id', $existingCoin['id']);
-                $stmt->execute();
-                
-                $message = "Added $amount $symbol to your portfolio. New total: $totalAmount";
-                error_log("Updated existing position for $symbol. New amount: $totalAmount, New avg price: $newAvgPrice");
-            } else {
-                // Add new position
-                $stmt = $db->prepare("INSERT INTO portfolio (coin_id, amount, buy_price, avg_buy_price) VALUES (:coin_id, :amount, :buy_price, :avg_price)");
-                $stmt->bindParam(':coin_id', $coinId);
-                $stmt->bindParam(':amount', $amount);
-                $stmt->bindParam(':buy_price', $price);
-                $stmt->bindParam(':avg_price', $price);
-                $stmt->execute();
-                
-                $message = "Added $amount $symbol to your portfolio";
-                error_log("Created new position for $symbol. Amount: $amount, Price: $price");
-            }
-        } catch (PDOException $e) {
-            error_log("Database error during buy operation: " . $e->getMessage());
-            throw new Exception("Database error: " . $e->getMessage());
+            throw new Exception("Failed to execute buy trade.");
         }
     } else { // Sell action
-        // Instead of looking up the coin by symbol, directly check if it exists in portfolio by coin_id
-        $stmt = $db->prepare("SELECT id, amount FROM portfolio WHERE coin_id = :coin_id");
-        $stmt->bindParam(':coin_id', $coinId);
-        $stmt->execute();
-        $existingCoin = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        // If not found by coin_id, try to find by symbol (more reliable)
-        if (!$existingCoin) {
-            $stmt = $db->prepare("
-                SELECT p.id, p.amount, p.coin_id 
-                FROM portfolio p 
-                JOIN coins c ON p.coin_id = c.id 
-                WHERE c.symbol = :symbol
-                LIMIT 1
-            ");
-            $stmt->bindParam(':symbol', $symbol);
-            $stmt->execute();
-            $existingCoin = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            // If found by symbol, update the coin_id to match
-            if ($existingCoin) {
-                $coinId = $existingCoin['coin_id'];
-                error_log("Found portfolio entry by symbol: $symbol with coin_id: $coinId");
-            }
-        }
-        
-        if (!$existingCoin) {
-            throw new Exception("You don't own any $symbol to sell");
-        }
-        
-        // Handle the special 'all' amount parameter
-        if ($amount === 'all') {
-            $amount = $existingCoin['amount'];
-            error_log("Selling all coins: $amount $symbol");
-        }
-        
-        // Check if user has enough to sell
-        if ($amount > $existingCoin['amount']) {
-            throw new Exception("You only have {$existingCoin['amount']} $symbol available to sell");
-        }
-        
-        // Calculate remaining amount
-        $remainingAmount = $existingCoin['amount'] - $amount;
-        
-        if ($remainingAmount > 0) {
-            // Update existing position
-            $stmt = $db->prepare("UPDATE portfolio SET amount = :amount WHERE id = :id");
-            $stmt->bindParam(':amount', $remainingAmount);
-            $stmt->bindParam(':id', $existingCoin['id']);
-            $stmt->execute();
-            
-            $message = "Sold $amount $symbol from your portfolio";
+        $result = executeSellPDO($coinId, $amount, $price);
+        if ($result['success']) {
+            $message = $result['message'];
         } else {
-            // Remove position completely
-            $stmt = $db->prepare("DELETE FROM portfolio WHERE id = :id");
-            $stmt->bindParam(':id', $existingCoin['id']);
-            $stmt->execute();
-            
-            $message = "Sold all your $symbol from your portfolio";
+            throw new Exception($result['message']);
         }
     }
     

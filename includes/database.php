@@ -1,5 +1,10 @@
 <?php
 
+require_once __DIR__ . '/config.php';  // Added to include DB constants
+
+// initDB() should only be called during installation or explicit setup, not on every page load.
+// The following block is commented out to prevent database schema reset on every request.
+/*
 if (php_sapi_name() !== 'cli' && !defined('DB_INITIALIZED')) {
     try {
         initDB();
@@ -10,6 +15,7 @@ if (php_sapi_name() !== 'cli' && !defined('DB_INITIALIZED')) {
         // The application will display an appropriate error message
     }
 }
+*/
 
 /**
  * Initialize database connection
@@ -136,6 +142,31 @@ function initDB() {
                 error_log("Database Error: " . $e->getMessage());
             }
         }
+        
+        // Ensure portfolio table exists
+        $db->exec("DROP TABLE IF EXISTS portfolio");
+        $db->exec("CREATE TABLE IF NOT EXISTS portfolio (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT DEFAULT 1,
+            coin_id VARCHAR(50) NOT NULL,
+            amount DECIMAL(32,12) NOT NULL,
+            avg_buy_price DECIMAL(32,12) DEFAULT 0,
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY `user_coin` (`user_id`, `coin_id`)
+        )");
+
+        // Drop and re-add foreign key for trades table to ensure it's always valid
+        try {
+            $db->exec("ALTER TABLE `trades` DROP FOREIGN KEY `trades_ibfk_1`");
+            error_log("Dropped existing foreign key trades_ibfk_1");
+        } catch (PDOException $e) {
+            // Ignore if key doesn't exist
+            if (strpos($e->getMessage(), "Can't DROP 'KEY'; check that it exists") === false) {
+                error_log("Error dropping foreign key: " . $e->getMessage());
+            }
+        }
+        $db->exec("ALTER TABLE `trades` ADD CONSTRAINT `trades_ibfk_1` FOREIGN KEY (`coin_id`) REFERENCES `cryptocurrencies` (`id`)");
+        error_log("Re-added foreign key trades_ibfk_1");
         
         return true;
     } catch (Exception $e) {
