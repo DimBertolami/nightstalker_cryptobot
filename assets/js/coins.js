@@ -187,16 +187,16 @@ function updatePortfolioDisplay() {
                 
                 // Create the widget HTML
                 const widgetHtml = `
-                    <div class="card portfolio-item" data-symbol="${symbol}" data-coin="${coinId}" data-purchase-price="${avgBuyPrice}">
+                    <div class="card portfolio-item crypto-widget" data-symbol="${symbol}" data-coin="${coinId}" data-purchase-price="${avgBuyPrice}">
                         <div class="card-header">
                             <div class="crypto-widget-header-inline">
-                                ${amount.toFixed(2)} ${name} at $${priceUsd.toFixed(2)}
+                                ${amount.toFixed(2)} ${name} at ${priceUsd.toFixed(2)}
                             </div>
                         </div>
                         <div class="card-body">
-                            <div class="crypto-widget-price">Current Price: $${priceUsd.toFixed(2)}</div>
+                            <div class="crypto-widget-price">Current Price: ${priceUsd.toFixed(2)}</div>
                             <div class="crypto-widget-amount-label ${profitClass}">
-                                Potential Profit: $${potentialProfit.toFixed(2)}
+                                Potential Profit: ${potentialProfit.toFixed(2)}
                             </div>
                             <button class="crypto-widget-action sell sell-portfolio-btn" 
                                     data-coin="${coinId}" 
@@ -211,6 +211,13 @@ function updatePortfolioDisplay() {
                 
                 $('#portfolio').append(widgetHtml);
             });
+            
+            // Start the portfolio price updater after portfolio items are loaded
+            if (typeof startPortfolioPriceUpdaterPolling === 'function') {
+                startPortfolioPriceUpdaterPolling(validCoins);
+            } else {
+                console.warn('startPortfolioPriceUpdaterPolling function not found. Portfolio price updater may not start.');
+            }
         },
         error: function(xhr, status, error) {
             console.error('Failed to load portfolio:', {

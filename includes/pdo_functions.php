@@ -871,6 +871,19 @@ function executeBuyPDO($coinId, $amount, $price) {
     $db = getDBConnection();
     if (!$db) return false;
 
+    // Check if this is the first purchase
+    $isFirstPurchase = false;
+    try {
+        $stmt = $db->prepare("SELECT COUNT(*) as count FROM portfolio WHERE user_id = 1");
+        $stmt->execute();
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($result && $result['count'] == 0) {
+            $isFirstPurchase = true;
+        }
+    } catch (Exception $e) {
+        error_log("Could not check for first purchase: " . $e->getMessage());
+    }
+
     syncPortfolioCoinsToCryptocurrenciesPDO();
 
     $totalValue = $amount * $price;
@@ -974,6 +987,39 @@ function executeBuyPDO($coinId, $amount, $price) {
                 error_log("[executeBuyPDO] Updated portfolio for coin: $coinSymbol, amount: $amount, price: $price");
             } else {
                 error_log("[executeBuyPDO] Failed to update portfolio: " . $db->errorInfo()[2]);
+            }
+
+            // Launch the bitvavo_price_udater.py script in the background
+            $pythonScriptPath = '/opt/lampp/htdocs/NS/includes/bitvavo_price_udater.py';
+            $logFilePath = '/opt/lampp/htdocs/NS/logs/bitvavo_script_output.log';
+            // Check if the Python script is already running
+            $scriptName = 'bitvavo_price_udater.py';
+            $pgrepCommand = "/usr/bin/pgrep -f " . escapeshellarg($scriptName);
+            $existingPids = [];
+            exec($pgrepCommand, $existingPids);
+
+            if (!empty($existingPids)) {
+                error_log("Python script {$scriptName} is already running (PID: " . implode(', ', $existingPids) . "). Not launching a new instance.");
+            } else {
+                // Launch the bitvavo_price_udater.py script in the background
+                $pythonScriptPath = '/opt/lampp/htdocs/NS/includes/bitvavo_price_udater.py';
+                $command = '/usr/bin/python3 ' . escapeshellarg($pythonScriptPath) . ' > /dev/null 2>&1 &';
+                
+                $output = [];
+                $return_var = 0;
+                exec($command, $output, $return_var);
+
+                error_log("Attempted to launch Python script: {$pythonScriptPath}");
+                error_log("Command executed: {$command}");
+                error_log("Exec return_var: {$return_var}");
+                error_log("Exec output: " . implode('
+', $output));
+
+                if ($return_var === 0) {
+                    error_log("Python script {$pythonScriptPath} launched successfully.");
+                } else {
+                    error_log("Error launching Python script {$pythonScriptPath}. Check PHP error log for details.");
+                }
             }
 
             return $tradeId;

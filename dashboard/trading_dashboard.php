@@ -21,7 +21,7 @@ if (isset($_GET['exchange'])) {
 $selectedExchange = $_SESSION['selected_exchange'] ?? 'binance';
 
 // Include the header template
-$pageTitle = 'Trading Dashboard';
+$pageTitle = 'Night Stalker - built from the remains of a decommmissioned tsunami prediction warning system Artificial Intelligence, its new mission objectives to track and exploit a vulnerability discovered in all the new coins, which allows this system to predict and benefit from their price movements.';
 
 // Add custom CSS for price history table and select2
 $customCSS = '
@@ -657,27 +657,10 @@ include __DIR__ . '/../includes/header.php';
 </div>
 
 <!-- JavaScript Libraries -->
-<script>
-    // Check if jQuery is loaded, if not, load it dynamically
-    if (typeof jQuery === 'undefined') {
-        const jqueryScript = document.createElement('script');
-        jqueryScript.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
-        jqueryScript.async = true;
-        document.head.appendChild(jqueryScript);
-    }
-    
-    // Define a safe $ function that will work even if jQuery isn't loaded yet
-    function safeJQuery(callback) {
-        if (window.jQuery) {
-            callback(window.jQuery);
-        } else {
-            setTimeout(function() { safeJQuery(callback); }, 50);
-        }
-    }
-</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
+safeJQuery(function($) {
 $(document).ready(function() {
     // Initialize Select2 on all select2 elements
     function initializeSelect2() {

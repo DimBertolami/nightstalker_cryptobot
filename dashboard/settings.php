@@ -348,13 +348,13 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
                         <div id="new-coin-settings" class="strategy-section" style="display: none;">
                             <div class="alert alert-info">
                                 <h4 class="alert-heading">New Coin Strategy</h4>
-                                <p>Monitor new cryptocurrencies, more specifically the marketcap (minimum 1,500,000), its total volume of trades (same minimum as the marketcap), and the age (&lt;24h)</p>
+                                <p>Monitors new cryptocurrencies for potential investment.</p>
                             </div>
                             <form method="POST" action="" id="newCoinForm">
                                 <div class="mb-3 form-check form-switch">
                                     <input class="form-check-input" type="checkbox" id="strategyEnabled" name="strategyEnabled" checked>
                                     <label class="form-check-label" for="strategyEnabled">Enable New Coin Strategy</label>
-                                    <div class="form-text">When enabled, the bot will automatically look for and trade newly listed coins.</div>
+                                    <div class="form-text">When enabled, this bot will look for newly listed coins and trade.</div>
                                 </div>
                                 <div class="mb-3">
                                     <label for="maxCoinAge" class="form-label">Maximum Coin Age (hours)</label>

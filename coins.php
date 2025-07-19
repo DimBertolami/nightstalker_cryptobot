@@ -1,4 +1,6 @@
 <?php
+error_log("TEST: This is a test entry from PHP at " . date('Y-m-d H:i:s'));
+
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/auth.php';
@@ -23,14 +25,14 @@ $showAll = isset($_GET['show_all']) ? $_GET['show_all'] == '1' : true;
 $filterAge = isset($_COOKIE['filter_age']) ? (int)$_COOKIE['filter_age'] : 24;
 $filterMarketCap = isset($_COOKIE['filter_marketcap']) ? (int)$_COOKIE['filter_marketcap'] : 1500000;
 $filterVolume = isset($_COOKIE['filter_volume']) ? (int)$_COOKIE['filter_volume'] : 1500000;
-$filterAgeEnabled = isset($_COOKIE['filter_age_enabled']) ? $_COOKIE['filter_age_enabled'] == '1' : true;
+$filterAgeEnabled = isset($_COOKIE['filter_age_enabled']) ? $_COOKIE['filter_age_enabled'] == '1' : false;
 $filterMarketCapEnabled = isset($_COOKIE['filter_marketcap_enabled']) ? $_COOKIE['filter_marketcap_enabled'] == '1' : true;
 $filterVolumeEnabled = isset($_COOKIE['filter_volume_enabled']) ? $_COOKIE['filter_volume_enabled'] == '1' : true;
 $autoRefresh = isset($_COOKIE['auto_refresh']) ? $_COOKIE['auto_refresh'] == '1' : true;
 $entriesPerPage = isset($_COOKIE['entries_per_page']) ? (int)$_COOKIE['entries_per_page'] : 25;
 
 // Set title before including header
-$title = "Crypto Stalker - built from the discarded remains of an early tsunami detection artificial intelligence, with new mission objectives to track and exploit a flaw discovered in new cryptocoins which causes them to be predictable in their price movements.";
+$title = "Night Stalker - built from the remains of a decommmissioned tsunami prediction warning system's Artificial Intelligence, it's new mission objectives to track and exploit a vulnerability discovered in all the new coins, which allows this system to predict and benefit from their price movements.";
 
 require_once __DIR__ . '/includes/header.php';
 
@@ -588,7 +590,7 @@ $coins = array_filter($coins, function($coin) {
 </script>
 
 
-<!-- <script src="<?= BASE_URL ?>/assets/js/portfolio-price-updater.js" nonce="<?= $nonce ?>"></script> -->
+<script src="<?= BASE_URL ?>/assets/js/portfolio-price-updater.js" nonce="<?= $nonce ?>"></script>
 
 <script>
 // Toast notification function
