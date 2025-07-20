@@ -10,13 +10,21 @@
     --color-warning: #ECC94B; /* Goldenrod */
     --color-info: #63B3ED; /* Steel Blue */
 }
-
 body {
     background-color: var(--color-dark-primary);
     color: var(--color-text-light);
     padding-top: 56px;
 }
-
+body {
+    background-image: url('../images/oni1.png'); /* Path relative to styles.css */
+    background-size: cover; /* Ensures the image covers the entire background */
+    background-position: center center; /* Centers the image */
+    background-repeat: no-repeat; /* Prevents the image from repeating */
+    background-attachment: fixed; /* Keeps the image fixed while scrolling */
+}
+/*.div.alert.portfolio-alert {
+    background-color: rgba(0, 0, 0, 0.5); /* 50% opaque black */
+/*}*/
 .coin-card {
     background-color: var(--color-dark-secondary);
     color: var(--color-text-light);

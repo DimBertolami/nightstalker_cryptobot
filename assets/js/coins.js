@@ -282,10 +282,10 @@ $(document).ready(function() {
             
             // Global variables
             const filters = {
-                age: { enabled: true, value: 24 },
+                age: { enabled: false, value: 24 },
                 marketCap: { enabled: true, value: 1500000 },
                 volume: { enabled: true, value: 1500000 },
-                autoRefresh: true
+                autoRefresh: false
             };
 
             let isLoading = false;
@@ -339,7 +339,7 @@ $(document).ready(function() {
                 // If no filter params, set UI to JS defaults
                 if (!anyParam) {
                     // Age < 24h
-                    $('#filter-age').prop('checked', true);
+                    $('#filter-age').prop('checked', false);
                     // Market Cap > 1,500,000
                     $('#filter-marketcap-toggle').prop('checked', true);
                     $('#filter-marketcap').val(1500000).prop('disabled', false);
@@ -356,7 +356,7 @@ $(document).ready(function() {
                     const maxAge = parseInt(params.get('max_age'));
                     if (!isNaN(maxAge)) {
                         filters.age.value = maxAge;
-                        $('#filter-age').prop('checked', true);
+                        $('#filter-age').prop('checked', false);
                     }
                 }
                 

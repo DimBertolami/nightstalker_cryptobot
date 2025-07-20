@@ -101,3 +101,5 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # Exclude site-packages and all venv content
 **/site-packages/
+
+/vendor/

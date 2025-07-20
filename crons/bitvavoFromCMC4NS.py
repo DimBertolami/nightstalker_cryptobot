@@ -7,8 +7,9 @@ import time
 # --- CONFIGURATION ---
 # SPARE KEY 1: a36ab379-15a0-409b-99ec-85ab7f2836ea
 # SPARE KEY 2: 1758e18b-1744-4ad6-a2a9-908af2f33c8a
+# SPARE KEY 3: 2b0c6f1d-4e7a-4f5c-8b9d-0f8c1e2b3a4b
 # used up this month: API_KEY = 'e2e746c1-169a-4778-90f7-a66458a6af00'
-API_KEY= "1758e18b-1744-4ad6-a2a9-908af2f33c8aok "
+API_KEY= "a36ab379-15a0-409b-99ec-85ab7f2836ea"
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'dimi',

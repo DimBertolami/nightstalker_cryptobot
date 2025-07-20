@@ -481,26 +481,36 @@ function getUserBalancesPDO(): array {
  */
 
 function syncPortfolioCoinsToCryptocurrenciesPDO() {
+    static $debugLogs = [];
     $db = getDBConnection();
-    if (!$db) return false;
+    if (!$db) {
+        $debugLogs[] = "Database connection failed";
+        echo "Database connection failed";
+        return false;
+    }
 
-    // Get distinct coin_ids from portfolio
-    $query = "SELECT DISTINCT coin_id FROM portfolio";
+    // Get distinct coin_ids from portfolio with avg_buy_price
+    $query = "SELECT DISTINCT coin_id, avg_buy_price FROM portfolio";
     $stmt = $db->query($query);
     if (!$stmt) {
-        error_log("[syncPortfolioCoinsToCryptocurrenciesPDO] Failed to query portfolio: " . $db->errorInfo()[2]);
+        $debugLogs[] = "Failed to query portfolio: " . $db->errorInfo()[2];
+        echo "Failed to query portfolio: " . $db->errorInfo()[2];
         return false;
     }
 
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $coinId = $row['coin_id'];
+        $avgBuyPrice = $row['avg_buy_price'] ?? 0;
+        $debugLogs[] = "Processing coinId: $coinId with avgBuyPrice: $avgBuyPrice";
+        echo "Processing coinId: $coinId with avgBuyPrice: $avgBuyPrice";
 
         // Check if coinId is numeric (from coins table)
         if (is_numeric($coinId)) {
             // Get symbol and name from coins table
             $coinStmt = $db->prepare("SELECT symbol, coin_name FROM coins WHERE id = ?");
             if (!$coinStmt) {
-                error_log("[syncPortfolioCoinsToCryptocurrenciesPDO] Failed to prepare coins query: " . $db->errorInfo()[2]);
+                $debugLogs[] = "Failed to prepare coins query: " . $db->errorInfo()[2];
+                echo "Failed to prepare coins query: " . $db->errorInfo()[2];
                 continue;
             }
             $coinStmt->execute([$coinId]);
@@ -509,27 +519,54 @@ function syncPortfolioCoinsToCryptocurrenciesPDO() {
             if ($coinRow) {
                 $symbol = $coinRow['symbol'];
                 $name = $coinRow['coin_name'];
+                echo "Found coin symbol: $symbol, name: $name";
 
                 // Check if symbol exists in cryptocurrencies
                 $checkStmt = $db->prepare("SELECT id FROM cryptocurrencies WHERE symbol = ? LIMIT 1");
                 if (!$checkStmt) {
-                    error_log("[syncPortfolioCoinsToCryptocurrenciesPDO] Failed to prepare crypto check query: " . $db->errorInfo()[2]);
+                    $debugLogs[] = "Failed to prepare crypto check query: " . $db->errorInfo()[2];
+                    echo "Failed to prepare crypto check query: " . $db->errorInfo()[2];
                     continue;
                 }
                 $checkStmt->execute([$symbol]);
                 
                 if ($checkStmt->rowCount() == 0) {
                     // Insert into cryptocurrencies
-                    $insertStmt = $db->prepare("INSERT INTO cryptocurrencies (id, symbol, name, created_at) VALUES (?, ?, ?, NOW())");
+                    $insertStmt = $db->prepare("INSERT INTO cryptocurrencies (id, symbol, name, created_at, price) VALUES (?, ?, ?, NOW(), ?)");
                     if ($insertStmt) {
-                        $insertStmt->execute([$symbol, $symbol, $name]);
-                        error_log("[syncPortfolioCoinsToCryptocurrenciesPDO] Inserted coin $symbol into cryptocurrencies");
+                        $insertStmt->execute([$symbol, $symbol, $name, $avgBuyPrice]);
+                        $debugLogs[] = "Inserted coin $symbol into cryptocurrencies with price $avgBuyPrice";
+                        echo "Inserted coin $symbol into cryptocurrencies with price $avgBuyPrice";
+                    }
+                } else {
+                    // Update price in cryptocurrencies
+                    $updateStmt = $db->prepare("UPDATE cryptocurrencies SET price = ?, last_updated = NOW() WHERE id = ?");
+                    if ($updateStmt) {
+                        $debugLogs[] = "Executing update for $symbol with price $avgBuyPrice";
+                        $debugLogs[] = "SQL: UPDATE cryptocurrencies SET price = $avgBuyPrice, last_updated = NOW() WHERE id = $symbol";
+                        echo "Executing update for $symbol with price $avgBuyPrice";
+                        echo "SQL: UPDATE cryptocurrencies SET price = $avgBuyPrice, last_updated = NOW() WHERE id = $symbol";
+
+                        $debugLogs[] = "Updated price for $symbol to $avgBuyPrice";
+                        echo "Updated price for $symbol to $avgBuyPrice";
+                        if (!$db->inTransaction()) {
+                            $db->commit();
+                            $debugLogs[] = "Committed transaction";
+                            echo "Committed transaction";
+                        } else {
+                            $debugLogs[] = "Transaction already active, no commit performed";
+                            echo "Transaction already active, no commit performed";
                     }
                 }
             }
         }
     }
-    return true;
+}
+return true;
+
+function getSyncDebugLogs() {
+    static $debugLogs = [];
+    return $debugLogs;
 }
 
 function getUserCoinBalancePDO($coinId): array {
@@ -989,38 +1026,56 @@ function executeBuyPDO($coinId, $amount, $price) {
                 error_log("[executeBuyPDO] Failed to update portfolio: " . $db->errorInfo()[2]);
             }
 
-            // Launch the bitvavo_price_udater.py script in the background
-            $pythonScriptPath = '/opt/lampp/htdocs/NS/includes/bitvavo_price_udater.py';
-            $logFilePath = '/opt/lampp/htdocs/NS/logs/bitvavo_script_output.log';
-            // Check if the Python script is already running
-            $scriptName = 'bitvavo_price_udater.py';
-            $pgrepCommand = "/usr/bin/pgrep -f " . escapeshellarg($scriptName);
-            $existingPids = [];
-            exec($pgrepCommand, $existingPids);
+    // Check which exchange_id is present in coins table
+    try {
+        $stmt = $db->prepare("SELECT DISTINCT exchange_id FROM coins WHERE exchange_id IN (1, 2) LIMIT 1");
+        $stmt->execute();
+        $exchangeRow = $stmt->fetch(PDO::FETCH_ASSOC);
+        $exchangeId = $exchangeRow['exchange_id'] ?? null;
+    } catch (Exception $e) {
+        error_log("Error checking exchange_id in coins table: " . $e->getMessage());
+        $exchangeId = null;
+    }
 
-            if (!empty($existingPids)) {
-                error_log("Python script {$scriptName} is already running (PID: " . implode(', ', $existingPids) . "). Not launching a new instance.");
-            } else {
-                // Launch the bitvavo_price_udater.py script in the background
-                $pythonScriptPath = '/opt/lampp/htdocs/NS/includes/bitvavo_price_udater.py';
-                $command = '/usr/bin/python3 ' . escapeshellarg($pythonScriptPath) . ' > /dev/null 2>&1 &';
-                
-                $output = [];
-                $return_var = 0;
-                exec($command, $output, $return_var);
+    if ($exchangeId === '1' || $exchangeId === 1) {
+        $scriptName = 'bitvavo_price_udater.py';
+        $pythonScriptPath = '/opt/lampp/htdocs/NS/includes/bitvavo_price_udater.py';
+    } elseif ($exchangeId === '2' || $exchangeId === 2) {
+        $scriptName = 'binance_price_updater.py';
+        $pythonScriptPath = '/opt/lampp/htdocs/NS/includes/binance_price_updater.py';
+    } else {
+        error_log("No valid exchange_id (1 or 2) found in coins table. Not launching any price updater script.");
+        $scriptName = null;
+        $pythonScriptPath = null;
+    }
 
-                error_log("Attempted to launch Python script: {$pythonScriptPath}");
-                error_log("Command executed: {$command}");
-                error_log("Exec return_var: {$return_var}");
-                error_log("Exec output: " . implode('
+    if ($scriptName && $pythonScriptPath) {
+        $pgrepCommand = "/usr/bin/pgrep -f " . escapeshellarg($scriptName);
+        $existingPids = [];
+        exec($pgrepCommand, $existingPids);
+
+        if (!empty($existingPids)) {
+            error_log("Python script {$scriptName} is already running (PID: " . implode(', ', $existingPids) . "). Not launching a new instance.");
+        } else {
+            $command = '/usr/bin/python3 ' . escapeshellarg($pythonScriptPath) . ' > /dev/null 2>&1 &';
+
+            $output = [];
+            $return_var = 0;
+            exec($command, $output, $return_var);
+
+            error_log("Attempted to launch Python script: {$pythonScriptPath}");
+            error_log("Command executed: {$command}");
+            error_log("Exec return_var: {$return_var}");
+            error_log("Exec output: " . implode('
 ', $output));
 
-                if ($return_var === 0) {
-                    error_log("Python script {$pythonScriptPath} launched successfully.");
-                } else {
-                    error_log("Error launching Python script {$pythonScriptPath}. Check PHP error log for details.");
-                }
+            if ($return_var === 0) {
+                error_log("Python script {$pythonScriptPath} launched successfully.");
+            } else {
+                error_log("Error launching Python script {$pythonScriptPath}. Check PHP error log for details.");
             }
+        }
+    }
 
             return $tradeId;
         } else {
@@ -1087,6 +1142,8 @@ function getTradeLogWithMarketDataPDO(int $limit = 100): array {
         // First, get the raw trade data
         $rawTrades = getTradeLogPDO($limit);
         
+        error_log("Raw trades fetched from trade_log: " . json_encode(array_slice($rawTrades, 0, 5)));
+        
         if (empty($rawTrades)) {
             error_log("No trades returned from getTradeLogPDO");
             return [];
@@ -1118,14 +1175,22 @@ function getTradeLogWithMarketDataPDO(int $limit = 100): array {
         $currentPrices = [];
         
         if (!empty($symbols)) {
+            // Filter out empty or null symbols
+            $symbols = array_filter($symbols, fn($s) => !empty($s));
+        }
+        
+        if (!empty($symbols)) {
             $placeholders = implode(',', array_fill(0, count($symbols), '?'));
             $stmt = $db->prepare("SELECT symbol, current_price FROM coins WHERE symbol IN ($placeholders)");
-            $stmt->execute($symbols);
+            // Fix: bind parameters as individual values
+            $stmt->execute(array_values($symbols));
             $priceData = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             foreach ($priceData as $row) {
                 $currentPrices[$row['symbol']] = $row['current_price'];
             }
+        } else {
+            $currentPrices = [];
         }
         
         // Enrich trade data with current prices
@@ -1134,9 +1199,12 @@ function getTradeLogWithMarketDataPDO(int $limit = 100): array {
             $trade['current_price'] = $currentPrices[$symbol] ?? 0;
         }
         
+        error_log("Enriched trades with current prices: " . json_encode(array_slice($trades, 0, 5)));
+        
         return $trades;
     } catch (Exception $e) {
         error_log("[getTradeLogWithMarketDataPDO] " . $e->getMessage());
         return [];
     }
+}
 }

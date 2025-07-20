@@ -14,14 +14,19 @@ if (!isset($_SESSION['user_id'])) {
 
 // Define allowed tools
 $allowedTools = [
-    'coingecko' => 'CoinGecko Data Fetcher',
     'sync_trade_tables' => 'Trade Table Synchronizer',
     'trade_diagnostics' => 'Trade Diagnostics',
     'cmc_fetch_coins' => 'CoinMarketCap Data Fetcher',
+    'cmc_fetch_bitvavo_coins' => 'CMC Bitvavo Coins Fetcher',
+    'cmc_fetch_binance_coins' => 'CMC Binance Coins Fetcher',
+    'delete_all_coins' => 'Delete All Coins',
     'trending_fetcher' => 'Crypto Trending Data Fetcher',
-    'exchange_monitor' => 'Exchange Price Monitor',
-    'cron_manager' => 'Cron Manager'
+    'cron_manager' => 'Cron Manager',
+    'export_sensitive_data' => 'Export Sensitive Data',
+    'log_reader' => 'log reader',
+    'sync_portfolio_to_cryptocurrencies' => 'Sync Portfolio to Cryptocurrencies',
 ];
+
 
 // Get requested tool
 $tool = $_GET['tool'] ?? '';

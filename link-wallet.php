@@ -10,6 +10,7 @@ try {
 
     $title = "Link Crypto Wallet";
     require_once __DIR__ . '/includes/header.php';
+    require_once __DIR__ . '/vendor/autoload.php';
 ?>
 
 <div class="container mt-5">
@@ -247,9 +248,7 @@ try {
     </div>
 </div>
 
-<script>
-// Moved all JavaScript to wallet-connect.js for better organization and maintenance
-</script>
+<script src="/NS/assets/js/wallet-connect.js"></script>
 
 <?php
 } catch (Exception $e) {

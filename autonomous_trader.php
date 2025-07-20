@@ -15,7 +15,7 @@ require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/TradingStrategy.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/database.php';
-
+require_once __DIR__ . '/vendor/autoload.php';
 // Load trading configuration
 $configFile = __DIR__ . '/config/trading_config.json';
 if (file_exists($configFile)) {

@@ -150,69 +150,6 @@ $cronStatus = get_fetch_coins_cron_status();
             </div>
         </div>
         
-        <div class="col-md-4">
-            <div class="card mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h3 class="mb-0">API Configuration</h3>
-                </div>
-                <div class="card-body">
-                        <div class="mb-3">
-                            <div class="form-check form-switch mb-3">
-                                <input class="form-check-input" type="checkbox" id="masterFetchToggle" name="masterFetchToggle" checked>
-                                <label class="form-check-label fw-bold" for="masterFetchToggle">
-                                    Enable Fetching of New Coins
-                                </label>
-                                <small class="text-muted d-block">Master switch to turn on/off all coin fetching. When off, price monitoring is activated.</small>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Data Sources</label>
-                            
-                            <div class="form-check form-switch mb-2">
-                                <input class="form-check-input" type="checkbox" id="coinGeckoSource" name="sources[coingecko]" checked>
-                                <label class="form-check-label" for="coinGeckoSource">CoinGecko</label>
-                            </div>
-                            
-                            <div class="form-check form-switch mb-2">
-                                <input class="form-check-input" type="checkbox" id="cmcSource" name="sources[cmc]" checked>
-                                <label class="form-check-label" for="cmcSource">CoinMarketCap</label>
-                            </div>
-                            
-                            <div class="form-check form-switch mb-2">
-                                <input class="form-check-input" type="checkbox" id="bitvavoSource" name="sources[bitvavo]">
-                                <label class="form-check-label" for="bitvavoSource">Bitvavo</label>
-                            </div>
-                            
-                            <div class="form-check form-switch mb-2">
-                                <input class="form-check-input" type="checkbox" id="jupiterSource" name="sources[jupiter]">
-                                <label class="form-check-label" for="jupiterSource">Jupiter</label>
-                            </div>
-                            
-                            <div class="form-check form-switch mb-2">
-                                <input class="form-check-input" type="checkbox" id="alpacaSource" name="sources[alpaca]">
-                                <label class="form-check-label" for="alpacaSource">Alpaca</label>
-                            </div>
-                            
-                            <div class="form-check form-switch mb-2">
-                                <input class="form-check-input" type="checkbox" id="liveCoinWatchSource" name="sources[livecoinwatch]">
-                                <label class="form-check-label" for="liveCoinWatchSource">LiveCoinWatch</label>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <input type="text" class="form-control" id="coingeckoKey" name="coingeckoKey" 
-                                value="<?php echo COINGECKO_API_KEY; ?>">
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="cmcKey" class="form-label">CoinMarketCap API Key</label>
-                            <input type="text" class="form-control" id="cmcKey" name="cmcKey" 
-                                value="<?php echo API_KEY; ?>">
-                        </div>
-                </div>
-            </div>
-        </div>
     </div>
     
     <div class="row">
@@ -434,6 +371,69 @@ $cronStatus = get_fetch_coins_cron_status();
 
 <!-- Add Exchange Modal -->
 <div class="modal fade" id="addExchangeModal" tabindex="-1" aria-labelledby="addExchangeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="addExchangeModalLabel">Add New Exchange</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="exchangeSelect" class="form-label">Select Exchange</label>
+                    <select class="form-select" id="exchangeSelect" name="exchange_id">
+                        <option value="">-- Select an Exchange --</option>
+                        <optgroup label="Popular Exchanges">
+                            <option value="binance">Binance</option>
+                            <option value="coinbase">Coinbase</option>
+                            <option value="kraken">Kraken</option>
+                            <option value="kucoin">KuCoin</option>
+                            <option value="bitvavo">Bitvavo</option>
+                            <option value="bybit">Bybit</option>
+                        </optgroup>
+                        <optgroup label="DEX">
+                            <option value="jupiter">Jupiter (Solana)</option>
+                            <option value="uniswap">Uniswap (Ethereum)</option>
+                            <option value="pancakeswap">PancakeSwap (BSC)</option>
+                        </optgroup>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="apiKey" class="form-label">API Key</label>
+                    <input type="text" class="form-control" id="apiKey" name="api_key" placeholder="Enter your API key">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="apiSecret" class="form-label">API Secret</label>
+                    <input type="password" class="form-control" id="apiSecret" name="api_secret" placeholder="Enter your API secret">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="additionalParams" class="form-label">Additional Parameters (Optional)</label>
+                    <textarea class="form-control" id="additionalParams" name="additional_params" rows="3" placeholder="Enter as JSON: {"param1": "value1", "param2": "value2"}"></textarea>
+                    <small class="text-muted">Some exchanges require additional parameters like password or passphrase</small>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="testMode" name="test_mode">
+                    <label class="form-check-label" for="testMode">
+                        Enable Test Mode (Sandbox)
+                    </label>
+                    <small class="text-muted d-block">Use exchange's test environment instead of production</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveExchange" form="settings-form">
+                    <i class="fas fa-plus-circle me-2"></i>Add Exchange
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php
+// Add scripts to the footer
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">

@@ -18,14 +18,6 @@ if (!isset($_SESSION['user_id'])) {
 
 // Define available tools
 $tools = [
-    'coingecko' => [
-        'name' => 'CoinGecko Data Fetcher',
-        'description' => 'Updates the database with latest coins from CoinGecko API',
-        'script' => '/opt/lampp/htdocs/NS/tools/fetch_coingecko_coins.php',
-        'icon' => 'fa-coins',
-        'category' => 'Data',
-        'last_run' => getLastRunTime('coingecko')
-    ],
     'sync_trade_tables' => [
         'name' => 'Trade Table Synchronizer',
         'description' => 'Synchronizes trade tables with latest trade data',
@@ -42,21 +34,29 @@ $tools = [
         'category' => 'Data',
         'last_run' => getLastRunTime('trade_diagnostics')
     ],
-    'cmc_fetch_coins' => [
-        'name' => 'CoinMarketCap Data Fetcher',
-        'description' => 'Updates the database with latest coins from CoinMarketCap API',
-        'script' => '/opt/lampp/htdocs/NS/tools/fetch_cmc_coins.php',
+    'delete_all_coins' => [
+        'name' => 'delete coins',
+        'description' => 'delete coins from the database',
+        'script' => '/opt/lampp/htdocs/NS/delete_coins.php',
         'icon' => 'fa-coins',
         'category' => 'Data',
-        'last_run' => getLastRunTime('cmc_fetch_coins')
+        'last_run' => getLastRunTime('delete_all_coins')
     ],
-    'exchange_monitor' => [
-        'name' => 'Exchange Price Monitor',
-        'description' => 'Monitors prices directly from exchanges and executes trades based on price movements',
-        'script' => '/opt/lampp/htdocs/NS/system-tools/run_exchange_monitor.php',
-        'icon' => 'fa-chart-line',
-        'category' => 'Trading',
-        'last_run' => getLastRunTime('exchange_monitor')
+    'cmc_fetch_bitvavo_coins' => [
+        'name' => 'CMC list of bitvavo coins',
+        'description' => 'Updates the database with latest bitvavo coins from CoinMarketCap API',
+        'script' => '/opt/lampp/htdocs/NS/crons/bitvavoFromCMC4NS.py',
+        'icon' => 'fa-coins',
+        'category' => 'Data',
+        'last_run' => getLastRunTime('bitvavoFromCMC4NS')
+    ],
+    'cmc_fetch_binance_coins' => [
+        'name' => 'CMC list of binance coins',
+        'description' => 'Updates the database with latest binance coins from CoinMarketCap API',
+        'script' => '/opt/lampp/htdocs/NS/crons/binanceFromCMC4NS.py',
+        'icon' => 'fa-coins',
+        'category' => 'Data',
+        'last_run' => getLastRunTime('binanceFromCMC4NS')
     ],
     'cron_manager' => [
         'name' => 'Cron Manager',
@@ -74,6 +74,22 @@ $tools = [
         'category' => 'Maintenance',
         'last_run' => null
     ],
+    'log_reader' => [
+        'name' => 'log reader',
+        'description' => 'Shows the last 20 lines of the Nightstalkers system logs',
+        'script' => '/opt/lampp/htdocs/NS/tools/log_reader.sh',
+        'icon' => 'fa-shield-alt',
+        'category' => 'Analytics',
+        'last_run' => null
+    ],
+    'sync_portfolio_to_cryptocurrencies' => [
+        'name' => 'portfolio to cryptocurrencies sync',
+        'description' => 'Syncs the portfolio table with the cryptocurrencies table',
+        'script' => '/opt/lampp/htdocs/NS/tools/sync_portfolio_to_cryptocurrencies.php',
+        'icon' => 'fa-shield-alt',
+        'category' => 'Data',
+        'last_run' => null
+    ]
     // Add more tools here as they are created
 ];
 
@@ -219,8 +235,40 @@ function getLastRunTime($tool) {
             
             <section id="analytics-tools" class="mb-5">
                 <h2><i class="fas fa-chart-bar me-2"></i>Analytics</h2>
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i>No analytics tools available yet.
+                <div class="row">
+                    <?php foreach ($tools as $id => $tool): ?>
+                    <?php if ($tool['category'] === 'Analytics'): ?>
+                    <div class="col-lg-6 mb-4">
+                        <div class="card bg-dark border-secondary h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="fas <?= $tool['icon'] ?> me-2"></i><?= $tool['name'] ?></h5>
+                                <div>
+                                    <?php if ($tool['last_run']): ?>
+                                    <small class="text-muted">Last run: <?= $tool['last_run'] ?></small>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <p><?= $tool['description'] ?></p>
+                                <div class="d-flex justify-content-end">
+                                    <button class="btn btn-primary btn-sm run-script me-2" data-tool="<?= $id ?>">
+                                        <i class="fas fa-play me-2"></i>Run Now
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info view-log" data-tool="<?= $id ?>">
+                                        <i class="fas fa-file-alt me-2"></i>View Log
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger clear-log" data-tool="<?= $id ?>">
+                                        <i class="fas fa-trash-alt me-2"></i>Clear Logs
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <div class="output-container p-3" id="output-<?= $id ?>" style="display: none;"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <?php endforeach; ?>
                 </div>
             </section>
             

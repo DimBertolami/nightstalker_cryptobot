@@ -26,11 +26,13 @@ def signal_handler(sig, frame):
     global running
     print("\nShutting down gracefully...")
     running = False
+    print("Backend price update script stopped.")
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
 
 def create_price_history_table():
+
     """Create price_history table if it doesn't exist"""
     try:
         conn = mysql.connector.connect(**DB_CONFIG)
@@ -171,6 +173,7 @@ def test():
         print(f"Connection failed: {e}")
 
 def main():
+    print("Backend price update script started.")
     # Ensure price_history table exists
     # create_price_history_table()
     

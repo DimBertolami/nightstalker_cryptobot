@@ -6,7 +6,7 @@ import time
 # --- CONFIGURATION ---
 # SPARE KEY 1: a36ab379-15a0-409b-99ec-85ab7f2836ea
 # used up this month: API_KEY = 'e2e746c1-169a-4778-90f7-a66458a6af00'
-API_KEY= "a36ab379-15a0-409b-99ec-85ab7f2836eaS"
+API_KEY= "a36ab379-15a0-409b-99ec-85ab7f2836ea"
 DB_CONFIG = {
     'host': 'localhost',
     'user': 'dimi',

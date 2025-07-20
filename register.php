@@ -12,7 +12,7 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/auth.php';
-
+require_once __DIR__ . '/vendor/autoload.php';
 // Initialize variables
 $error = '';
 $username = '';

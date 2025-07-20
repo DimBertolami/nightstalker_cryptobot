@@ -8,6 +8,7 @@
 
 // Include header
 include_once 'includes/header.php';
+require_once __DIR__ . '/vendor/autoload.php';
 ?>
 
 <div class="container-fluid">

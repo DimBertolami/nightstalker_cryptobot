@@ -3,7 +3,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
-
+require_once __DIR__ . '/vendor/autoload.php';
 // Set error reporting - don't display errors, just log them
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
@@ -48,7 +48,7 @@ try {
     
     // Prepare insert/update statement
     $stmt = $db->prepare("
-        INSERT INTO `all_cmc_coins` (symbol, name, price, change_24h, volume_24h, market_cap) 
+        INSERT INTO `all_cmc_coins` (symbol, coin_name, price, change_24h, volume_24h, market_cap) 
         VALUES (:symbol, :name, :price, :change_24h, :volume_24h, :market_cap)
         ON DUPLICATE KEY UPDATE 
             name = VALUES(name),

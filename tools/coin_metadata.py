@@ -14,7 +14,7 @@ large_csv="_largelist_"
 small_csv="_smalllist_"
 
 import requests
-import pandas as pd
+import pandas as pd # type: ignore
 
 import json
 from typing import Dict, Any, List, Optional, Union
@@ -31,8 +31,12 @@ def get_binance_coin_metadata(coin_symbol: str) -> Dict[str, Any]:
     Returns:
         Dictionary containing all available metadata for the coin
     """
-    # CoinMarketCap API key
-    API_KEY = 'e2e746c1-169a-4778-90f7-a66458a6af00'
+# --- CONFIGURATION ---
+# SPARE KEY 1: a36ab379-15a0-409b-99ec-85ab7f2836ea
+# SPARE KEY 2: 1758e18b-1744-4ad6-a2a9-908af2f33c8a
+# SPARE KEY 3: 2b0c6f1d-4e7a-4f5c-8b9d-0f8c1e2b3a4b
+# used up this month: API_KEY = 'e2e746c1-169a-4778-90f7-a66458a6af00'
+    API_KEY= '1758e18b-1744-4ad6-a2a9-908af2f33c8a'
     headers = {'X-CMC_PRO_API_KEY': API_KEY}
     
     try:

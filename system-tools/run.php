@@ -11,7 +11,7 @@ try {
     require_once '/opt/lampp/htdocs/NS/includes/config.php';
     require_once '/opt/lampp/htdocs/NS/includes/database.php';
     require_once '/opt/lampp/htdocs/NS/includes/functions.php';
-    
+    require_once '/opt/lampp/htdocs/NS/includes/pdo_functions.php';
     // Check if user is logged in
     if (!isset($_SESSION['user_id'])) {
         throw new Exception('Please log in to access system tools.');
@@ -19,14 +19,16 @@ try {
     
     // Define allowed tools
     $allowedTools = [
-        'coingecko' => '/opt/lampp/htdocs/NS/tools/fetch_coingecko_coins.php',
         'sync_trade_tables' => '/opt/lampp/htdocs/NS/tools/sync_trade_tables.php',
         'trade_diagnostics' => '/opt/lampp/htdocs/NS/tools/trade_diagnostics.php',
-        'cmc_fetch_coins' => '/opt/lampp/htdocs/NS/tools/fetch_cmc_coins.php',
+        'delete_all_coins' => '/opt/lampp/htdocs/NS/delete_coins.php',
+        'cmc_fetch_bitvavo_coins' => '/opt/lampp/htdocs/NS/crons/bitvavoFromCMC4NS.py',
+        'cmc_fetch_binance_coins' => '/opt/lampp/htdocs/NS/crons/binanceFromCMC4NS.py',
         'trending_fetcher' => '/opt/lampp/htdocs/NS/crypto_sources/crypto_trending_fetcher.py',
         'cron_manager' => '/opt/lampp/htdocs/NS/tools/cron_manager_tool.php',
-        'exchange_monitor' => '/opt/lampp/htdocs/NS/system-tools/run_exchange_monitor.php',
-        'export_sensitive_data' => '/opt/lampp/htdocs/NS/export_sensitive_data.sh'
+        'export_sensitive_data' => '/opt/lampp/htdocs/NS/export_sensitive_data.sh',
+        'log_reader' => '/opt/lampp/htdocs/NS/tools/log_reader.sh',
+        'sync_portfolio_to_cryptocurrencies' => '/opt/lampp/htdocs/NS/crons/sync_portfolio_to_cryptocurrencies.php'
     ];
     
     // Get requested tool
@@ -66,6 +68,22 @@ try {
         if ($returnCode !== 0) {
             throw new Exception("Shell script execution failed with code $returnCode");
         }
+    } elseif ($fileExtension === 'py') {
+        // Execute Python script
+        $command = 'python3 ' . escapeshellarg($allowedTools[$tool]);
+        $output = [];
+        $returnCode = 0;
+        exec($command . ' 2>&1', $output, $returnCode);
+        
+        $scriptOutput = implode("\n", $output);
+        // Convert newlines to <br> for HTML display
+        $scriptOutput = nl2br(htmlspecialchars($scriptOutput, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
+        
+        if ($returnCode !== 0) {
+            // Include command and output in exception for debugging
+            $errorMessage = "Python script execution failed with code $returnCode. Command: $command. Output: " . $scriptOutput;
+            throw new Exception($errorMessage);
+        }
     } else {
         // Include PHP script
         require $allowedTools[$tool];
@@ -73,7 +91,11 @@ try {
     }
     
     // Save output to log file
-    file_put_contents($logFile, $scriptOutput);
+    $bytesWritten = file_put_contents($logFile, $scriptOutput);
+    if ($bytesWritten === false) {
+        throw new Exception("Failed to write log file: $logFile");
+    }
+    error_log("Log file written: $logFile ($bytesWritten bytes)");
     
     // Clear any previous output
     ob_clean();
