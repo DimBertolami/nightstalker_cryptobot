@@ -166,6 +166,7 @@ Currently, the system supports the following CCXT-based exchanges:
   no more coins in the portfolio, at which point it will log a message and exit gracefully.
 
   Here is the code used to update the file:
+```
  ╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
  │ ✔                       includes/bitvavo.py                                                                 │
  │                                                                                                             │
@@ -196,6 +197,7 @@ Currently, the system supports the following CCXT-based exchanges:
  │    115            time.sleep(3)                                                                             │
  │    116        script_logger.info("--- Script finished ---")                                                 │
  ╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
 ✦ 2. Triggering the Scripts
 
   To ensure the scripts are triggered correctly, I'll need to modify the part of the application that will handle handle coin
