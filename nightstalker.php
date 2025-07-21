@@ -183,7 +183,7 @@ try {
 <script>
 	document.addEventListener('DOMContentLoaded', function() {
 	// List of your background images (use paths relative to your web root)
-	const backgroundImages = ['/NS/assets/images/oni1.png','/NS/assets/images/oni2.png','/NS/assets/images/oni3.png','/NS/assets/images/oni4.png']
+	const backgroundImages = background_Images;
         let currentIndex = 0;
         const body = document.body;
 
@@ -199,11 +199,10 @@ try {
 	}
 	// Set the very first background image immediately when the page loads
 	body.style.backgroundImage = `url('${backgroundImages[currentIndex]}')`;
-	// Change background every 20 seconds (20000 milliseconds)
-	setInterval(changeBackground, 20000);
+	// Change background every 5 seconds
+	setInterval(changeBackground, 5000);
 	});
 </script>
 
 
-<?php
-require_once __DIR__ . '/includes/footer.php';
+<?php require_once __DIR__ . '/includes/footer.php'; ?>

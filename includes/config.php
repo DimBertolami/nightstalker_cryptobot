@@ -1,6 +1,19 @@
 <?php
 // Night Stalker Configuration File
 
+define('background_Images', ['/NS/assets/images/oni1.png', 
+                            '/NS/assets/images/oni2.png',
+                            '/NS/assets/images/oni3.png',
+                            '/NS/assets/images/oni4.png',
+                            '/NS/assets/images/samu1.jpg',
+                            '/NS/assets/images/samu2.jpg',
+                            '/NS/assets/images/samu3.jpg', 
+                            '/NS/assets/images/samu4.jpg', 
+                            '/NS/assets/images/wave1.jpg', 
+                            '/NS/assets/images/wave2.jpg', 
+                            '/NS/assets/images/wave3.jpg', 
+                            '/NS/assets/images/wave4.jpg']);
+
 // Database Configuration
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');

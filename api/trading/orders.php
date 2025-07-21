@@ -1,6 +1,6 @@
 <?php
 // Buffer all output to prevent headers already sent errors
-ob_start();
+//ob_start();
 
 try {
     // Start session and check authentication
@@ -12,7 +12,7 @@ try {
     header('Content-Type: application/json');
     
     // Connect to database
-    require_once __DIR__ . '/../../includes/db.php';
+    require_once __DIR__ . '/../../includes/database.php';
     $db = getDbConnection();
     
     // Get request method

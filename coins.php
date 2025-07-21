@@ -1,5 +1,5 @@
 <?php
-error_log("TEST: This is a test entry from PHP at " . date('Y-m-d H:i:s'));
+$title = "Night Stalker - built from the remains of a decommissioned tsunami prediction warning system's Artificial Intelligence, it's new mission objectives to track and exploit a vulnerability discovered in all the new coins, which allows this system to predict and benefit from their price movements."; 
 
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/functions.php';
@@ -978,7 +978,7 @@ $(document).ready(function() {
 <script>
 	document.addEventListener('DOMContentLoaded', function() {
 	// List of your background images (use paths relative to your web root)
-	const backgroundImages = ['/NS/assets/images/oni1.png','/NS/assets/images/oni2.png','/NS/assets/images/oni3.png','/NS/assets/images/oni4.png'];
+    const backgroundImages = background_Images;
         let currentIndex = 0;
         const body = document.body;
 

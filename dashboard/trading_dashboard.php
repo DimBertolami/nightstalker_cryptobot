@@ -1,9 +1,13 @@
 <?php
-require_once __DIR__ . '/../includes/config.php';
-require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/TradingLogger.php';
-require_once __DIR__ . '/../includes/auth.php';
+// Include the header template
+$title = 'Night Stalker - built from the remains of a decommmissioned tsunami prediction warning system Artificial Intelligence, its new mission objectives to track and exploit a vulnerability discovered in all the new coins, which allows this system to predict and benefit from their price movements.';
+
+require_once __DIR__ .'/../includes/config.php';
+require_once __DIR__ .'/../includes/pdo_functions.php';
+require_once __DIR__ .'/../includes/TradingLogger.php';
+require_once __DIR__ .'/../includes/auth.php';
 require_once __DIR__.'/../includes/cmc_utils.php';
+
 
 // Start session if not already started and check authentication
 if (session_status() === PHP_SESSION_NONE) {
@@ -19,9 +23,6 @@ if (isset($_GET['exchange'])) {
     $_SESSION['selected_exchange'] = $_GET['exchange'];
 }
 $selectedExchange = $_SESSION['selected_exchange'] ?? 'binance';
-
-// Include the header template
-$pageTitle = 'Night Stalker - built from the remains of a decommmissioned tsunami prediction warning system Artificial Intelligence, its new mission objectives to track and exploit a vulnerability discovered in all the new coins, which allows this system to predict and benefit from their price movements.';
 
 // Add custom CSS for price history table and select2
 $customCSS = '
@@ -620,5 +621,29 @@ include __DIR__ . '/../includes/header.php';
 
 <!-- Main Trading Dashboard JavaScript -->
 <script src="/NS/dashboard/trading-dashboard-main.js"></script>
+
+<script>
+	document.addEventListener('DOMContentLoaded', function() {
+	// List of your background images (use paths relative to your web root)
+	const backgroundImages = <?php echo json_encode(constant('background_Images')); ?>;
+        let currentIndex = 0;
+        const body = document.body;
+
+	// Set initial background properties (from our previous discussion)
+	body.style.backgroundSize = 'cover';
+	body.style.backgroundPosition = 'center center';
+	body.style.backgroundRepeat = 'no-repeat';
+	body.style.backgroundAttachment = 'fixed'; // Keeps the image fixed while scrolling
+
+	function changeBackground() {
+		currentIndex = (currentIndex + 1) % backgroundImages.length; // Cycle through images
+		body.style.backgroundImage = `url('${backgroundImages[currentIndex]}')`;
+	}
+	// Set the very first background image immediately when the page loads
+	body.style.backgroundImage = `url('${backgroundImages[currentIndex]}')`;
+	// Change background every 5 seconds
+	setInterval(changeBackground, 5000);
+	});
+</script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>
