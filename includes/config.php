@@ -5,11 +5,11 @@
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '1304');
-#define('DB_NAME', 'night_stalker');
+//define('DB_NAME', 'night_stalker');
 define('DB_NAME', 'NS');
 
 // API Keys Configuration
-define('CMC_API_KEY', 'e2e746c1-169a-4778-90f7-a66458a6af00');
+define('CMC_API_KEY', 'a36ab379-15a0-409b-99ec-85ab7f2836ea');
 define('COINGECKO_API_KEY', 'CG-YXnGRuZPgUAyWZs14mHBJVyW');
 define('BINANCE_API_KEY', 'X8HpKiRKv6fNCulGEV2ReFpgyeS4wT0SWgokopvObB6ICUADi5nOEUZNFbcWUP9I');
 define('BINANCE_API_SECRET', 'qeJ3x3SByFxFepLXrBqkWkSYijPt2DjvNA1MVA7fykgOqgUw6Jrb0Cmmvm7DWqWs');

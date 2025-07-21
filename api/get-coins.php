@@ -7,8 +7,8 @@ ini_set('error_log', __DIR__ . '/../../logs/php-error.log');
 
 header('Content-Type: application/json');
 
-require_once __DIR__ . '/../includes/config.php';
-require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__.'/../includes/config.php';
+require_once __DIR__.'/../includes/database.php';
 
 try {
     $db = getDBConnection();

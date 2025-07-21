@@ -12,12 +12,13 @@ header('Content-Type: application/json');
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
-ini_set('error_log', '/opt/lampp/htdocs/NS/logs/php-error.log');
+ini_set('error_log', __DIR__.'/../logs/php-error.log');
 
 // Include configuration
-require_once '../includes/config.php';
-require_once '../includes/database.php';
-require_once '../includes/pdo_functions.php';
+require_once __DIR__.'/../includes/config.php';
+require_once __DIR__.'/../includes/pdo_functions.php';
+require_once __DIR__.'/../includes/database.php';
+
 
 // Function to validate request parameters
 function validateRequest($requiredParams) {

@@ -1,7 +1,13 @@
 <?php
 
+INCLUDE_ONCE __DIR__.'/../includes/config.php';
+
+/**
+ * Fetch trending coins from CoinMarketCap API
+ * @return array List of trending coins with their details
+ */
 function getCMCTrendingCoins() {
-    $apiKey = getenv('CMC_API_KEY');
+    $apiKey = "a36ab379-15a0-409b-99ec-85ab7f2836ea";
     $url = 'https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?limit=50&sort=percent_change_24h';
     
     $headers = [

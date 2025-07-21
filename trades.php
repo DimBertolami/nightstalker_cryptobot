@@ -5,7 +5,6 @@ require_once __DIR__ . '/includes/pdo_functions.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
 
-
 // Error handling
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -42,26 +41,19 @@ $title = "Trade History";
 require_once __DIR__ . '/includes/header.php';
 
 try {
-    error_log("Starting to fetch trades in trades.php");
     // Use the new function to get trade data from trade_log table
     $trades = getTradeLogWithMarketDataPDO(100);
+    
+    // Debug output
     error_log("Trade data fetched: " . json_encode([
         'count' => count($trades),
         'first_few' => array_slice($trades, 0, 3)
     ]));
-
-    // Additional debug: log entire trades array if count is zero
-    if (count($trades) === 0) {
-        error_log("No trades found in trades.php after fetching from getTradeLogWithMarketDataPDO");
-    } else {
-        error_log("Trades array sample: " . json_encode(array_slice($trades, 0, 10)));
-    }
     
     // Sort trades by date descending (newest first)
     usort($trades, function($a, $b) {
         return strtotime($b['trade_time']) <=> strtotime($a['trade_time']);
     });
-    error_log("Trades sorted successfully");
 } catch (Exception $e) {
     $_SESSION['error'] = "Could not load trade history. Please try again later.";
     error_log("Trade history error: " . $e->getMessage());
@@ -70,7 +62,6 @@ try {
 ?>
 
 <?php
-error_log("Rendering trades.php with trades count: " . count($trades));
 // Fetch latest coin prices from DB
 $db = getDBConnection();
 $coinPrices = [];
@@ -198,29 +189,6 @@ if (!empty($trades)) {
         </div>
     </div>
 </div>
-<script>
-	document.addEventListener('DOMContentLoaded', function() {
-	// List of your background images (use paths relative to your web root)
-	const backgroundImages = ['/NS/assets/images/oni1.png','/NS/assets/images/oni2.png','/NS/assets/images/oni3.png','/NS/assets/images/oni4.png']
-        let currentIndex = 0;
-        const body = document.body;
-
-	// Set initial background properties (from our previous discussion)
-	body.style.backgroundSize = 'cover';
-	body.style.backgroundPosition = 'center center';
-	body.style.backgroundRepeat = 'no-repeat';
-	body.style.backgroundAttachment = 'fixed'; // Keeps the image fixed while scrolling
-
-	function changeBackground() {
-		currentIndex = (currentIndex + 1) % backgroundImages.length; // Cycle through images
-		body.style.backgroundImage = `url('${backgroundImages[currentIndex]}')`;
-	}
-	// Set the very first background image immediately when the page loads
-	body.style.backgroundImage = `url('${backgroundImages[currentIndex]}')`;
-	// Change background every 20 seconds (20000 milliseconds)
-	setInterval(changeBackground, 20000);
-	});
-</script>
 
 <?php
 require_once __DIR__ . '/includes/footer.php';

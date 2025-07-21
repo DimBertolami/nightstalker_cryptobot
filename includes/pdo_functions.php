@@ -5,6 +5,364 @@
  */
 
 /**
+ * Execute a buy trade using PDO
+ * @param string|int $coinId The coin ID to sell
+ * @param float $amount Amount to sell
+ * @param float $price Current price per coin
+ * @return array|int Result with success status, message, profit_loss and profit_percentage or trade ID
+ */
+function executeBuyPDO($coinId, $amount, $price) {
+    $db = getDBConnection();
+    if (!$db) return false;
+
+    syncPortfolioCoinsToCryptocurrenciesPDO();
+
+    $totalValue = $amount * $price;
+
+    $finalCoinIdForDb = null; // This will be the ID used for trades and portfolio
+    $coinSymbol = null; // This will be the symbol (e.g., KMD)
+
+    if (is_numeric($coinId)) {
+        // If numeric, get symbol from 'coins' table
+        $symbolStmt = $db->prepare("SELECT symbol FROM coins WHERE id = ?");
+        if (!$symbolStmt) {
+            error_log("[executeBuyPDO] Failed to prepare symbol query: " . $db->errorInfo()[2]);
+            return false;
+        }
+        $symbolStmt->execute([$coinId]);
+        $symbolRow = $symbolStmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($symbolRow) {
+            $coinSymbol = $symbolRow['symbol'];
+            error_log("[executeBuyPDO] Determined coinSymbol from numeric ID: " . $coinSymbol);
+        } else {
+            error_log("[executeBuyPDO] Could not find symbol for numeric coin ID: " . $coinId);
+            return false; // Cannot proceed without a symbol
+        }
+    } else {
+        // If not numeric, assume $coinId is already the symbol
+        $coinSymbol = $coinId;
+        error_log("[executeBuyPDO] Using coinId as coinSymbol: " . $coinSymbol);
+    }
+
+    // Now, ensure the symbol exists in the 'cryptocurrencies' table and get its ID
+    // The 'cryptocurrencies' table uses the symbol itself as the ID (VARCHAR)
+    $checkCryptoStmt = $db->prepare("SELECT id FROM cryptocurrencies WHERE symbol = ? LIMIT 1");
+    if (!$checkCryptoStmt) {
+        error_log("[executeBuyPDO] Failed to prepare cryptocurrencies check query: " . $db->errorInfo()[2]);
+        return false;
+    }
+    $checkCryptoStmt->execute([$coinSymbol]);
+    $cryptoRow = $checkCryptoStmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($cryptoRow) {
+        $finalCoinIdForDb = $cryptoRow['id'];
+        error_log("[executeBuyPDO] Coin found in cryptocurrencies: " . $finalCoinIdForDb);
+    } else {
+        // If not found in cryptocurrencies, insert it
+        $finalCoinIdForDb = $coinSymbol; // Use symbol as ID for cryptocurrencies table
+        error_log("[executeBuyPDO] Coin not found in cryptocurrencies, attempting insert: " . $finalCoinIdForDb);
+        $insertCryptoStmt = $db->prepare("INSERT INTO cryptocurrencies 
+                                           (id, symbol, name, created_at, price) 
+                                           VALUES (?, ?, ?, NOW(), ?)");
+        if ($insertCryptoStmt) {
+            $coinName = $coinSymbol; // Default name to symbol if not found
+            try {
+                $insertSuccess = $insertCryptoStmt->execute([$finalCoinIdForDb, $coinSymbol, $coinName, $price]);
+                if ($insertSuccess) {
+                    error_log("[executeBuyPDO] Successfully inserted into cryptocurrencies: " . $finalCoinIdForDb);
+                } else {
+                    error_log("[executeBuyPDO] Failed to insert into cryptocurrencies (execute failed): " . json_encode($insertCryptoStmt->errorInfo()));
+                    return false; // Critical failure, cannot proceed
+                }
+            } catch (PDOException $e) {
+                // Catch duplicate entry errors specifically, as INSERT IGNORE was removed
+                if ($e->getCode() == '23000') { // Integrity constraint violation
+                    error_log("[executeBuyPDO] Duplicate entry for cryptocurrencies: " . $finalCoinIdForDb . " - " . $e->getMessage());
+                    // If it's a duplicate, it means it exists, so we can proceed
+                } else {
+                    error_log("[executeBuyPDO] PDOException during cryptocurrencies insert: " . $e->getMessage());
+                    return false; // Other database error, cannot proceed
+                }
+            }
+        } else {
+            error_log("[executeBuyPDO] Failed to prepare cryptocurrencies insert query: " . $db->errorInfo()[2]);
+            return false;
+        }
+    }
+
+    error_log("[executeBuyPDO] Final coin ID for trades/portfolio: " . $finalCoinIdForDb);
+
+    // Now insert the trade with the correct finalCoinIdForDb
+    try {
+        $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) VALUES (?, 'buy', ?, ?, ?, NOW())");
+        if (!$stmt) {
+            error_log("[executeBuyPDO] Failed to prepare trades insert query: " . $db->errorInfo()[2]);
+            return false;
+        }
+        $stmt->execute([$finalCoinIdForDb, $amount, $price, $totalValue]);
+
+        if ($stmt->rowCount() > 0) {
+            $tradeId = $db->lastInsertId();
+
+            // Update the portfolio table
+            $portfolioStmt = $db->prepare("INSERT INTO portfolio (user_id, coin_id, amount, avg_buy_price, last_updated) 
+                                         VALUES (1, ?, ?, ?, NOW()) 
+                                         ON DUPLICATE KEY UPDATE 
+                                         amount = amount + VALUES(amount),
+                                         avg_buy_price = ((amount * avg_buy_price) + (VALUES(amount) * ?)) / (amount + VALUES(amount)),
+                                         last_updated = NOW()");
+
+            if ($portfolioStmt) {
+                $portfolioStmt->execute([$coinSymbol, $amount, $price, $price]);
+                error_log("[executeBuyPDO] Updated portfolio for coin: $coinSymbol, amount: $amount, price: $price");
+            } else {
+                error_log("[executeBuyPDO] Failed to update portfolio: " . $db->errorInfo()[2]);
+            }
+
+            return $tradeId;
+        } else {
+            error_log("[executeBuyPDO] Failed to insert trade (no rows affected): " . $stmt->errorInfo()[2]);
+            return false;
+        }
+    } catch (PDOException $e) {
+        error_log("[executeBuyPDO] PDOException during trades insert: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Execute a sell trade using PDO
+ * @param string|int $coinId The coin ID to sell
+ * @param float $amount Amount to sell
+ * @param float $price Current price per coin
+ * @return array|int Result with success status, message, profit_loss and profit_percentage or trade ID
+ */
+function executeSellPDO($coinId, $amount, $price) {
+    try {
+        $db = getDBConnection();
+        if (!$db) {
+            throw new Exception("Database connection failed");
+        }
+
+        // Ensure coin ID is treated as a string
+        $coinId = (string)$coinId;
+        error_log("[executeSellPDO] Processing sell request for coin ID: $coinId, amount: $amount, price: $price");
+
+        // Try direct database query first - include user_id=1 filter
+        $stmt = $db->prepare("SELECT * FROM portfolio WHERE coin_id = ? AND user_id = 1");
+        $stmt->execute([$coinId]);
+        $directResult = $stmt->fetch(PDO::FETCH_ASSOC);
+        error_log("[executeSellPDO] Direct query result: " . json_encode($directResult));
+
+        // If direct query found the coin, use that data
+        if ($directResult) {
+            error_log("[executeSellPDO] Found coin directly in portfolio table");
+            $portfolioData = [
+                'amount' => (float)$directResult['amount'],
+                'avg_buy_price' => (float)$directResult['avg_buy_price'],
+                'coin_id' => $directResult['coin_id']
+            ];
+        } else {
+            // If not found directly, try with getUserCoinBalancePDO
+            error_log("[executeSellPDO] Coin not found directly, trying getUserCoinBalancePDO");
+            $portfolioData = getUserCoinBalancePDO($coinId);
+            error_log("[executeSellPDO] getUserCoinBalancePDO result: " . json_encode($portfolioData));
+        }
+
+        // Check if we have portfolio data
+        if (empty($portfolioData)) {
+            error_log("[executeSellPDO] No portfolio data found for coin ID: $coinId");
+            return [
+                'success' => false,
+                'message' => "Coin not found in your portfolio: $coinId"
+            ];
+        }
+
+        $userBalance = isset($portfolioData['amount']) ? $portfolioData['amount'] : 0;
+        $avgBuyPrice = isset($portfolioData['avg_buy_price']) ? $portfolioData['avg_buy_price'] : 0;
+        $portfolioCoinId = isset($portfolioData['coin_id']) ? $portfolioData['coin_id'] : $coinId; // Use the coin_id from portfolioData
+
+        // Validate amount
+        if ($amount <= 0) {
+            throw new Exception("Invalid amount to sell");
+        }
+
+        if ($amount > $userBalance) {
+            throw new Exception("Cannot sell more than you own. Your balance: $userBalance");
+        }
+
+        // Calculate profit/loss
+        $sellValue = $amount * $price;
+        $buyValue = $amount * $avgBuyPrice;
+        $profitLoss = $sellValue - $buyValue;
+        $profitPercentage = $buyValue > 0 ? ($profitLoss / $buyValue) * 100 : 0;
+
+        // Start transaction
+        $db->beginTransaction();
+
+        // Get the numeric coin_id from the cryptocurrencies table
+        $crypto_id_query = "SELECT id FROM cryptocurrencies WHERE symbol = :symbol";
+        $stmt_crypto = $db->prepare($crypto_id_query);
+        $stmt_crypto->bindParam(':symbol', $coinId); // Use the symbol to find the numeric ID
+        $stmt_crypto->execute();
+        $crypto_data = $stmt_crypto->fetch(PDO::FETCH_ASSOC);
+
+        if (!$crypto_data) {
+            error_log("[executeSellPDO] Error: Coin symbol '{$coinId}' not found in cryptocurrencies table.");
+            return ['success' => false, 'message' => 'Coin not found in cryptocurrencies table.'];
+        }
+
+        $numeric_coin_id = $crypto_data['id'];
+
+        // Insert sell trade record
+        $tradeStmt = $db->prepare("INSERT INTO trades 
+                                  (coin_id, trade_type, price, amount, total_value, profit_loss) 
+                                  VALUES (?, 'sell', ?, ?, ?, ?)");
+
+        if (!$tradeStmt) {
+            throw new Exception("Failed to prepare trade statement: " . $db->errorInfo()[2]);
+        }
+        $tradeStmt->bindParam(1, $numeric_coin_id, PDO::PARAM_INT); // Bind as INT
+        $tradeStmt->bindParam(2, $price, PDO::PARAM_STR);
+        $tradeStmt->bindParam(3, $amount, PDO::PARAM_STR);
+        $tradeStmt->bindParam(4, $sellValue, PDO::PARAM_STR);
+        $tradeStmt->bindParam(5, $profitLoss, PDO::PARAM_STR);
+        $tradeStmt->execute();
+
+        $tradeId = $db->lastInsertId();
+
+        // Update portfolio - reduce amount
+        $newAmount = $userBalance - $amount;
+
+        if ($newAmount <= 0.000001) { // Effectively zero
+            // Delete the portfolio entry if no coins left
+            $portfolioStmt = $db->prepare("DELETE FROM portfolio WHERE coin_id = ? AND user_id = 1");
+            if (!$portfolioStmt) {
+                throw new Exception("Failed to prepare portfolio delete statement: " . $db->errorInfo()[2]);
+            }
+            $portfolioStmt->bindParam(1, $portfolioCoinId, PDO::PARAM_STR);
+        } else {
+            // Update the portfolio with new amount
+            $portfolioStmt = $db->prepare("UPDATE portfolio SET amount = ? WHERE coin_id = ? AND user_id = 1");
+            if (!$portfolioStmt) {
+                throw new Exception("Failed to prepare portfolio update statement: " . $db->errorInfo()[2]);
+            }
+            $portfolioStmt->bindParam(1, $newAmount, PDO::PARAM_STR);
+            $portfolioStmt->bindParam(2, $portfolioCoinId, PDO::PARAM_STR);
+        }
+
+        $portfolioStmt->execute();
+
+        // Commit transaction
+        $db->commit();
+
+        // Log the trade
+        error_log("Sell executed: $amount of $coinId at $price. Profit: $profitLoss ($profitPercentage%)");
+
+        return [
+            "success" => true,
+            "message" => "Successfully sold $amount coins",
+            "profit_loss" => $profitLoss,
+            "profit_percentage" => $profitPercentage,
+            "trade_id" => $tradeId
+        ];
+    } catch (Exception $e) {
+        if (isset($db) && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        error_log("[executeSellPDO] Error: " . $e->getMessage());
+        return [
+            "success" => false,
+            "message" => "Error executing sell: " . $e->getMessage(),
+            "profit_loss" => 0,
+            "profit_percentage" => 0
+        ];
+    }
+}
+
+
+/**
+ * Get recent trades from trade_log table with market data
+ */
+function getTradeLogWithMarketDataPDO(int $limit = 100): array {
+    try {
+        $db = getDBConnection();
+        if (!$db) {
+            throw new Exception("Database connection failed");
+        }
+
+        // First, get the raw trade data
+        $rawTrades = getTradeLogPDO($limit);
+        
+        error_log("Raw trades fetched from trade_log: " . json_encode(array_slice($rawTrades, 0, 5)));
+        
+        if (empty($rawTrades)) {
+            error_log("No trades returned from getTradeLogPDO");
+            return [];
+        }
+
+        // Process the raw trades into a consistent format
+        $trades = [];
+        foreach ($rawTrades as $row) {
+            // Map fields from whatever structure we have to our expected structure
+            // Use null coalescing to handle potential missing fields
+            $trade = [
+                'id' => $row['id'] ?? null,
+                'coin_id' => $row['coin_id'] ?? null,
+                'symbol' => $row['symbol'] ?? $row['coin'] ?? 'UNKNOWN',
+                'name' => $row['symbol'] ?? $row['coin'] ?? 'Unknown',
+                'amount' => $row['amount'] ?? 0,
+                'price' => $row['price'] ?? 0,
+                'trade_type' => $row['action'] ?? $row['trade_type'] ?? 'unknown',
+                'trade_time' => $row['trade_date'] ?? $row['date'] ?? $row['trade_time'] ?? date('Y-m-d H:i:s'),
+                'total_value' => isset($row['amount']) && isset($row['price']) ? ($row['amount'] * $row['price']) : 0,
+                'strategy' => $row['strategy'] ?? 'manual'
+            ];
+            
+            $trades[] = $trade;
+        }
+
+        // Get current prices for all symbols
+        $symbols = array_unique(array_column($trades, 'symbol'));
+        $currentPrices = [];
+        
+        if (!empty($symbols)) {
+            // Filter out empty or null symbols
+            $symbols = array_filter($symbols, fn($s) => !empty($s));
+        }
+        
+        if (!empty($symbols)) {
+            $placeholders = implode(',', array_fill(0, count($symbols), '?'));
+            $stmt = $db->prepare("SELECT symbol, current_price FROM coins WHERE symbol IN ($placeholders)");
+            // Fix: bind parameters as individual values
+            $stmt->execute(array_values($symbols));
+            $priceData = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            foreach ($priceData as $row) {
+                $currentPrices[$row['symbol']] = $row['current_price'];
+            }
+        } else {
+            $currentPrices = [];
+        }
+        
+        // Enrich trade data with current prices
+        foreach ($trades as &$trade) {
+            $symbol = $trade['symbol'];
+            $trade['current_price'] = $currentPrices[$symbol] ?? 0;
+        }
+        
+        error_log("Enriched trades with current prices: " . json_encode(array_slice($trades, 0, 5)));
+        
+        return $trades;
+    } catch (Exception $e) {
+        error_log("[getTradeLogWithMarketDataPDO] " . $e->getMessage());
+        return [];
+    }
+}
+
+
+/**
  * Get coin information by ID from either cryptocurrencies or coins table
  */
 function getCoinInfoById($coinId) {
@@ -67,6 +425,7 @@ function getCoinInfoById($coinId) {
     }
 }
 
+
 /**
  * Get trending coins
  */
@@ -96,6 +455,7 @@ function getTrendingCoinsPDO(): array {
         return [];
     }
 }
+
 
 /**
  * Get recent trades
@@ -150,6 +510,7 @@ function getRecentTradesPDO(int $limit = 10): array {
         return [];
     }
 }
+
 
 /**
  * Get recent trades with market data
@@ -303,6 +664,7 @@ function getRecentTradesWithMarketDataPDO(int $limit = 10): array {
     }
 }
 
+
 /**
  * Get trading statistics
  */
@@ -356,6 +718,7 @@ function getTradingStatsPDO(): array {
         ];
     }
 }
+
 
 /**
  * Get new cryptocurrencies added within MAX_COIN_AGE hours
@@ -417,6 +780,7 @@ function getNewCryptocurrenciesPDO(): array {
     }
 }
 
+
 /**
  * Get user's cryptocurrency balances with PDO
  */
@@ -473,12 +837,7 @@ function getUserBalancesPDO(): array {
         return [];
     }
 }
-    
-/**
- * Get user's coin balance for a specific coin with PDO
- * @param string|int $coinId The coin ID to check balance for
- * @return array Balance information with amount, avg_buy_price and coin_id
- */
+
 
 function syncPortfolioCoinsToCryptocurrenciesPDO() {
     static $debugLogs = [];
@@ -556,18 +915,25 @@ function syncPortfolioCoinsToCryptocurrenciesPDO() {
                         } else {
                             $debugLogs[] = "Transaction already active, no commit performed";
                             echo "Transaction already active, no commit performed";
+                        }
                     }
                 }
             }
         }
     }
 }
-return true;
 
 function getSyncDebugLogs() {
     static $debugLogs = [];
     return $debugLogs;
 }
+
+
+/**
+ * Get user's coin balance for a specific coin with PDO
+ * @param string|int $coinId The coin ID to check balance for
+ * @return array Balance information with amount, avg_buy_price and coin_id
+ */
 
 function getUserCoinBalancePDO($coinId): array {
     try {
@@ -649,6 +1015,7 @@ function getUserCoinBalancePDO($coinId): array {
         return [];
     }
 }
+
 
 /**
  * Get coin data by ID or symbol with PDO
@@ -754,341 +1121,8 @@ function getCoinDataPDO($coinId) {
     }
 }
 
+
 /**
- * Execute a sell trade using PDO
- * @param string|int $coinId The coin ID to sell
- * @param float $amount Amount to sell
- * @param float $price Current price per coin
- * @return array|int Result with success status, message, profit_loss and profit_percentage or trade ID
- */
-function executeSellPDO($coinId, $amount, $price) {
-    try {
-        $db = getDBConnection();
-        if (!$db) {
-            throw new Exception("Database connection failed");
-        }
-        
-        // Ensure coin ID is treated as a string
-        $coinId = (string)$coinId;
-        error_log("[executeSellPDO] Processing sell request for coin ID: $coinId, amount: $amount, price: $price");
-        
-        // Try direct database query first - include user_id=1 filter
-        $stmt = $db->prepare("SELECT * FROM portfolio WHERE coin_id = ? AND user_id = 1");
-        $stmt->execute([$coinId]);
-        $directResult = $stmt->fetch(PDO::FETCH_ASSOC);
-        error_log("[executeSellPDO] Direct query result: " . json_encode($directResult));
-        
-        // If direct query found the coin, use that data
-        if ($directResult) {
-            error_log("[executeSellPDO] Found coin directly in portfolio table");
-            $portfolioData = [
-                'amount' => (float)$directResult['amount'],
-                'avg_buy_price' => (float)$directResult['avg_buy_price'],
-                'coin_id' => $directResult['coin_id']
-            ];
-        } else {
-            // If not found directly, try with getUserCoinBalancePDO
-            error_log("[executeSellPDO] Coin not found directly, trying getUserCoinBalancePDO");
-            $portfolioData = getUserCoinBalancePDO($coinId);
-            error_log("[executeSellPDO] getUserCoinBalancePDO result: " . json_encode($portfolioData));
-        }
-        
-        // Check if we have portfolio data
-        if (empty($portfolioData)) {
-            error_log("[executeSellPDO] No portfolio data found for coin ID: $coinId");
-            return [
-                'success' => false,
-                'message' => "Coin not found in your portfolio: $coinId"
-            ];
-        }
-        
-        $userBalance = isset($portfolioData['amount']) ? $portfolioData['amount'] : 0;
-        $avgBuyPrice = isset($portfolioData['avg_buy_price']) ? $portfolioData['avg_buy_price'] : 0;
-        $portfolioCoinId = isset($portfolioData['coin_id']) ? $portfolioData['coin_id'] : $coinId; // Use the coin_id from portfolioData
-        
-        // Validate amount
-        if ($amount <= 0) {
-            throw new Exception("Invalid amount to sell");
-        }
-        
-        if ($amount > $userBalance) {
-            throw new Exception("Cannot sell more than you own. Your balance: $userBalance");
-        }
-        
-        // Calculate profit/loss
-        $sellValue = $amount * $price;
-        $buyValue = $amount * $avgBuyPrice;
-        $profitLoss = $sellValue - $buyValue;
-        $profitPercentage = $buyValue > 0 ? ($profitLoss / $buyValue) * 100 : 0;
-        
-        // Start transaction
-        $db->beginTransaction();
-        
-        // Get the numeric coin_id from the cryptocurrencies table
-        $crypto_id_query = "SELECT id FROM cryptocurrencies WHERE symbol = :symbol";
-        $stmt_crypto = $db->prepare($crypto_id_query);
-        $stmt_crypto->bindParam(':symbol', $coinId); // Use the symbol to find the numeric ID
-        $stmt_crypto->execute();
-        $crypto_data = $stmt_crypto->fetch(PDO::FETCH_ASSOC);
-
-        if (!$crypto_data) {
-            error_log("[executeSellPDO] Error: Coin symbol '{$coinId}' not found in cryptocurrencies table.");
-            return ['success' => false, 'message' => 'Coin not found in cryptocurrencies table.'];
-        }
-
-        $numeric_coin_id = $crypto_data['id'];
-
-        // Insert sell trade record
-        $tradeStmt = $db->prepare("INSERT INTO trades 
-                                  (coin_id, trade_type, price, amount, total_value, profit_loss) 
-                                  VALUES (?, 'sell', ?, ?, ?, ?)");
-        
-        if (!$tradeStmt) {
-            throw new Exception("Failed to prepare trade statement: " . $db->errorInfo()[2]);
-        }
-        $tradeStmt->bindParam(1, $numeric_coin_id, PDO::PARAM_INT); // Bind as INT
-        $tradeStmt->bindParam(2, $price, PDO::PARAM_STR);
-        $tradeStmt->bindParam(3, $amount, PDO::PARAM_STR);
-        $tradeStmt->bindParam(4, $sellValue, PDO::PARAM_STR);
-        $tradeStmt->bindParam(5, $profitLoss, PDO::PARAM_STR);
-        $tradeStmt->execute();
-        
-        $tradeId = $db->lastInsertId();
-        
-        // Update portfolio - reduce amount
-        $newAmount = $userBalance - $amount;
-        
-        if ($newAmount <= 0.000001) { // Effectively zero
-            // Delete the portfolio entry if no coins left
-            $portfolioStmt = $db->prepare("DELETE FROM portfolio WHERE coin_id = ? AND user_id = 1");
-            if (!$portfolioStmt) {
-                throw new Exception("Failed to prepare portfolio delete statement: " . $db->errorInfo()[2]);
-            }
-            $portfolioStmt->bindParam(1, $portfolioCoinId, PDO::PARAM_STR);
-        } else {
-            // Update the portfolio with new amount
-            $portfolioStmt = $db->prepare("UPDATE portfolio SET amount = ? WHERE coin_id = ? AND user_id = 1");
-            if (!$portfolioStmt) {
-                throw new Exception("Failed to prepare portfolio update statement: " . $db->errorInfo()[2]);
-            }
-            $portfolioStmt->bindParam(1, $newAmount, PDO::PARAM_STR);
-            $portfolioStmt->bindParam(2, $portfolioCoinId, PDO::PARAM_STR);
-        }
-        
-        $portfolioStmt->execute();
-        
-        // Commit transaction
-        $db->commit();
-        
-        // Log the trade
-        error_log("Sell executed: $amount of $coinId at $price. Profit: $profitLoss ($profitPercentage%)");
-        
-        return [
-            "success" => true,
-            "message" => "Successfully sold $amount coins",
-            "profit_loss" => $profitLoss,
-            "profit_percentage" => $profitPercentage,
-            "trade_id" => $tradeId
-        ];
-    } catch (Exception $e) {
-        if (isset($db) && $db->inTransaction()) {
-            $db->rollBack();
-        }
-        error_log("[executeSellPDO] Error: " . $e->getMessage());
-        return [
-            "success" => false,
-            "message" => "Error executing sell: " . $e->getMessage(),
-            "profit_loss" => 0,
-            "profit_percentage" => 0
-        ];
-    }
-}
-
-function executeBuyPDO($coinId, $amount, $price) {
-    $db = getDBConnection();
-    if (!$db) return false;
-
-    // Check if this is the first purchase
-    $isFirstPurchase = false;
-    try {
-        $stmt = $db->prepare("SELECT COUNT(*) as count FROM portfolio WHERE user_id = 1");
-        $stmt->execute();
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($result && $result['count'] == 0) {
-            $isFirstPurchase = true;
-        }
-    } catch (Exception $e) {
-        error_log("Could not check for first purchase: " . $e->getMessage());
-    }
-
-    syncPortfolioCoinsToCryptocurrenciesPDO();
-
-    $totalValue = $amount * $price;
-
-    $finalCoinIdForDb = null; // This will be the ID used for trades and portfolio
-    $coinSymbol = null; // This will be the symbol (e.g., KMD)
-
-    if (is_numeric($coinId)) {
-        // If numeric, get symbol from 'coins' table
-        $symbolStmt = $db->prepare("SELECT symbol FROM coins WHERE id = ?");
-        if (!$symbolStmt) {
-            error_log("[executeBuyPDO] Failed to prepare symbol query: " . $db->errorInfo()[2]);
-            return false;
-        }
-        $symbolStmt->execute([$coinId]);
-        $symbolRow = $symbolStmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($symbolRow) {
-            $coinSymbol = $symbolRow['symbol'];
-            error_log("[executeBuyPDO] Determined coinSymbol from numeric ID: " . $coinSymbol);
-        } else {
-            error_log("[executeBuyPDO] Could not find symbol for numeric coin ID: " . $coinId);
-            return false; // Cannot proceed without a symbol
-        }
-    } else {
-        // If not numeric, assume $coinId is already the symbol
-        $coinSymbol = $coinId;
-        error_log("[executeBuyPDO] Using coinId as coinSymbol: " . $coinSymbol);
-    }
-
-    // Now, ensure the symbol exists in the 'cryptocurrencies' table and get its ID
-    // The 'cryptocurrencies' table uses the symbol itself as the ID (VARCHAR)
-    $checkCryptoStmt = $db->prepare("SELECT id FROM cryptocurrencies WHERE symbol = ? LIMIT 1");
-    if (!$checkCryptoStmt) {
-        error_log("[executeBuyPDO] Failed to prepare cryptocurrencies check query: " . $db->errorInfo()[2]);
-        return false;
-    }
-    $checkCryptoStmt->execute([$coinSymbol]);
-    $cryptoRow = $checkCryptoStmt->fetch(PDO::FETCH_ASSOC);
-
-    if ($cryptoRow) {
-        $finalCoinIdForDb = $cryptoRow['id'];
-        error_log("[executeBuyPDO] Coin found in cryptocurrencies: " . $finalCoinIdForDb);
-    } else {
-        // If not found in cryptocurrencies, insert it
-        $finalCoinIdForDb = $coinSymbol; // Use symbol as ID for cryptocurrencies table
-        error_log("[executeBuyPDO] Coin not found in cryptocurrencies, attempting insert: " . $finalCoinIdForDb);
-        $insertCryptoStmt = $db->prepare("INSERT INTO cryptocurrencies 
-                                           (id, symbol, name, created_at, price) 
-                                           VALUES (?, ?, ?, NOW(), ?)");
-        if ($insertCryptoStmt) {
-            $coinName = $coinSymbol; // Default name to symbol if not found
-            try {
-                $insertSuccess = $insertCryptoStmt->execute([$finalCoinIdForDb, $coinSymbol, $coinName, $price]);
-                if ($insertSuccess) {
-                    error_log("[executeBuyPDO] Successfully inserted into cryptocurrencies: " . $finalCoinIdForDb);
-                } else {
-                    error_log("[executeBuyPDO] Failed to insert into cryptocurrencies (execute failed): " . json_encode($insertCryptoStmt->errorInfo()));
-                    return false; // Critical failure, cannot proceed
-                }
-            } catch (PDOException $e) {
-                // Catch duplicate entry errors specifically, as INSERT IGNORE was removed
-                if ($e->getCode() == '23000') { // Integrity constraint violation
-                    error_log("[executeBuyPDO] Duplicate entry for cryptocurrencies: " . $finalCoinIdForDb . " - " . $e->getMessage());
-                    // If it's a duplicate, it means it exists, so we can proceed
-                } else {
-                    error_log("[executeBuyPDO] PDOException during cryptocurrencies insert: " . $e->getMessage());
-                    return false; // Other database error, cannot proceed
-                }
-            }
-        } else {
-            error_log("[executeBuyPDO] Failed to prepare cryptocurrencies insert query: " . $db->errorInfo()[2]);
-            return false;
-        }
-    }
-
-    error_log("[executeBuyPDO] Final coin ID for trades/portfolio: " . $finalCoinIdForDb);
-
-    // Now insert the trade with the correct finalCoinIdForDb
-    try {
-        $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) VALUES (?, 'buy', ?, ?, ?, NOW())");
-        if (!$stmt) {
-            error_log("[executeBuyPDO] Failed to prepare trades insert query: " . $db->errorInfo()[2]);
-            return false;
-        }
-        $stmt->execute([$finalCoinIdForDb, $amount, $price, $totalValue]);
-
-        if ($stmt->rowCount() > 0) {
-            $tradeId = $db->lastInsertId();
-
-            // Update the portfolio table
-            $portfolioStmt = $db->prepare("INSERT INTO portfolio (user_id, coin_id, amount, avg_buy_price, last_updated) 
-                                         VALUES (1, ?, ?, ?, NOW()) 
-                                         ON DUPLICATE KEY UPDATE 
-                                         amount = amount + VALUES(amount),
-                                         avg_buy_price = ((amount * avg_buy_price) + (VALUES(amount) * ?)) / (amount + VALUES(amount)),
-                                         last_updated = NOW()");
-
-            if ($portfolioStmt) {
-                $portfolioStmt->execute([$coinSymbol, $amount, $price, $price]);
-                error_log("[executeBuyPDO] Updated portfolio for coin: $coinSymbol, amount: $amount, price: $price");
-            } else {
-                error_log("[executeBuyPDO] Failed to update portfolio: " . $db->errorInfo()[2]);
-            }
-
-    // Check which exchange_id is present in coins table
-    try {
-        $stmt = $db->prepare("SELECT DISTINCT exchange_id FROM coins WHERE exchange_id IN (1, 2) LIMIT 1");
-        $stmt->execute();
-        $exchangeRow = $stmt->fetch(PDO::FETCH_ASSOC);
-        $exchangeId = $exchangeRow['exchange_id'] ?? null;
-    } catch (Exception $e) {
-        error_log("Error checking exchange_id in coins table: " . $e->getMessage());
-        $exchangeId = null;
-    }
-
-    if ($exchangeId === '1' || $exchangeId === 1) {
-        $scriptName = 'bitvavo_price_udater.py';
-        $pythonScriptPath = '/opt/lampp/htdocs/NS/includes/bitvavo_price_udater.py';
-    } elseif ($exchangeId === '2' || $exchangeId === 2) {
-        $scriptName = 'binance_price_updater.py';
-        $pythonScriptPath = '/opt/lampp/htdocs/NS/includes/binance_price_updater.py';
-    } else {
-        error_log("No valid exchange_id (1 or 2) found in coins table. Not launching any price updater script.");
-        $scriptName = null;
-        $pythonScriptPath = null;
-    }
-
-    if ($scriptName && $pythonScriptPath) {
-        $pgrepCommand = "/usr/bin/pgrep -f " . escapeshellarg($scriptName);
-        $existingPids = [];
-        exec($pgrepCommand, $existingPids);
-
-        if (!empty($existingPids)) {
-            error_log("Python script {$scriptName} is already running (PID: " . implode(', ', $existingPids) . "). Not launching a new instance.");
-        } else {
-            $command = '/usr/bin/python3 ' . escapeshellarg($pythonScriptPath) . ' > /dev/null 2>&1 &';
-
-            $output = [];
-            $return_var = 0;
-            exec($command, $output, $return_var);
-
-            error_log("Attempted to launch Python script: {$pythonScriptPath}");
-            error_log("Command executed: {$command}");
-            error_log("Exec return_var: {$return_var}");
-            error_log("Exec output: " . implode('
-', $output));
-
-            if ($return_var === 0) {
-                error_log("Python script {$pythonScriptPath} launched successfully.");
-            } else {
-                error_log("Error launching Python script {$pythonScriptPath}. Check PHP error log for details.");
-            }
-        }
-    }
-
-            return $tradeId;
-        } else {
-            error_log("[executeBuyPDO] Failed to insert trade (no rows affected): " . $stmt->errorInfo()[2]);
-            return false;
-        }
-    } catch (PDOException $e) {
-        error_log("[executeBuyPDO] PDOException during trades insert: " . $e->getMessage());
-        return false;
-    }
-}
-
-    /**
  * Get recent trades from trade_log table - direct query
  */
 function getTradeLogPDO(int $limit = 100): array {
@@ -1127,84 +1161,4 @@ function getTradeLogPDO(int $limit = 100): array {
         error_log("[getTradeLogPDO] " . $e->getMessage());
         return [];
     }
-}
-
-/**
- * Get recent trades from trade_log table with market data
- */
-function getTradeLogWithMarketDataPDO(int $limit = 100): array {
-    try {
-        $db = getDBConnection();
-        if (!$db) {
-            throw new Exception("Database connection failed");
-        }
-
-        // First, get the raw trade data
-        $rawTrades = getTradeLogPDO($limit);
-        
-        error_log("Raw trades fetched from trade_log: " . json_encode(array_slice($rawTrades, 0, 5)));
-        
-        if (empty($rawTrades)) {
-            error_log("No trades returned from getTradeLogPDO");
-            return [];
-        }
-
-        // Process the raw trades into a consistent format
-        $trades = [];
-        foreach ($rawTrades as $row) {
-            // Map fields from whatever structure we have to our expected structure
-            // Use null coalescing to handle potential missing fields
-            $trade = [
-                'id' => $row['id'] ?? null,
-                'coin_id' => $row['coin_id'] ?? null,
-                'symbol' => $row['symbol'] ?? $row['coin'] ?? 'UNKNOWN',
-                'name' => $row['symbol'] ?? $row['coin'] ?? 'Unknown',
-                'amount' => $row['amount'] ?? 0,
-                'price' => $row['price'] ?? 0,
-                'trade_type' => $row['action'] ?? $row['trade_type'] ?? 'unknown',
-                'trade_time' => $row['trade_date'] ?? $row['date'] ?? $row['trade_time'] ?? date('Y-m-d H:i:s'),
-                'total_value' => isset($row['amount']) && isset($row['price']) ? ($row['amount'] * $row['price']) : 0,
-                'strategy' => $row['strategy'] ?? 'manual'
-            ];
-            
-            $trades[] = $trade;
-        }
-
-        // Get current prices for all symbols
-        $symbols = array_unique(array_column($trades, 'symbol'));
-        $currentPrices = [];
-        
-        if (!empty($symbols)) {
-            // Filter out empty or null symbols
-            $symbols = array_filter($symbols, fn($s) => !empty($s));
-        }
-        
-        if (!empty($symbols)) {
-            $placeholders = implode(',', array_fill(0, count($symbols), '?'));
-            $stmt = $db->prepare("SELECT symbol, current_price FROM coins WHERE symbol IN ($placeholders)");
-            // Fix: bind parameters as individual values
-            $stmt->execute(array_values($symbols));
-            $priceData = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            foreach ($priceData as $row) {
-                $currentPrices[$row['symbol']] = $row['current_price'];
-            }
-        } else {
-            $currentPrices = [];
-        }
-        
-        // Enrich trade data with current prices
-        foreach ($trades as &$trade) {
-            $symbol = $trade['symbol'];
-            $trade['current_price'] = $currentPrices[$symbol] ?? 0;
-        }
-        
-        error_log("Enriched trades with current prices: " . json_encode(array_slice($trades, 0, 5)));
-        
-        return $trades;
-    } catch (Exception $e) {
-        error_log("[getTradeLogWithMarketDataPDO] " . $e->getMessage());
-        return [];
-    }
-}
 }

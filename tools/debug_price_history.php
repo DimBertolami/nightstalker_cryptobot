@@ -10,7 +10,7 @@
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/vendor/autoload.php';
+
 // Set headers for CLI or browser output
 if (php_sapi_name() !== 'cli') {
     header('Content-Type: text/html; charset=utf-8');

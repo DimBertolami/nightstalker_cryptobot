@@ -6,7 +6,7 @@ require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
 require_once __DIR__ . '/includes/pdo_functions.php';
-require_once __DIR__ . '/vendor/autoload.php';
+
 
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {

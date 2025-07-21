@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/database.php';
+
 
 function logEvent($message) {
     $logFile = '/opt/lampp/htdocs/NS/logs/events.log';
@@ -42,7 +44,7 @@ function getTradingStats(string $strategy = 'new_coin_strategy'): array {
         // Total trades count
         $result = $db->query("SELECT COUNT(*) as count FROM trades");
         if ($result) {
-            $stats['total_trades'] = (int)$result->fetch_assoc()['count'];
+            $stats['total_trades'] = (int)$result->fetch(PDO::FETCH_ASSOC)['count'];
         }
 
         // Active trades (buy orders without corresponding sell)
@@ -57,19 +59,19 @@ function getTradingStats(string $strategy = 'new_coin_strategy'): array {
             )
         ");
         if ($result) {
-            $stats['active_trades'] = (int)$result->fetch_assoc()['count'];
+            $stats['active_trades'] = (int)$result->fetch(PDO::FETCH_ASSOC)['count'];
         }
 
         // Total profit/loss
         $result = $db->query("SELECT SUM(profit_loss) as total FROM trades WHERE profit_loss IS NOT NULL");
         if ($result) {
-            $stats['total_profit'] = (float)$result->fetch_assoc()['total'] ?? 0;
+            $stats['total_profit'] = (float)($result->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
         }
 
         // Total volume
         $result = $db->query("SELECT SUM(total_value) as volume FROM trades");
         if ($result) {
-            $stats['total_volume'] = (float)$result->fetch_assoc()['volume'] ?? 0;
+            $stats['total_volume'] = (float)($result->fetch(PDO::FETCH_ASSOC)['volume'] ?? 0);
         }
 
         // Sync with TradingLogger if it exists
@@ -114,7 +116,7 @@ function syncTradesWithLogger($strategy = 'main_strategy') {
         
         $result = $db->query($query);
         if (!$result) {
-            throw new Exception("Failed to fetch trades: " . $db->error);
+            throw new Exception("Failed to fetch trades: " . $db->errorInfo()[2]);
         }
         
         // Initialize TradingLogger
@@ -137,7 +139,7 @@ function syncTradesWithLogger($strategy = 'main_strategy') {
         $successfulTrades = 0;
         $totalProfit = 0;
         
-        while ($trade = $result->fetch_assoc()) {
+        while ($trade = $result->fetch(PDO::FETCH_ASSOC)) {
             $eventType = $trade['trade_type']; // 'buy' or 'sell'
             $symbol = $trade['symbol'] ?? 'UNKNOWN';
             
@@ -1110,18 +1112,16 @@ function syncPortfolioCoinsToCryptocurrencies() {
     $query = "SELECT DISTINCT coin_id FROM portfolio";
     $stmt = $db->prepare($query);
     if (!$stmt) {
-        error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to prepare portfolio query: " . $db->error);
+        error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to prepare portfolio query: " . $db->errorInfo()[2]);
         return false;
     }
     if (!$stmt->execute()) {
-        error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to execute portfolio query: " . $stmt->error);
-        $stmt->close();
+        error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to execute portfolio query: " . $stmt->errorInfo()[2]);
         return false;
     }
     $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if (!$result) {
         error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to fetch all results");
-        $stmt->close();
         return false;
     }
 
@@ -1133,7 +1133,7 @@ function syncPortfolioCoinsToCryptocurrencies() {
             // Get symbol and name from coins table
             $stmt = $db->prepare("SELECT symbol, coin_name FROM coins WHERE id = ?");
             if (!$stmt) {
-                error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to prepare coins query: " . $db->error);
+                error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to prepare coins query: " . $db->errorInfo()[2]);
                 continue;
             }
             $stmt->execute([$coinId]);
@@ -1146,8 +1146,7 @@ function syncPortfolioCoinsToCryptocurrencies() {
                 // Check if symbol exists in cryptocurrencies
                 $checkStmt = $db->prepare("SELECT id FROM cryptocurrencies WHERE symbol = ? LIMIT 1");
                 if (!$checkStmt) {
-                    error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to prepare crypto check query: " . $db->error);
-                    $stmt->close();
+                    error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to prepare crypto check query: " . $db->errorInfo()[2]);
                     continue;
                 }
                 $checkStmt->execute([$symbol]);
@@ -1157,16 +1156,12 @@ function syncPortfolioCoinsToCryptocurrencies() {
                     $insertStmt = $db->prepare("INSERT INTO cryptocurrencies (id, symbol, name, created_at) VALUES (?, ?, ?, NOW())");
                     if ($insertStmt) {
                         $insertStmt->execute([$symbol, $symbol, $name]);
-                        $insertStmt->closeCursor();
                         error_log("[syncPortfolioCoinsToCryptocurrencies] Inserted coin $symbol into cryptocurrencies");
                     }
                 }
-                $checkStmt->closeCursor();
             }
-            $stmt->close();
         }
     }
-    $result->free();
     return true;
 }
 
@@ -1189,33 +1184,28 @@ function executeBuy($coinId, $amount, $price) {
         // Get the symbol from the coins table
         $symbolStmt = $db->prepare("SELECT symbol FROM coins WHERE id = ?");
         if (!$symbolStmt) {
-            error_log("[executeBuy] Failed to prepare symbol query: " . $db->error);
+            error_log("[executeBuy] Failed to prepare symbol query: " . $db->errorInfo()[2]);
             return false;
         }
 
-        $symbolStmt->bind_param("i", $coinId);
-        $symbolStmt->execute();
-        $symbolResult = $symbolStmt->get_result();
+        $symbolStmt->execute([$coinId]);
+        $symbolResult = $symbolStmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($symbolResult && $symbolResult->num_rows > 0) {
-            $row = $symbolResult->fetch_assoc();
-            $symbol = $row['symbol'];
+        if ($symbolResult) {
+            $symbol = $symbolResult['symbol'];
 
             // Now get the corresponding ID from the cryptocurrencies table
             $cryptoStmt = $db->prepare("SELECT id FROM cryptocurrencies WHERE symbol = ? LIMIT 1");
             if (!$cryptoStmt) {
-                error_log("[executeBuy] Failed to prepare crypto query: " . $db->error);
-                $symbolStmt->close();
+                error_log("[executeBuy] Failed to prepare crypto query: " . $db->errorInfo()[2]);
                 return false;
             }
 
-            $cryptoStmt->bind_param("s", $symbol);
-            $cryptoStmt->execute();
-            $cryptoResult = $cryptoStmt->get_result();
+            $cryptoStmt->execute([$symbol]);
+            $cryptoResult = $cryptoStmt->fetch(PDO::FETCH_ASSOC);
 
-            if ($cryptoResult && $cryptoResult->num_rows > 0) {
-                $cryptoRow = $cryptoResult->fetch_assoc();
-                $cryptoCoinId = $cryptoRow['id'];
+            if ($cryptoResult) {
+                $cryptoCoinId = $cryptoResult['id'];
             } else {
                 // If no matching cryptocurrency found, create one
                 $cryptoCoinId = "COIN_" . $symbol;
@@ -1224,28 +1214,21 @@ function executeBuy($coinId, $amount, $price) {
                                            VALUES (?, ?, ?, NOW(), ?)");
                 if ($insertStmt) {
                     $name = $symbol; // Use symbol as name if we don't have the actual name
-                    $insertStmt->bind_param("sssd", $cryptoCoinId, $symbol, $name, $price);
-                    $insertStmt->execute();
-                    $insertStmt->close();
+                    $insertStmt->execute([$cryptoCoinId, $symbol, $name, $price]);
                 }
             }
-
-            if (isset($cryptoStmt)) $cryptoStmt->close();
-            $symbolStmt->close();
         } else {
             error_log("[executeBuy] Could not find symbol for coin ID: " . $coinId);
-            if (isset($symbolStmt)) $symbolStmt->close();
             return false;
         }
     }
 
     // Now insert the trade with the correct cryptocurrency ID
     $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) VALUES (?, 'buy', ?, ?, ?, NOW())");
-    $stmt->bind_param("sddd", $cryptoCoinId, $amount, $price, $totalValue);
+    $stmt->execute([$cryptoCoinId, $amount, $price, $totalValue]);
 
-    if ($stmt->execute()) {
-        $tradeId = $stmt->insert_id;
-        $stmt->close();
+    if ($stmt->rowCount() > 0) {
+        $tradeId = $db->lastInsertId();
 
         // Update the portfolio table
         $portfolioStmt = $db->prepare("INSERT INTO portfolio (user_id, coin_id, amount, avg_buy_price, last_updated) 
@@ -1256,12 +1239,10 @@ function executeBuy($coinId, $amount, $price) {
                                      last_updated = NOW()");
 
         if ($portfolioStmt) {
-            $portfolioStmt->bind_param("sddd", $cryptoCoinId, $amount, $price, $price);
-            $portfolioStmt->execute();
-            $portfolioStmt->close();
+            $portfolioStmt->execute([$cryptoCoinId, $amount, $price, $price]);
             error_log("[executeBuy] Updated portfolio for coin: $cryptoCoinId, amount: $amount, price: $price");
         } else {
-            error_log("[executeBuy] Failed to update portfolio: " . $db->error);
+            error_log("[executeBuy] Failed to update portfolio: " . $db->errorInfo()[2]);
         }
 
         // Log the trade using TradingLogger
@@ -1289,8 +1270,7 @@ function executeBuy($coinId, $amount, $price) {
 
         return $tradeId;
     } else {
-        error_log("[executeBuy] Failed to insert trade: " . $stmt->error);
-        $stmt->close();
+        error_log("[executeBuy] Failed to insert trade: " . $stmt->errorInfo()[2]);
         return false;
     }
 }
@@ -1309,16 +1289,14 @@ function getUserCoinBalance($coinId) {
     $stmt = $db->prepare("SELECT coin_id, amount, avg_buy_price FROM portfolio WHERE coin_id = ?");
     if ($stmt) {
         $fullCoinId = 'COIN_' . strtoupper($coinId);
-        $stmt->bind_param("s", $fullCoinId);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $stmt->execute([$fullCoinId]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        if ($result && $result->num_rows > 0) {
-            $data = $result->fetch_assoc();
+        if ($result) {
             return [
-                'amount' => (float)$data['amount'],
-                'avg_buy_price' => (float)$data['avg_buy_price'],
-                'coin_id' => $data['coin_id']
+                'amount' => (float)$result['amount'],
+                'avg_buy_price' => (float)$result['avg_buy_price'],
+                'coin_id' => $result['coin_id']
             ];
         }
     }
@@ -1326,16 +1304,14 @@ function getUserCoinBalance($coinId) {
     // If not found, try case-insensitive search
     $stmt = $db->prepare("SELECT coin_id, amount, avg_buy_price FROM portfolio WHERE UPPER(coin_id) LIKE UPPER(CONCAT('%', ?, '%')) LIMIT 1");
     if ($stmt) {
-        $stmt->bind_param("s", $coinId);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $stmt->execute([$coinId]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
         
-        if ($result && $result->num_rows > 0) {
-            $data = $result->fetch_assoc();
+        if ($result) {
             return [
-                'amount' => (float)$data['amount'],
-                'avg_buy_price' => (float)$data['avg_buy_price'],
-                'coin_id' => $data['coin_id']
+                'amount' => (float)$result['amount'],
+                'avg_buy_price' => (float)$result['avg_buy_price'],
+                'coin_id' => $result['coin_id']
             ];
         }
     }
@@ -1394,14 +1370,13 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
     $profitPercentage = $buyPrice > 0 ? (($price - $buyPrice) / $buyPrice) * 100 : 0;
     
     // Begin transaction
-    $db->begin_transaction();
+    $db->beginTransaction();
     
     try {
         // Insert trade record without user_id
         // Use the clean coin ID (without COIN_ prefix) for the trades table
         $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) VALUES (?, 'sell', ?, ?, ?, NOW())");
-        $stmt->bind_param("sddd", $cleanCoinId, $amount, $price, $totalValue);
-        $stmt->execute();
+        $stmt->execute([$cleanCoinId, $amount, $price, $totalValue]);
         
         // Update portfolio
         $remainingAmount = $userBalance - $amount;
@@ -1410,14 +1385,12 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
         if ($remainingAmount <= 0.00000001) { // Effectively zero
             // Try to delete with the exact portfolio ID first
             $stmt = $db->prepare("DELETE FROM portfolio WHERE coin_id IN (?, ?)");
-            $stmt->bind_param("ss", $portfolioId, $cleanCoinId);
+            $stmt->execute([$portfolioId, $cleanCoinId]);
         } else {
             // Update remaining amount - try with both ID formats
             $stmt = $db->prepare("UPDATE portfolio SET amount = ? WHERE coin_id IN (?, ?)");
-            $stmt->bind_param("dss", $remainingAmount, $portfolioId, $cleanCoinId);
+            $stmt->execute([$remainingAmount, $portfolioId, $cleanCoinId]);
         }
-        
-        $stmt->execute();
         
         // Commit transaction
         $db->commit();
@@ -1429,7 +1402,9 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
             "profit_percentage" => $profitPercentage
         ];
     } catch (Exception $e) {
-        $db->rollback();
+        if ($db->inTransaction()) {
+            $db->rollback();
+        }
         return [
             "success" => false,
             "message" => "Error executing sell: " . $e->getMessage(),

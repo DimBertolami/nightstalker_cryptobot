@@ -246,36 +246,188 @@ This architecture ensures a robust, self-managing system for real-time cryptocur
 ### Directory Structure
 
 ```
-/opt/lampp/htdocs/NS/
-├── api/                  # API endpoints
-│   ├── add-exchange.php
-│   ├── delete-exchange.php
-│   ├── edit-exchange.php
-│   ├── get-exchanges.php
-│   ├── get-supported-exchanges.php
-│   ├── save-exchange-settings.php
-│   └── test-exchange.php
-├── assets/              # Frontend assets
-│   ├── css/
-│   ├── js/
-│   └── images/
-├── config/              # Configuration files
-│   └── exchanges.json
-├── includes/            # Core PHP files
-│   ├── auth.php
-│   ├── ccxt_integration.php
-│   ├── config.php
-│   ├── exchange_config.php
-│   └── functions.php
-├── logs/                # Log files
-├── vendor/              # Composer dependencies
-├── .env                 # Environment variables
-├── composer.json        # Composer configuration
-├── index.php            # Main entry point
-├── coins.php            # Coins listing page
-├── settings.php         # Settings page
-├── trade.php            # Trading interface
-└── README.md            # This documentation
+drwxr-xr-x dim     ]  .
+├── [drwxr-xr-x dim     ]  api
+│   ├── [drwxr-xr-x dim     ]  integrations
+│   ├── [drwxr-xr-x dim     ]  security
+│   ├── [drwxr-xr-x dim     ]  system
+│   └── [drwxr-xr-x dim     ]  trading
+├── [drwxr-xr-x dim     ]  assets
+│   ├── [drwxr-xr-x dim     ]  css
+│   ├── [drwxr-xr-x dim     ]  fonts
+│   ├── [drwxr-xr-x dim     ]  images
+│   │   ├── [drwxr-xr-x dim     ]  exchanges
+│   │   ├── [drwxr-xr-x dim     ]  tutorial
+│   │   └── [drwxrwxrwx dim     ]  wallets
+│   ├── [drwxr-xr-x dim     ]  img
+│   │   └── [drwxr-xr-x dim     ]  crypto-icons
+│   └── [drwxr-xr-x dim     ]  js
+│       └── [drwxr-xr-x dim     ]  components
+├── [drwxr-xr-x dim     ]  backups
+│   └── [drwxr-xr-x dim     ]  backup_20250713_105555
+│       ├── [drwxr-xr-x dim     ]  crons
+│       │   └── [drwxr-xr-x dim     ]  screen -dmS price_monitor 
+│       │       └── [drwxr-xr-x dim     ]  opt
+│       │           └── [drwxr-xr-x dim     ]  lampp
+│       │               └── [drwxr-xr-x dim     ]  htdocs
+│       │                   └── [drwxr-xr-x dim     ]  NS
+│       │                       └── [drwxr-xr-x dim     ]  crons
+│       ├── [drwxr-xr-x dim     ]  dashboard
+│       └── [drwxr-xr-x dim     ]  includes
+├── [drwxr-xr-x daemon  ]  cache
+├── [drwxrwxrwx www-data]  config
+├── [drwxrwxr-x www-data]  crons
+│   └── [drwxrwxr-x www-data]  screen -dmS price_monitor 
+│       └── [drwxrwxr-x www-data]  opt
+│           └── [drwxrwxr-x www-data]  lampp
+│               └── [drwxrwxr-x www-data]  htdocs
+│                   └── [drwxrwxr-x www-data]  NS
+│                       └── [drwxrwxr-x www-data]  crons
+├── [drwxr-xr-x dim     ]  crypto_sources
+│   └── [drwxr-xr-x dim     ]  tst
+│       └── [drwxr-xr-x dim     ]  __pycache__
+├── [drwxr-xr-x dim     ]  dashboard
+│   └── [drwxr-xr-x www-data]  cache
+├── [drwxr-xr-x dim     ]  data
+│   ├── [drwxr-xr-x dim     ]  csv
+│   ├── [drwxr-xr-x dim     ]  mysql
+│   ├── [drwxr-xr-x dim     ]  performance_schema
+│   └── [drwxr-xr-x dim     ]  test
+├── [drwxr-xr-x dim     ]  database
+│   └── [drwxr-xr-x dim     ]  migrations
+├── [drwxr-xr-x dim     ]  docs
+├── [drwxr-xr-x dim     ]  includes
+│   ├── [drwxr-xr-x dim     ]  cachedir
+│   │   └── [drwxr-xr-x dim     ]  joblib
+│   │       └── [drwxr-xr-x dim     ]  xgboost
+│   │           └── [drwxr-xr-x dim     ]  testing
+│   │               └── [drwxr-xr-x dim     ]  data
+│   │                   ├── [drwxr-xr-x dim     ]  get_ames_housing
+│   │                   ├── [drwxr-xr-x dim     ]  get_california_housing
+│   │                   ├── [drwxr-xr-x dim     ]  get_cancer
+│   │                   ├── [drwxr-xr-x dim     ]  get_digits
+│   │                   ├── [drwxr-xr-x dim     ]  get_mq2008
+│   │                   ├── [drwxr-xr-x dim     ]  get_sparse
+│   │                   └── [drwxr-xr-x dim     ]  make_sparse_regression
+│   ├── [drwxr-xr-x dim     ]  DataSources
+│   ├── [drwxr-xr-x dim     ]  exchanges
+│   ├── [drwxr-xr-x dim     ]  __pycache__
+│   └── [drwxr-xr-x dim     ]  strategies
+├── [drwxr-xr-x dim     ]  install
+├── [drwxr-xr-x dim     ]  js
+├── [drwxrwxrwx daemon  ]  logs
+├── [drwxr-xr-x dim     ]  models
+├── [drwxr-xr-x dim     ]  scripts
+├── [drwxr-xr-x dim     ]  sql
+├── [drwxr-xr-x daemon  ]  system-tools
+│   └── [drwxrwxr-x daemon  ]  logs
+├── [drwxr-xr-x dim     ]  tools
+│   ├── [drwxr-xr-x dim     ]  backup_csv
+│   └── [drwxr-xr-x dim     ]  cmc
+│       ├── [drwxr-xr-x dim     ]  __pycache__
+│       └── [drwxr-xr-x dim     ]  venv
+│           ├── [drwxr-xr-x dim     ]  bin
+│           ├── [drwxr-xr-x dim     ]  include
+│           │   └── [drwxr-xr-x dim     ]  python3.11
+│           └── [drwxr-xr-x dim     ]  lib
+│               └── [drwxr-xr-x dim     ]  python3.11
+│                   └── [drwxr-xr-x dim     ]  site-packages
+│                       ├── [drwxr-xr-x dim     ]  git_filter_repo-2.47.0.dist-info
+│                       └── [drwxr-xr-x dim     ]  __pycache__
+└── [drwxr-xr-x dim     ]  vendor
+    ├── [drwxr-xr-x dim     ]  bin
+    ├── [drwxr-xr-x dim     ]  ccxt
+    │   └── [drwxr-xr-x dim     ]  ccxt
+    │       ├── [drwxr-xr-x dim     ]  build
+    │       ├── [drwxr-xr-x dim     ]  dist
+    │       ├── [drwxr-xr-x dim     ]  doc
+    │       │   └── [drwxr-xr-x dim     ]  _static
+    │       │       ├── [drwxr-xr-x dim     ]  css
+    │       │       └── [drwxr-xr-x dim     ]  javascript
+    │       ├── [drwxr-xr-x dim     ]  examples
+    │       │   ├── [drwxr-xr-x dim     ]  async-php
+    │       │   ├── [drwxr-xr-x dim     ]  ccxt.pro
+    │       │   │   ├── [drwxr-xr-x dim     ]  js
+    │       │   │   ├── [drwxr-xr-x dim     ]  php
+    │       │   │   └── [drwxr-xr-x dim     ]  py
+    │       │   ├── [drwxr-xr-x dim     ]  html
+    │       │   ├── [drwxr-xr-x dim     ]  js
+    │       │   ├── [drwxr-xr-x dim     ]  php
+    │       │   ├── [drwxr-xr-x dim     ]  py
+    │       │   └── [drwxr-xr-x dim     ]  ts
+    │       │       ├── [drwxr-xr-x dim     ]  fetch-futures
+    │       │       │   └── [drwxr-xr-x dim     ]  src
+    │       │       └── [drwxr-xr-x dim     ]  fetch-tickers
+    │       │           └── [drwxr-xr-x dim     ]  src
+    │       ├── [drwxr-xr-x dim     ]  js
+    │       │   ├── [drwxr-xr-x dim     ]  base
+    │       │   │   └── [drwxr-xr-x dim     ]  functions
+    │       │   ├── [drwxr-xr-x dim     ]  static_dependencies
+    │       │   │   ├── [drwxr-xr-x dim     ]  BN
+    │       │   │   ├── [drwxr-xr-x dim     ]  crypto-js
+    │       │   │   ├── [drwxr-xr-x dim     ]  elliptic
+    │       │   │   │   └── [drwxr-xr-x dim     ]  lib
+    │       │   │   │       ├── [drwxr-xr-x dim     ]  elliptic
+    │       │   │   │       │   ├── [drwxr-xr-x dim     ]  curve
+    │       │   │   │       │   ├── [drwxr-xr-x dim     ]  ec
+    │       │   │   │       │   ├── [drwxr-xr-x dim     ]  eddsa
+    │       │   │   │       │   └── [drwxr-xr-x dim     ]  precomputed
+    │       │   │   │       └── [drwxr-xr-x dim     ]  hmac-drbg
+    │       │   │   ├── [drwxr-xr-x dim     ]  fetch-ponyfill
+    │       │   │   ├── [drwxr-xr-x dim     ]  node-fetch
+    │       │   │   ├── [drwxr-xr-x dim     ]  node-rsa
+    │       │   │   │   ├── [drwxr-xr-x dim     ]  asn1
+    │       │   │   │   │   └── [drwxr-xr-x dim     ]  ber
+    │       │   │   │   ├── [drwxr-xr-x dim     ]  encryptEngines
+    │       │   │   │   ├── [drwxr-xr-x dim     ]  formats
+    │       │   │   │   ├── [drwxr-xr-x dim     ]  libs
+    │       │   │   │   └── [drwxr-xr-x dim     ]  schemes
+    │       │   │   └── [drwxr-xr-x dim     ]  qs
+    │       │   └── [drwxr-xr-x dim     ]  test
+    │       │       ├── [drwxr-xr-x dim     ]  base
+    │       │       │   └── [drwxr-xr-x dim     ]  functions
+    │       │       ├── [drwxr-xr-x dim     ]  errors
+    │       │       └── [drwxr-xr-x dim     ]  Exchange
+    │       ├── [drwxr-xr-x dim     ]  php
+    │       │   ├── [drwxr-xr-x dim     ]  async
+    │       │   ├── [drwxr-xr-x dim     ]  static_dependencies
+    │       │   │   ├── [drwxr-xr-x dim     ]  BI
+    │       │   │   ├── [drwxr-xr-x dim     ]  BN
+    │       │   │   ├── [drwxr-xr-x dim     ]  elliptic-php
+    │       │   │   │   └── [drwxr-xr-x dim     ]  lib
+    │       │   │   │       ├── [drwxr-xr-x dim     ]  Curve
+    │       │   │   │       │   ├── [drwxr-xr-x dim     ]  BaseCurve
+    │       │   │   │       │   ├── [drwxr-xr-x dim     ]  EdwardsCurve
+    │       │   │   │       │   ├── [drwxr-xr-x dim     ]  MontCurve
+    │       │   │   │       │   └── [drwxr-xr-x dim     ]  ShortCurve
+    │       │   │   │       ├── [drwxr-xr-x dim     ]  EC
+    │       │   │   │       └── [drwxr-xr-x dim     ]  EdDSA
+    │       │   │   └── [drwxr-xr-x dim     ]  kornrunner
+    │       │   │       └── [drwxr-xr-x dim     ]  keccak
+    │       │   │           └── [drwxr-xr-x dim     ]  src
+    │       │   └── [drwxr-xr-x dim     ]  test
+    │       ├── [drwxr-xr-x dim     ]  python
+    │       │   └── [drwxr-xr-x dim     ]  ccxt
+    │       │       ├── [drwxr-xr-x dim     ]  async_support
+    │       │       │   └── [drwxr-xr-x dim     ]  base
+    │       │       ├── [drwxr-xr-x dim     ]  base
+    │       │       ├── [drwxr-xr-x dim     ]  pro
+    │       │       ├── [drwxr-xr-x dim     ]  static_dependencies
+    │       │       │   ├── [drwxr-xr-x dim     ]  ecdsa
+    │       │       │   └── [drwxr-xr-x dim     ]  keccak
+    │       │       └── [drwxr-xr-x dim     ]  test
+    │       └── [drwxr-xr-x dim     ]  wiki
+    ├── [drwxr-xr-x dim     ]  composer
+    ├── [drwxr-xr-x dim     ]  pear
+    │   └── [drwxr-xr-x dim     ]  console_table
+    │       └── [drwxr-xr-x dim     ]  tests
+    └── [drwxr-xr-x dim     ]  symfony
+        └── [drwxr-xr-x dim     ]  polyfill-mbstring
+            └── [drwxr-xr-x dim     ]  Resources
+                └── [drwxr-xr-x dim     ]  unidata
+
+179 directories
+
 ```
 
 ### Core Components

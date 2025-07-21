@@ -53,7 +53,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
     <!-- Navigation Bar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container-fluid">
-            <a class="navbar-brand" href="<?= BASE_URL ?>">
+            <a class="navbar-brand" href="<?= BASE_URL ?>/nightstalker.php">
                 <i class="fas fa-ghost me-2"></i>Night Stalker
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">

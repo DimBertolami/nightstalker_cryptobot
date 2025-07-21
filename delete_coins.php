@@ -43,7 +43,18 @@ if ($mysqli->query($sql) === TRUE) {
     $affected_rows = $mysqli->affected_rows;
     echo "Successfully deleted all {$affected_rows} coins from the table.\n";
 } else {
-    echo "Error deleting records: " . $mysqli->error . "\n";
+    echo "Error deleting records from coins table: " . $mysqli->error . "\n";
+}
+
+// SQL to delete all records from the portfolio table
+$sql_portfolio = "DELETE FROM portfolio";
+
+// Execute the query
+if ($mysqli->query($sql_portfolio) === TRUE) {
+    $affected_rows_portfolio = $mysqli->affected_rows;
+    echo "Successfully deleted all {$affected_rows_portfolio} records from the portfolio table.\n";
+} else {
+    echo "Error deleting records from portfolio table: " . $mysqli->error . "\n";
 }
 
 // Close the connection
