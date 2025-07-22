@@ -475,28 +475,28 @@ $(document).ready(function() {
             };
         }
         
-        getCMCGainersLosers().then(function(cmcData) {
-            if (!cmcData || !cmcData.gainers) {
-                console.warn('No CMC gainers data available');
-                return;
-            }
+        // getCMCGainersLosers().then(function(cmcData) {
+        //     if (!cmcData || !cmcData.gainers) {
+        //         console.warn('No CMC gainers data available');
+        //         return;
+        //     }
             
-            var topGainers = cmcData.gainers.slice(0, 5); // Top 5 gainers
+        //     var topGainers = cmcData.gainers.slice(0, 5); // Top 5 gainers
 
-            topGainers.forEach(function(coin) {
-                var symbol = coin.symbol;
-                var change = coin.quote.USD.percent_change_24h;
+        //     topGainers.forEach(function(coin) {
+        //         var symbol = coin.symbol;
+        //         var change = coin.quote.USD.percent_change_24h;
                 
-                // Example trading rule: if 24h change > 15%
-                if (change > 15) {
-                    // Your existing trade execution logic here
-                    var tradeAmount = Math.min(maxPositionSize, change/100 * capital);
-                    executeTrade(symbol, 'BUY', tradeAmount);
-                }
-            });
-        }).catch(function(error) {
-            console.error('Failed to get CMC data:', error);
-        });
+        //         // Example trading rule: if 24h change > 15%
+        //         if (change > 15) {
+        //             // Your existing trade execution logic here
+        //             var tradeAmount = Math.min(maxPositionSize, change/100 * capital);
+        //             executeTrade(symbol, 'BUY', tradeAmount);
+        //         }
+        //     });
+        // }).catch(function(error) {
+        //     console.error('Failed to get CMC data:', error);
+        // });
 
         // Function to create tutorial images directory and placeholder images
         function createTutorialImages() {

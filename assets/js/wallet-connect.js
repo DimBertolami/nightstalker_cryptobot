@@ -29,7 +29,7 @@ async function handleWalletResponse(provider, response) {
         
         updateWalletStatus('<i class="fas fa-spinner fa-spin me-2"></i>Linking wallet to your account...', 'info');
         
-        const link = await fetch('/NS/wallet-auth.php', {
+        const link = await fetch('/NS/api/wallet-auth.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -44,7 +44,14 @@ async function handleWalletResponse(provider, response) {
             throw new Error(`HTTP error! status: ${link.status}`);
         }
         
-        const result = await link.json();
+        let result;
+        try {
+            const clone = link.clone();
+            result = await clone.json();
+        } catch (jsonErr) {
+            const text = await link.text();
+            throw new Error(`Invalid JSON response: ${text}`);
+        }
         
         if (result.success) {
             updateWalletStatus(
@@ -55,12 +62,22 @@ async function handleWalletResponse(provider, response) {
             // Store wallet info in session
             sessionStorage.setItem('walletProvider', provider);
             sessionStorage.setItem('walletAddress', publicKey);
+            console.log('Wallet linked successfully:', provider, publicKey);
+
+            // Refresh wallet balances to update UI
+            if (typeof refreshWalletBalances === 'function') {
+                refreshWalletBalances();
+            } else {
+                // Fallback: reload the page
+                window.location.reload();
+            }
         } else {
             updateWalletStatus(
                 '<i class="fas fa-exclamation-triangle me-2"></i>' + 
                 (result.message || 'Failed to link wallet'),
                 'danger'
             );
+            console.error('Wallet linking failed:', result.message);
         }
     } catch (err) {
         console.error('Wallet connection error:', err);
@@ -99,7 +116,7 @@ async function connectPhantomWallet() {
 
 // Solflare Wallet Connection
 async function connectSolflareWallet() {
-    if (!window?.solflare?.isConnected) {
+    if (!window?.solflare) {
         updateWalletStatus(
             '<i class="fas fa-exclamation-triangle me-2"></i>' + 
             'Solflare Wallet not detected. <a href="https://solflare.com/" target="_blank" class="alert-link">Install Solflare Wallet</a> first.',

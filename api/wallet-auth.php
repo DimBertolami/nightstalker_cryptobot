@@ -4,6 +4,9 @@ header('Content-Type: application/json');
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/db.php';
 
+// Log incoming request for debugging
+error_log('wallet-auth.php request: ' . file_get_contents('php://input'));
+
 // Only allow POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -29,7 +32,10 @@ if (empty($data['provider']) || empty($data['publicKey'])) {
 }
 
 // Check if user is logged in
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+error_log('wallet-auth.php session user_id: ' . ($_SESSION['user_id'] ?? 'not set'));
 if (!isset($_SESSION['user_id'])) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Authentication required']);
@@ -72,7 +78,8 @@ try {
 
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+    error_log('Wallet auth error: ' . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Internal server error']);
     exit;
 }
 ?>
