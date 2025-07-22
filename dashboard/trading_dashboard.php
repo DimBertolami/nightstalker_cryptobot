@@ -1,5 +1,5 @@
 <?php
-// Include the header template
+// first!
 $title = 'Night Stalker - built from the remains of a decommmissioned tsunami prediction warning system Artificial Intelligence, its new mission objectives to track and exploit a vulnerability discovered in all the new coins, which allows this system to predict and benefit from their price movements.';
 
 require_once __DIR__ .'/../includes/config.php';
@@ -280,6 +280,64 @@ include __DIR__ . '/../includes/header.php';
                         <!-- Balances will be loaded here -->
                     </div>
                     
+                </div>
+            </div>
+        </div>
+
+        <!-- Removed Advanced Wallet Settings Button -->
+
+        <!-- Wallet Configuration -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Wallet Configuration</h3>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Supported Wallets</label>
+                        
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="phantomWallet" name="wallets[phantom]" checked>
+                            <label class="form-check-label" for="phantomWallet">
+                                <img src="assets/images/wallets/phantom.png" alt="Phantom" width="20" class="me-2">
+                                Phantom (Solana)
+                            </label>
+                        </div>
+                        
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="metamaskWallet" name="wallets[metamask]">
+                            <label class="form-check-label" for="metamaskWallet">
+                                <img src="assets/images/wallets/metamask.png" alt="MetaMask" width="20" class="me-2">
+                                MetaMask (Ethereum)
+                            </label>
+                        </div>
+                        
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="keplrWallet" name="wallets[keplr]">
+                            <label class="form-check-label" for="keplrWallet">
+                                <img src="assets/images/wallets/keplr.png" alt="Keplr" width="20" class="me-2">
+                                Keplr (Cosmos)
+                            </label>
+                        </div>
+                        
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="trustWallet" name="wallets[trust]">
+                            <label class="form-check-label" for="trustWallet">
+                                <img src="assets/images/wallets/trust.png" alt="Trust Wallet" width="20" class="me-2">
+                                Trust Wallet (Multi-chain)
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="defaultWallet" class="form-label">Default Wallet</label>
+                        <select class="form-select" id="defaultWallet" name="defaultWallet">
+                            <option value="phantom" selected>Phantom</option>
+                            <option value="metamask">MetaMask</option>
+                            <option value="keplr">Keplr</option>
+                            <option value="trust">Trust Wallet</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>

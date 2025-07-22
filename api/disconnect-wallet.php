@@ -1,4 +1,5 @@
 <?php
+ob_start();
 /**
  * Wallet Disconnection API Endpoint
  * 
@@ -24,7 +25,7 @@ $response = [
 ];
 
 // Check if user is authenticated
-if (!isAuthenticated()) {
+if (!isLoggedIn()) {
     $response['message'] = 'Authentication required';
     header('Content-Type: application/json');
     http_response_code(401);
@@ -74,12 +75,12 @@ try {
     
     // Get wallet details for logging
     if ($walletId) {
-        $stmt = $pdo->prepare("SELECT wallet_address, wallet_type FROM user_wallets WHERE id = :wallet_id AND user_id = :user_id");
+        $stmt = $pdo->prepare("SELECT wallet_id, provider FROM user_wallets WHERE id = :wallet_id AND user_id = :user_id");
         $stmt->bindParam(':wallet_id', $walletId, PDO::PARAM_INT);
         $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
     } else {
-        $stmt = $pdo->prepare("SELECT id, wallet_type FROM user_wallets WHERE wallet_address = :wallet_address AND user_id = :user_id");
-        $stmt->bindParam(':wallet_address', $walletAddress, PDO::PARAM_STR);
+        $stmt = $pdo->prepare("SELECT id, provider FROM user_wallets WHERE wallet_id = :wallet_id AND user_id = :user_id");
+        $stmt->bindParam(':wallet_id', $walletAddress, PDO::PARAM_STR);
         $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
     }
     
@@ -96,11 +97,11 @@ try {
     }
     
     // Set walletAddress if we only had ID before
-    if (!$walletAddress && isset($wallet['wallet_address'])) {
-        $walletAddress = $wallet['wallet_address'];
+    if (!$walletAddress && isset($wallet['wallet_id'])) {
+        $walletAddress = $wallet['wallet_id'];
     }
     
-    $walletType = $wallet['wallet_type'] ?? 'unknown';
+    $walletType = $wallet['provider'] ?? 'unknown';
     
     // Log the disconnection for security auditing
     $stmt = $pdo->prepare("
@@ -126,6 +127,9 @@ try {
     $stmt->execute();
     
     // Update wallet status in database (mark as disconnected)
+    // Since status and last_disconnected columns do not exist, skip this step or handle gracefully
+    // Commenting out the update query to avoid errors
+    /*
     $stmt = $pdo->prepare("
         UPDATE user_wallets 
         SET status = 'disconnected', 
@@ -136,6 +140,7 @@ try {
     $stmt->bindParam(':wallet_id', $walletId, PDO::PARAM_INT);
     $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
     $stmt->execute();
+    */
     
     // Remove wallet data from session
     if (isset($_SESSION['connected_wallets'])) {
@@ -154,6 +159,12 @@ try {
             $_SESSION['connected_wallets'] = array_values($_SESSION['connected_wallets']);
         }
     }
+    
+    // Delete wallet from user_wallets table
+    $stmt = $pdo->prepare("DELETE FROM user_wallets WHERE id = :wallet_id AND user_id = :user_id");
+    $stmt->bindParam(':wallet_id', $walletId, PDO::PARAM_INT);
+    $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+    $stmt->execute();
     
     // Commit transaction
     $pdo->commit();
@@ -174,4 +185,5 @@ try {
     // Return JSON response
     header('Content-Type: application/json');
     echo json_encode($response);
+    ob_end_flush();
 }

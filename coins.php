@@ -978,7 +978,7 @@ $(document).ready(function() {
 <script>
 	document.addEventListener('DOMContentLoaded', function() {
 	// List of your background images (use paths relative to your web root)
-    const backgroundImages = background_Images;
+	const backgroundImages = <?php echo json_encode(constant('background_Images')); ?>;
         let currentIndex = 0;
         const body = document.body;
 

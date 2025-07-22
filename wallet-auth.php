@@ -6,6 +6,31 @@ try {
     require_once __DIR__ . '/includes/config.php';
     require_once __DIR__ . '/includes/database.php';
     require_once __DIR__ . '/includes/auth.php';
+
+    /**
+     * Fetches all wallets for a user and updates the session.
+     *
+     * @param PDO $db The database connection object.
+     * @param int $userId The ID of the user.
+     * @throws Exception if the database query fails.
+     */
+    function updateUserWalletSession($db, $userId) {
+        $walletsStmt = $db->prepare("SELECT id, provider, wallet_id FROM user_wallets WHERE user_id = ?");
+        if (!$walletsStmt) {
+            throw new Exception('Failed to prepare statement for fetching wallets: ' . print_r($db->errorInfo(), true));
+        }
+        $walletsStmt->execute([$userId]);
+        $wallets = $walletsStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $_SESSION['connected_wallets'] = [];
+        foreach ($wallets as $wallet) {
+            $_SESSION['connected_wallets'][] = [
+                'id'      => $wallet['id'],
+                'type'    => $wallet['provider'],
+                'address' => $wallet['wallet_id']
+            ];
+        }
+    }
     
     // Set headers
     header('Content-Type: application/json');
@@ -58,46 +83,53 @@ try {
         error_log("Note: Foreign key will be added when users exist: " . $e->getMessage());
     }
     
-    // For demo purposes, if a user is logged in, automatically link the wallet
+    // If a user is logged in, automatically link the wallet
     if (isset($_SESSION['user_id'])) {
-        // Check if wallet is already linked
-        $checkStmt = $db->prepare("SELECT id FROM user_wallets WHERE provider = ? AND wallet_id = ?");
+        $userId = $_SESSION['user_id'];
+
+        // Check if wallet is already linked to this user
+        $checkStmt = $db->prepare("SELECT id FROM user_wallets WHERE user_id = ? AND provider = ? AND wallet_id = ?");
         if (!$checkStmt) {
             throw new Exception('Failed to prepare statement: ' . print_r($db->errorInfo(), true));
         }
         
-        $checkStmt->execute([$provider, $walletId]);
-        $checkResult = $checkStmt->fetchAll(PDO::FETCH_ASSOC);
+        $checkStmt->execute([$userId, $provider, $walletId]);
+        $isAlreadyLinked = $checkStmt->fetch();
         
-        if (count($checkResult) == 0) {
+        if (!$isAlreadyLinked) {
             // Link wallet to current user
             $linkStmt = $db->prepare("INSERT INTO user_wallets (user_id, provider, wallet_id) VALUES (?, ?, ?)");
             if (!$linkStmt) {
                 throw new Exception('Failed to prepare statement: ' . print_r($db->errorInfo(), true));
             }
             
-            $linkStmt->execute([$_SESSION['user_id'], $provider, $walletId]);
+            $linkStmt->execute([$userId, $provider, $walletId]);
         }
         
-        $_SESSION['wallet_provider'] = $provider;
+        // Update the session with all connected wallets for the user
+        updateUserWalletSession($db, $userId);
+        
         echo json_encode(['success' => true]);
         ob_end_flush();
         exit;
     }
     
-    // Check database for wallet
+    // If user is not logged in, check if wallet is registered to any user and log them in
     $stmt = $db->prepare("SELECT user_id FROM user_wallets WHERE provider = ? AND wallet_id = ?");
     if (!$stmt) {
         throw new Exception('Failed to prepare statement: ' . print_r($db->errorInfo(), true));
     }
     
     $stmt->execute([$provider, $walletId]);
-    $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    if (count($result) > 0) {
-        $user = $result[0];
-        $_SESSION['user_id'] = $user['user_id'];
-        $_SESSION['wallet_provider'] = $provider;
+    if ($result) {
+        $userId = $result['user_id'];
+        $_SESSION['user_id'] = $userId;
+        
+        // Update the session with all connected wallets for the user
+        updateUserWalletSession($db, $userId);
+
         echo json_encode(['success' => true]);
     } else {
         echo json_encode([
@@ -108,13 +140,18 @@ try {
 
 } catch (Exception $e) {
     // Clear any previous output
-    ob_clean();
+    if (ob_get_level() > 0) {
+        ob_clean();
+    }
     
     // Log the error
     error_log('Wallet Auth Error: ' . $e->getMessage());
     
     // Return error response
-    header('Content-Type: application/json');
+    // Ensure headers are not sent again if already sent
+    if (!headers_sent()) {
+        header('Content-Type: application/json');
+    }
     echo json_encode([
         'success' => false,
         'message' => 'An error occurred while processing your request: ' . $e->getMessage()
@@ -122,4 +159,6 @@ try {
 }
 
 // End output buffering and flush
-ob_end_flush();
+if (ob_get_level() > 0) {
+    ob_end_flush();
+}
