@@ -1,0 +1,39 @@
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.hazmat.primitives import serialization
+
+private_key_pem = b"""-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEA4wPTMM0qsMiwZ1yBWlKHFiSg9DzSH10D7EXVHy1N4MVn0jwf
+kyI6fe1H+DtqbQ3RCgXLhIsIqre6JblCpAlLv/LvSkQmAwWtzDXpUkFQYjA8jJh3
+EzTUmJasRoMbZW422hoolwBi2AWPxqZgolvncSO5RtiSiEs0EAkd3SpRnQu+btc7
+DmRbr6EL9NyFp/H6fKNYdsbD4Ofr0bdaqcwNVR0CLhWs5M+XSLNdexghpGqQ2h4a
+7Gl8O+ILTikRhiEsOWh9SZzH5sHY9P5n7w+bu1p6uWJfkjuMPPhEWpE8Fp6G1Au5
+LY967KFj1OlpzsOye+n7bXlZWSSMG4SUfR/oMQIDAQABAoIBAA/EjD6vgW+WAOqs
++i8T3F4lXSiZsN6Mz2Dx2MO5mdcq3vMzSd4mWnm0qXMMbW/1rbdMf75NCeURrdRA
+8egC3UgPz58Q7LL5CgFNHU+hSbwILax2So8C9GFE1eJv6M86wISVnIwgcr0eZcYe
+eEfOqlypZo0NLeBZmNwkRfa+obyOmr99VK6T+NW6rHmCrL8GQ/U69E/2Rk5RaQKS
+v4tpLmf9zAjk7Fi3ZAGzqAIS1FAx2Vj9CuGbmZ0SPG2dG4BDn7toRwBqu5RrdzVV
+Iy813Iy07IM/tQ3kyGkfB/e1/wP9QZ2SLcJ5ekpKW28TNMBhR4klYV3raV7vo2uP
+ZG/CgCECgYEA+vKxBZbzgc/V45a2BbBaVSpm2i7PUUWQW3fzM9kA/nNWYL1tTwnu
+Z2dAI8rdWwjpPtOI0ddRE0bfTRLqXhicqCJ/05iRvzDwB9IjmubI+/U/1iyU1Uqm
+aOL9BIjrFPjaebegAg1Hc18RnWtwADKEFmpejamVdRrnerDnG5jUTscCgYEA55XK
+MTKRRxtvQG1+x9uHR/4p9csyCJ6B5LXJbnSFODU5Ib0WwBGPCZOiXrV4DfkwswwS
+l+SXGqJ11hXQ3BFVua76hhwGT2TjnABqvmP/xsWSQDW7htCz09W9GaWsEsIxg7qT
+kfi7Y5Ky/wU4aPVxGs6uYW6Wi+2lw9oJAFzueUcCgYEApij/8ZWL0s5M748hIw8s
+IOwcgicwer224fnAfPoY4GJ6NT/4GreWtbz2CT0P6HE0D7d9BoStWDg7LwtxR7DA
+OcvuG6sQBipfJK6NiMl7FunCxQtr2Pa+zQBPTCtkjNRhxOpC9ljYkJnIThWPaXIJ
+Z9YymVZKcenIj8KGpA1Dto0CgYEAzrcbAy0zFni7ppPWXglryOxrgfY9lAoAwiku
+Q0UJATIo7B+/5fQGbLL2dXmgT0DGopu9IQ4vftvTOSTCCR4EGjnBb+ImE8pnjQGm
+Roo2brQ+psgPuvgh/I3GPNVwMlJbJk1tmhefFPOGiTKctruXmSkx6NBw2zhnBdpi
+vIs3ZtMCgYB/0VBO7x/JLPtOUDvjr2wwA4p/rNJzkI4BFUAhzawDy3mO+8s0sEW7
+EeNyoubZARs7SZCDhX36WAIXOkj4qyQpgpnEYRfPwcdrziUpkxhFMiXHVz4P+4Nc
+Fbavyg6ErxjuLIcbwMCUqR32inPXp1PfpM5kLzqWs1/wgJ+05Yklzg==
+-----END RSA PRIVATE KEY-----"""
+
+private_key = load_pem_private_key(private_key_pem, password=None)
+public_key = private_key.public_key()
+
+pem = public_key.public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo
+)
+print(pem.decode('utf-8'))

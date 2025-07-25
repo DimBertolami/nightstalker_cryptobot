@@ -21,11 +21,14 @@ try {
     $allowedTools = [
         'sync_trade_tables' => '/opt/lampp/htdocs/NS/tools/sync_trade_tables.php',
         'trade_diagnostics' => '/opt/lampp/htdocs/NS/tools/trade_diagnostics.php',
+        'price_history_diagnostics' => '/opt/lampp/htdocs/NS/tools/debug_price_history.php',
+        'coins_table__diagnostics' => '/opt/lampp/htdocs/NS/debug_coins_table.php',
         'delete_all_coins' => '/opt/lampp/htdocs/NS/delete_coins.php',
         'cmc_fetch_bitvavo_coins' => '/opt/lampp/htdocs/NS/crons/bitvavoFromCMC4NS.py',
         'cmc_fetch_binance_coins' => '/opt/lampp/htdocs/NS/crons/binanceFromCMC4NS.py',
         'trending_fetcher' => '/opt/lampp/htdocs/NS/crypto_sources/crypto_trending_fetcher.py',
         'cron_manager' => '/opt/lampp/htdocs/NS/tools/cron_manager_tool.php',
+        'price_history' => '/opt/lampp/htdocs/NS/system-tools/vph.php',
         'export_sensitive_data' => '/opt/lampp/htdocs/NS/export_sensitive_data.sh',
         'log_reader' => '/opt/lampp/htdocs/NS/tools/log_reader.sh',
         'sync_portfolio_to_cryptocurrencies' => '/opt/lampp/htdocs/NS/crons/sync_portfolio_to_cryptocurrencies.php'
@@ -38,12 +41,8 @@ try {
     }
     
     // Create logs directory if it doesn't exist
+    //$logsDir = '/opt/lampp/htdocs/NS/system-tools/logs';
     $logsDir = __DIR__ . '/logs';
-    if (!is_dir($logsDir)) {
-        mkdir($logsDir, 0755, true);
-    }
-    
-    // Log file for this execution
     $logFile = $logsDir . '/' . $tool . '_' . date('Ymd_His') . '.log';
     
     // Execute the script and capture output
@@ -53,20 +52,25 @@ try {
     $fileExtension = pathinfo($allowedTools[$tool], PATHINFO_EXTENSION);
     
     if ($fileExtension === 'sh') {
-        // Execute shell script
-        $command = 'bash ' . escapeshellarg($allowedTools[$tool]);
+        // Execute shell script with explicit bash path and sudo
+        $command = 'bash /opt/lampp/htdocs/NS/tools/log_reader.sh';
         if (isset($_GET['dry_run']) && $_GET['dry_run'] === 'true') {
             $command .= ' --dry-run';
         }
         
         $output = [];
-        $returnCode = 0;
+        $returnCode = 1;
+        error_log("Executing command: $command"); // Debugging output to error log
         exec($command . ' 2>&1', $output, $returnCode);
         
         $scriptOutput = implode("\n", $output);
         
-        if ($returnCode !== 0) {
-            throw new Exception("Shell script execution failed with code $returnCode");
+        if ($returnCode == 0) {
+            // Debugging output
+            error_log("Shell script output: " . implode("\\n", $output));
+            error_log("Shell script command: $command");
+            $errorMessage = "Shell script execution failed with code $returnCode. Command: $command. Output: " . implode("\\n", $output);
+            throw new Exception($errorMessage);
         }
     } elseif ($fileExtension === 'py') {
         // Execute Python script

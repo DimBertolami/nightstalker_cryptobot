@@ -1,0 +1,39 @@
++----------------------+
+C:/opt/lampp/htdocs/NS/scripts>mysql -u dimi -p1304 -e "describe orders; describe wallets; describe wallet_transactions" NS
++------------+---------------+------+-----+---------------------+----------------+
+| Field      | Type          | Null | Key | Default             | Extra          |
++------------+---------------+------+-----+---------------------+----------------+
+| id         | int(11)       | NO   | PRI | NULL                | auto_increment |
+| user_id    | int(11)       | NO   | MUL | NULL                |                |
+| symbol     | varchar(20)   | NO   | MUL | NULL                |                |
+| type       | varchar(20)   | NO   |     | NULL                |                |
+| side       | varchar(10)   | NO   |     | NULL                |                |
+| quantity   | decimal(20,8) | NO   |     | NULL                |                |
+| price      | decimal(20,8) | NO   |     | NULL                |                |
+| status     | varchar(20)   | NO   | MUL | pending             |                |
+| created_at | datetime      | NO   |     | current_timestamp() |                |
++------------+---------------+------+-----+---------------------+----------------+
++-------------------+----------------+------+-----+---------+----------------+
+| Field             | Type           | Null | Key | Default | Extra          |
++-------------------+----------------+------+-----+---------+----------------+
+| id                | int(11)        | NO   | PRI | NULL    | auto_increment |
+| exchange_id       | varchar(50)    | NO   | MUL | NULL    |                |
+| currency          | varchar(10)    | NO   |     | NULL    |                |
+| available_balance | decimal(32,12) | NO   |     | NULL    |                |
+| in_orders         | decimal(32,12) | NO   |     | NULL    |                |
+| total_balance     | decimal(32,12) | NO   |     | NULL    |                |
+| last_updated      | datetime       | NO   |     | NULL    |                |
++-------------------+----------------+------+-----+---------+----------------+
++----------------+------------------------------+------+-----+---------------------+----------------+
+| Field          | Type                         | Null | Key | Default             | Extra          |
++----------------+------------------------------+------+-----+---------------------+----------------+
+| id             | int(11)                      | NO   | PRI | NULL                | auto_increment |
+| wallet_id      | int(11)                      | NO   | MUL | NULL                |                |
+| exchange_id    | varchar(50)                  | NO   |     | NULL                |                |
+| currency       | varchar(10)                  | NO   |     | NULL                |                |
+| type           | enum('deposit','withdrawal') | NO   |     | NULL                |                |
+| amount         | decimal(32,12)               | NO   |     | NULL                |                |
+| balance_before | decimal(32,12)               | NO   |     | NULL                |                |
+| balance_after  | decimal(32,12)               | NO   |     | NULL                |                |
+| created_at     | datetime                     | YES  |     | current_timestamp() |                |
++----------------+------------------------------+------+-----+---------------------+----------------+

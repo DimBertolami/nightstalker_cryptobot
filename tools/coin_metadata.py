@@ -126,7 +126,7 @@ def get_bitvavo_coin_metadata(coin_symbol: str) -> Dict[str, Any]:
         Dictionary containing all available metadata for the coin
     """
     # CoinMarketCap API key
-    API_KEY = '1758e18b-1744-4ad6-a2a9-908af2f33c8a'
+    API_KEY = 'a36ab379-15a0-409b-99ec-85ab7f2836ea'
     headers = {'X-CMC_PRO_API_KEY': API_KEY}
     
     try:

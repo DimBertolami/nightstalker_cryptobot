@@ -218,9 +218,9 @@ include __DIR__ . '/../includes/header.php';
                     <h5 class="mb-0">Wallet Balances</h5>
                     <div>
                         <select id="exchange-select" class="form-select form-select-sm" style="width: 150px; display: inline-block;">
-                            <option value="binance" <?= $selectedExchange === 'binance' ? 'selected' : '' ?>>Binance</option>
+                            <!-- <option value="binance" <?= $selectedExchange === 'binance' ? 'selected' : '' ?>>Binance</option> -->
                             <option value="bitvavo" <?= $selectedExchange === 'bitvavo' ? 'selected' : '' ?>>Bitvavo</option>
-                            <option value="kraken" <?= $selectedExchange === 'kraken' ? 'selected' : '' ?>>Kraken</option>
+                            <!-- <option value="kraken" <?= $selectedExchange === 'kraken' ? 'selected' : '' ?>>Kraken</option> -->
                         </select>
                         <button id="refresh-balances" class="btn btn-sm btn-outline-primary ms-2">
                             <i class="bi bi-arrow-clockwise"></i> Refresh
@@ -251,7 +251,7 @@ include __DIR__ . '/../includes/header.php';
                                             : "1 wallet connected";
                                         ?>
                                     </div>
-                                <?php else: ?>
+                                <?php elseif (empty($lines) && $selectedExchange !== 'bitvavo'): ?>
                                     <strong>No Wallet Connected</strong>
                                     <div class="small text-muted">Connect a wallet to view your balances</div>
                                 <?php endif; ?>
@@ -261,7 +261,7 @@ include __DIR__ . '/../includes/header.php';
                                     <button class="btn btn-sm btn-outline-secondary manage-wallets-btn" data-bs-toggle="modal" data-bs-target="#manageWalletsModal">
                                         <i class="bi bi-gear"></i> Manage
                                     </button>
-                                <?php else: ?>
+                                <?php elseif (empty($lines)): ?>
                                     <a href="/NS/link-wallet.php" class="btn btn-primary">
                                         <i class="bi bi-plus-circle"></i> Connect Wallet
                                     </a>
@@ -270,14 +270,46 @@ include __DIR__ . '/../includes/header.php';
                         </div>
                     </div>
                     
-                    <div id="loading-balances" class="loading">
+                    <div id="loading-balances" class="loading" style="display:none;">
                         <div class="spinner-border text-primary loading-spinner" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
                         <p>Loading balances...</p>
                     </div>
                     <div id="balances-container" class="list-group list-group-flush">
-                        <!-- Balances will be loaded here -->
+                        <?php
+                        // Call the Python script to get balances
+                        $output = shell_exec('python3 ' . __DIR__ . '/../system-tools/get_balance.py 2>&1');
+                        $lines = explode(PHP_EOL, trim($output));
+                        if (!empty($lines)) {
+                            // Prevent JavaScript from overwriting this container
+                            echo '<script>$(document).ready(function() { $("#balances-container").off(); });</script>';
+                            foreach ($lines as $line) {
+                                // Each line is a dictionary-like string, e.g. {'symbol': 'ZRC', 'available': '0.18441109'}
+                                $symbol = '';
+                                $available = '';
+                                // Updated regex to handle single or double quotes
+                                if (preg_match('/["\']symbol["\']\s*:\s*["\']([^"\']+)["\']/', $line, $matches)) {
+                                    $symbol = htmlspecialchars($matches[1]);
+                                }
+                                if (preg_match('/["\']available["\']\s*:\s*["\']([^"\']+)["\']/', $line, $matches)) {
+                                    $available = htmlspecialchars($matches[1]);
+                                }
+                                if ($symbol !== '' && $available !== '') {
+                                    echo '<div class="list-group-item balance-item">';
+                                    echo "$symbol: available $available";
+                                    echo '</div>';
+                                    // Write to browser console for debugging
+                                    echo "<script>console.log('Balance: $symbol available $available');</script>";
+                                } else {
+                                    // fallback to raw line if parsing fails
+                                    echo '<div class="list-group-item balance-item">' . htmlspecialchars($line) . '</div>';
+                                }
+                            }
+                        } else {
+                            echo '<div class="list-group-item text-muted">No balances found</div>';
+                        }
+                        ?>
                     </div>
                     
                 </div>
@@ -370,13 +402,37 @@ include __DIR__ . '/../includes/header.php';
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Trading Pair</label>
-                                        <select name="symbol" class="form-select select2" required>
-                                            <option value="BTC/USDT">BTC/USDT</option>
-                                            <option value="ETH/USDT">ETH/USDT</option>
-                                            <option value="BNB/USDT">BNB/USDT</option>
-                                            <option value="SOL/USDT">SOL/USDT</option>
-                                            <option value="XRP/USDT">XRP/USDT</option>
-                                        </select>
+                                    <select name="symbol" class="form-select select2" required>
+                                        <?php
+                                        $tradingPairs = [];
+                                        if ($selectedExchange === 'bitvavo') {
+                                            $bitvavoMarketsFile = __DIR__ . '/../assets/js/bitvavo_markets.json';
+                                            if (file_exists($bitvavoMarketsFile)) {
+                                                $bitvavoMarketsJson = file_get_contents($bitvavoMarketsFile);
+                                                $bitvavoMarkets = json_decode($bitvavoMarketsJson, true);
+                                                if (is_array($bitvavoMarkets)) {
+                                                    $tradingPairs = $bitvavoMarkets;
+                                                }
+                                            }
+                                        } else {
+                                            require_once __DIR__ . '/../includes/ccxt_integration.php';
+                                            $marketsResult = get_exchange_markets($selectedExchange);
+                                            if ($marketsResult['success']) {
+                                                $markets = $marketsResult['markets'];
+                                                if (is_array($markets)) {
+                                                    $tradingPairs = array_keys($markets);
+                                                }
+                                            }
+                                        }
+                                        if (empty($tradingPairs)) {
+                                            // Fallback to default pairs if no markets found
+                                            $tradingPairs = ['BTC/USDT', 'ETH/USDT', 'BNB/USDT', 'SOL/USDT', 'XRP/USDT'];
+                                        }
+                                        foreach ($tradingPairs as $pair) {
+                                            echo '<option value="' . htmlspecialchars($pair) . '">' . htmlspecialchars($pair) . '</option>';
+                                        }
+                                        ?>
+                                    </select>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Side</label>
@@ -409,13 +465,13 @@ include __DIR__ . '/../includes/header.php';
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Trading Pair</label>
-                                        <select name="symbol" class="form-select select2" required>
-                                            <option value="BTC/USDT">BTC/USDT</option>
-                                            <option value="ETH/USDT">ETH/USDT</option>
-                                            <option value="BNB/USDT">BNB/USDT</option>
-                                            <option value="SOL/USDT">SOL/USDT</option>
-                                            <option value="XRP/USDT">XRP/USDT</option>
-                                        </select>
+                                    <select name="symbol" class="form-select select2" required>
+                                        <?php
+                                        foreach ($tradingPairs as $pair) {
+                                            echo '<option value="' . htmlspecialchars($pair) . '">' . htmlspecialchars($pair) . '</option>';
+                                        }
+                                        ?>
+                                    </select>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Side</label>
@@ -455,13 +511,13 @@ include __DIR__ . '/../includes/header.php';
                                 <div class="row mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Trading Pair</label>
-                                        <select name="symbol" class="form-select select2" required>
-                                            <option value="BTC/USDT">BTC/USDT</option>
-                                            <option value="ETH/USDT">ETH/USDT</option>
-                                            <option value="BNB/USDT">BNB/USDT</option>
-                                            <option value="SOL/USDT">SOL/USDT</option>
-                                            <option value="XRP/USDT">XRP/USDT</option>
-                                        </select>
+                                    <select name="symbol" class="form-select select2" required>
+                                        <?php
+                                        foreach ($tradingPairs as $pair) {
+                                            echo '<option value="' . htmlspecialchars($pair) . '">' . htmlspecialchars($pair) . '</option>';
+                                        }
+                                        ?>
+                                    </select>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Side</label>
@@ -681,7 +737,37 @@ include __DIR__ . '/../includes/header.php';
 <script src="/NS/dashboard/trading-dashboard-main.js"></script>
 
 <script>
-	document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function() {
+        const showTutorialButton = document.getElementById('show-tutorial');
+        const tutorialModal = new bootstrap.Modal(document.getElementById('tutorialModal'));
+
+        if (showTutorialButton) {
+            showTutorialButton.addEventListener('click', function() {
+                tutorialModal.show();
+            });
+        }
+
+	// List of your background images (use paths relative to your web root)
+	const backgroundImages = <?php echo json_encode(constant('background_Images')); ?>;
+        let currentIndex = 0;
+        const body = document.body;
+
+	// Set initial background properties (from our previous discussion)
+	body.style.backgroundSize = 'cover';
+	body.style.backgroundPosition = 'center center';
+	body.style.backgroundRepeat = 'no-repeat';
+	body.style.backgroundAttachment = 'fixed'; // Keeps the image fixed while scrolling
+
+	function changeBackground() {
+		currentIndex = (currentIndex + 1) % backgroundImages.length; // Cycle through images
+		body.style.backgroundImage = `url('${backgroundImages[currentIndex]}')`;
+	}
+	// Set the very first background image immediately when the page loads
+	body.style.backgroundImage = `url('${backgroundImages[currentIndex]}')`;
+	// Change background every 5 seconds
+	setInterval(changeBackground, 5000);
+	});
+</script>
 	// List of your background images (use paths relative to your web root)
 	const backgroundImages = <?php echo json_encode(constant('background_Images')); ?>;
         let currentIndex = 0;

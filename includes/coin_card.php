@@ -21,6 +21,9 @@
                     <p class="mb-1">$<?php echo number_format($coin['market_cap']); ?></p>
                 </div>
             </div>
+            <div class="sparkline-chart-container mt-3" id="new-coin-sparkline-<?php echo htmlspecialchars($coin['symbol']); ?>" data-symbol="<?php echo htmlspecialchars($coin['symbol']); ?>">
+                <!-- Sparkline chart will be rendered here by JavaScript -->
+            </div>
         </div>
         <div class="card-footer bg-light">
             <div class="d-flex justify-content-between align-items-center">

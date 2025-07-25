@@ -3,13 +3,19 @@ from datetime import datetime, timedelta, timezone
 import time
 import subprocess
 import sys
+sys.path.insert(0, '/path/to/your/python/site-packages')
+from binance.client import Client # type: ignore
+from binance.exceptions import BinanceAPIException # type: ignore
 from typing import List, Dict, Optional, Tuple
-from dateutil.parser import parse as dateparse  # More explicit import
-from binance.client import Client
-from binance.exceptions import BinanceAPIException
-
+from dateutil.parser import parse as dateparse  # type: ignore # More explicit import
+# --- CONFIGURATION ---
+# SPARE KEY 1: a36ab379-15a0-409b-99ec-85ab7f2836ea
+# SPARE KEY 2: 1758e18b-1744-4ad6-a2a9-908af2f33c8a
+# SPARE KEY 3: 2b0c6f1d-4e7a-4f5c-8b9d-0f8c1e2b3a4b
+# used up this month: API_KEY = 'e2e746c1-169a-4778-90f7-a66458a6af00'
+API_KEY= 'a36ab379-15a0-409b-99ec-85ab7f2836ea';
+CMC_API_KEY = API_KEY
 from config import (
-    CMC_API_KEY,
     BINANCE_TEST_API_KEY,
     BINANCE_TEST_API_SECRET,
     TEST_MODE

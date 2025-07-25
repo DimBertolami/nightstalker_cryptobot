@@ -116,6 +116,28 @@ function executeBuyPDO($coinId, $amount, $price) {
             if ($portfolioStmt) {
                 $portfolioStmt->execute([$coinSymbol, $amount, $price, $price]);
                 error_log("[executeBuyPDO] Updated portfolio for coin: $coinSymbol, amount: $amount, price: $price");
+
+                // Launch the Python script for real-time price updates
+                $script_path = '/opt/lampp/htdocs/NS/includes/bitvavo_price_udater_for_terminal.py';
+                $python_executable = '/usr/bin/python3'; // Explicitly define the Python executable
+
+                // Check if the script is already running
+                $pgrep_command = "/usr/bin/pgrep -f " . escapeshellarg($script_path);
+                $process_check = shell_exec($pgrep_command);
+
+                if (empty($process_check)) {
+                    // Not running, so launch it
+                    $command = $python_executable . ' ' . escapeshellarg($script_path) . ' > /dev/null 2>&1 &';
+                    error_log("[executeBuyPDO] Launching Python script: " . $command);
+                    exec($command, $output, $return_var);
+                    if ($return_var === 0) {
+                        error_log("[executeBuyPDO] Python script ' . $script_path . ' launched successfully.");
+                    } else {
+                        error_log("[executeBuyPDO] Failed to launch Python script ' . $script_path . '. Return var: " . $return_var);
+                    }
+                } else {
+                    error_log("[executeBuyPDO] Python script ' . $script_path . ' is already running (PID: " . trim($process_check) . "). Not launching a new instance.");
+                }
             } else {
                 error_log("[executeBuyPDO] Failed to update portfolio: " . $db->errorInfo()[2]);
             }

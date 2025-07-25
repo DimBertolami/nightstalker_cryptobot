@@ -30,8 +30,8 @@ define('JUPITER_API_KEY', 'X8HpKiRKv6fNCulGEV2ReFpgyeS4wT0SWgokopvObB6ICUADi5nOE
 define('JUPITER_API_SECRET', 'qeJ3x3SByFxFepLXrBqkWkSYijPt2DjvNA1MVA7fykgOqUw6Jrb0Cmmvm7DWqWs');
 define('BITVAVO_API_KEY', 'ce59283de845c416deef1dd91f10c3879f0554e18c938dc9170550cebfcfbe37');
 define('BITVAVO_API_SECRET', '28de1f1699a1bc9845a132e91dfa888801d7437d297e419521f6b9bbce670c88ea3a937b6f5c09421573340b5cc75f98edb05cd3ca19a79ddcc820e43b20c29b');
-define('ALPACA_API_KEY', 'PK9F6B7LJRL7MLK2C0FB');
-define('ALPACA_API_SECRET', '3DpoXdQWnuQKUkazf8bDAsSsgauQDqCEbqzZ8BOA');
+define('ALPACA_API_KEY', 'AKM1W8F10H0T0GHSIMKE');
+define('ALPACA_API_SECRET', '8idBCK31leNkasCpuZJBRYCFKOURQF5pQuxENz76');
 define('KRAKEN_API_KEY', 'dmqjTdc9A25Pd83sk9kz/M+Z/3Zu9+kSRKoGR6o7IuKzBqcWEvHIPdVl');
 define('KRAKEN_API_SECRET', 'gzDfB+URG1zE0vo0kZANmOydXSwIS9BxDz6/WAAtZ6X3m3W6jc/gIugLZJNkyHWj97Uo9cGsf6TOMWXPPpMurg==');
 
@@ -41,7 +41,7 @@ define('COINGECKO_API_URL', 'https://api.coingecko.com/api/v3');
 define('BINANCE_API_URL', 'https://api.binance.com');
 define('JUPITER_API_URL', 'https://jup.ag/swap/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v-So11111111111111111111111111111111111111112?inAmount=');
 define('BITVAVO_API_URL', 'https://api.bitvavo.com/v2/order');
-define('ALPACA_API_URL', 'https://paper-api.alpaca.markets');
+define('ALPACA_API_URL', 'https://api.alpaca.markets');
 define('KRAKEN_API_URL', 'https://api.kraken.com');
 
 // Trading Constants

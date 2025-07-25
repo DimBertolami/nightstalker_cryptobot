@@ -180,6 +180,9 @@ try {
         </div>
     </div>
 </div>
+<!-- Main Trading Dashboard JavaScript -->
+<script src="/NS/assets/js/new-coin-charts.js"></script>
+
 <script>
 	document.addEventListener('DOMContentLoaded', function() {
 	// List of your background images (use paths relative to your web root)

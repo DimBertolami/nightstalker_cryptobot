@@ -34,6 +34,22 @@ $tools = [
         'category' => 'Data',
         'last_run' => getLastRunTime('trade_diagnostics')
     ],
+        'price_history_diagnostics' => [
+        'name' => 'price history Diagnostics',
+        'description' => 'Diagnoses price history table and provides insights',
+        'script' => '/opt/lampp/htdocs/NS/tools/debug_price_history.php',
+        'icon' => 'fa-bug',
+        'category' => 'Data',
+        'last_run' => getLastRunTime('price_history_debug')
+    ],
+            'coins_table__diagnostics' => [
+        'name' => 'coins table Diagnostics',
+        'description' => 'Diagnoses coins table and provides insights',
+        'script' => '/opt/lampp/htdocs/NS/debug_coins_table.php',
+        'icon' => 'fa-bug',
+        'category' => 'Data',
+        'last_run' => getLastRunTime('coins_table_debug')
+    ],
     'delete_all_coins' => [
         'name' => 'delete coins',
         'description' => 'delete coins from the database',
@@ -66,7 +82,15 @@ $tools = [
         'category' => 'Maintenance',
         'last_run' => null
     ],
-    'export_sensitive_data' => [
+        'price_history' => [
+        'name' => 'view price history',
+        'description' => 'price history of coins in portfolio',
+        'script' => '/opt/lampp/htdocs/NS/system-tools/vph.php',
+        'icon' => 'fa-clock',
+        'category' => 'Maintenance',
+        'last_run' => null
+    ],
+     'export_sensitive_data' => [
         'name' => 'Export Sensitive Data',
         'description' => 'Backs up all sensitive data including database, config files, and credentials',
         'script' => '/opt/lampp/htdocs/NS/export_sensitive_data.sh',

@@ -72,29 +72,24 @@
     // Update portfolio widget prices and potential profit
     function updatePortfolioPrices(priceHistoryData) {
         priceHistoryData.forEach(coinData => {
-            if (!coinData.in_portfolio) return;
+            if (!coinData.in_portfolio || typeof coinData.current_price === 'undefined' || coinData.current_price === null) return;
 
             const symbol = coinData.symbol.toUpperCase();
-            const newPrice = coinData.current_price;
+            const newPrice = parseFloat(coinData.current_price);
 
             // Find portfolio widget for this coin
             const $widget = $(`#portfolio .crypto-widget[data-symbol="${symbol}"]`);
             if ($widget.length === 0) {
-                //console.warn(`Portfolio widget not found for symbol: ${symbol}`);
                 return;
             }
 
             // Update new price display with color based on increase or decrease
-            const $priceElem = $widget.find('.crypto-widget-price');
-            const oldPriceText = $priceElem.text();
-            const oldPriceMatch = oldPriceText.match(/\$([0-9,.]+)/);
-            const oldPrice = oldPriceMatch ? parseFloat(oldPriceMatch[1].replace(/,/g, '')) : null;
+            const $priceElem = $widget.find('.crypto-widget-current-price-value');
+            const oldPrice = parseFloat($priceElem.text().replace(/[^0-9.]/g, ''));
 
-            if (oldPrice === null || newPrice === oldPrice) {
-                $priceElem.text('');
-            } else {
+            if (newPrice !== oldPrice) {
                 const priceChangeClass = newPrice > oldPrice ? 'text-success' : 'text-danger';
-                $priceElem.html(`new-price: <span class="${priceChangeClass}">${newPrice.toFixed(2)}</span>`);
+                $priceElem.html(`<span class="${priceChangeClass}">${newPrice.toFixed(2)}</span>`);
             }
 
             // Calculate potential profit = (new price - purchase price) * amount

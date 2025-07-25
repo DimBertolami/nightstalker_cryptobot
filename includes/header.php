@@ -46,6 +46,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
     <!-- Custom CSS -->
     <link href="<?= BASE_URL ?>/assets/css/styles.css" rel="stylesheet">
     
+    <!-- Price History Table CSS (for sparklines) -->
+    <link href="<?= BASE_URL ?>/assets/css/price-history.css" rel="stylesheet">
+
     <!-- Page-specific custom CSS -->
     <?= $customCSS ?? '' ?>
 </head>
