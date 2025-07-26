@@ -4,11 +4,13 @@
     height: 400px;
     margin-top: 20px;
     border: 1px solid #1d0d94;
-    background-color: rgb(218, 221, 246);
-    opacity: 0.8;
+    background-color: rgb(0, 0, 0);
+    opacity: 1;
     color: rgb(255, 255, 0);
+    text-decoration-color: white;
+    lighting-color: aliceblue;
     font-style: bolder;
-    font-size: 15px;
+    font-size: 20px;
     padding: 20px;
 }
 .controls .select, .controls button {
@@ -23,5 +25,6 @@
     cursor: pointer;
 }
 .controls button:hover {
+    opacity: 1;
     background-color: #0056b3;
 }

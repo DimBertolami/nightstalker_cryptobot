@@ -61,10 +61,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     {
                         label: 'Price',
                         data: history.map(point => point.price),
-                        borderColor: 'rgb(75, 192, 192)',
+                        borderColor: 'rgb(255, 255, 0)', // Bright yellow
                         tension: 0.1,
                         fill: false,
-                        pointRadius: 0 // Hide points for line segments
+                        pointRadius: 0, // Hide points for line segments
+                        hoverBorderColor: 'rgb(255, 255, 255)', // White for highlight
+                        hoverBorderWidth: 3 // Thicker line on hover
                     }
                 ]
             };

@@ -244,8 +244,8 @@ Vue.component('price-chart', {
                 gradient.addColorStop(0, 'rgba(40, 167, 69, 0.4)');
                 gradient.addColorStop(1, 'rgba(40, 167, 69, 0.0)');
             } else {
-                gradient.addColorStop(0, 'rgba(220, 53, 69, 0.4)');
-                gradient.addColorStop(1, 'rgba(220, 53, 69, 0.0)');
+                gradient.addColorStop(0, 'rgba(220, 53, 69, 1.0)');
+        gradient.addColorStop(1, 'rgba(220, 53, 69, 1.0)');
             }
             
             this.chart = new Chart(ctx, {

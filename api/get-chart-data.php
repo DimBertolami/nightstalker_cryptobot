@@ -15,14 +15,14 @@ try {
     $db = getDbConnection();
 
     // Fetch historical price data
-    $stmt = $db->prepare("SELECT timestamp, price FROM price_history WHERE coin_id = ? ORDER BY timestamp ASC");
+    $stmt = $db->prepare("SELECT recorded_at, price FROM price_history WHERE coin_id = ? ORDER BY recorded_at ASC");
     $stmt->execute([$coinId]);
     $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $formattedHistory = [];
     foreach ($history as $row) {
         $formattedHistory[] = [
-            'time' => strtotime($row['timestamp']) * 1000, // Convert to milliseconds for JavaScript
+            'time' => strtotime($row['recorded_at']) * 1000, // Convert to milliseconds for JavaScript
             'price' => (float)$row['price']
         ];
     }

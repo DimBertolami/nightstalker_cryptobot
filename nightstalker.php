@@ -36,7 +36,7 @@ echo '<style>
             height: 400px;
             margin-top: 20px;
             border: 1px solid #1d0d94;
-            background-color: rgb(218, 221, 246);
+            background-color: #000000;
             opacity: 0.7;
             color: rgb(255, 255, 0);
             font-style: bolder;
@@ -91,7 +91,7 @@ try {
         <div class="col-md-12">
             <h1 class="mt-4">
                 <i class="fas fa-ghost"></i> Night Stalker Mode
-                <small class="text-muted">Tracking crypto volume spikes</small>
+                <small class="text-muted">main dashboard</small>
             </h1>
             
             <div class="alert alert-dark">
@@ -134,7 +134,7 @@ try {
     </div>
     <?php endif; ?>
 
-    <div class="row mt-4">
+<!--     <div class="row mt-4">
         <div class="col-md-8">
             <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
@@ -144,14 +144,14 @@ try {
                 </div>
                 <div class="card-body">
                     <div class="row row-cols-1 row-cols-md-2 g-4" id="all-new-coins">
-                        <?php foreach ($newCoins as $coin): ?>
+                        //<?php foreach ($newCoins as $coin): ?>
                             <?php include __DIR__ . '/includes/coin_card.php'; ?>
-                        <?php endforeach; ?>
+                        <?php endforeach; ?>*/
                     </div>
                 </div>
             </div>
         </div>
-<!--         
+ --><!--         
         <div class="col-md-4">
             <div class="card mb-4">
                 <div class="card-header bg-info text-white">

@@ -365,3 +365,23 @@ body {
     background-color: var(--color-dark-secondary) !important;
     color: var(--color-text-light) !important;
 }
+
+/* Input field styling */
+input[type="text"],
+input[type="number"],
+select {
+    background-color: #000080; /* Navy Blue */
+    color: #FFFF00; /* Bright Yellow */
+    border: 1px solid #000080; /* Match border to background */
+    padding: 8px;
+    border-radius: 4px;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+    background-color: #4B0082; /* Darker shade of purple (Indigo) */
+    color: #00FF00; /* Bright Green */
+    border-color: #4B0082; /* Match border to focus background */
+    outline: none; /* Remove default outline */
+}

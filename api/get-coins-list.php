@@ -1,23 +1,14 @@
 <?php
 require_once __DIR__ . '/../includes/database.php';
-require_once __DIR__ . '/../includes/functions.php';
 
 header('Content-Type: application/json');
 
 try {
     $db = getDbConnection();
-    $stmt = $db->query("SELECT id, coin_name FROM coins ORDER BY coin_name ASC");
+    $stmt = $db->query("SELECT id, name FROM cryptocurrencies ORDER BY name ASC");
     $coins = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $formattedCoins = [];
-    foreach ($coins as $coin) {
-        $formattedCoins[] = [
-            'id' => $coin['id'],
-            'name' => $coin['coin_name']
-        ];
-    }
-
-    echo json_encode($formattedCoins);
+    echo json_encode($coins);
 
 } catch (PDOException $e) {
     error_log("Error fetching coin list: " . $e->getMessage());

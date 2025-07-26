@@ -99,28 +99,9 @@ Vue.component('swap-interface', {
         </div>
     </div>
     `,
-    data() {
-        return {
-            inputToken: 'So11111111111111111111111111111111111111112',
-            outputToken: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-            amount: 1,
-            quote: null,
-            error: null,
-            loading: false,
-            tokens: [
-                { mint: 'So11111111111111111111111111111111111111112', symbol: 'SOL', name: 'Solana', decimals: 9 },
-                { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC', name: 'USD Coin', decimals: 6 },
-                { mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', symbol: 'USDT', name: 'Tether USD', decimals: 6 },
-                { mint: 'mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So', symbol: 'mSOL', name: 'Marinade Staked SOL', decimals: 9 },
-                { mint: '7dHbWXmci3dT8UFYWYZweBLXgycu7Y3iL6trKn1Y7ARj', symbol: 'BONK', name: 'Bonk', decimals: 5 },
-                { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', symbol: 'BONK', name: 'Bonk', decimals: 5 },
-                { mint: 'DUSTawucrTsGU8hcqRdHDCbuYhCPADMLM2VcCb8VnFnQ', symbol: 'DUST', name: 'DUST Protocol', decimals: 9 },
-                { mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', symbol: 'JUP', name: 'Jupiter', decimals: 6 }
-            ],
-            swapHistory: []
-        }
+    mounted() {
+        this.fetchPortfolio();
     },
-    methods: {
         async getQuote() {
             this.loading = true;
             this.error = null;
@@ -271,6 +252,53 @@ Vue.component('swap-interface', {
             } catch (e) {
                 console.error('Failed to save swap history:', e);
             }
+        },
+
+        async fetchPortfolio() {
+            try {
+                const response = await axios.get('/NS/api/get-portfolio.php');
+                if (response.data.success && response.data.portfolio) {
+                    // Map portfolio items to token format expected by the dropdown
+                    this.tokens = response.data.portfolio.map(item => ({
+                        mint: item.coin_id, // Assuming coin_id can act as a unique identifier/mint address
+                        symbol: item.symbol,
+                        name: item.name,
+                        decimals: 6 // Default decimals, adjust if actual decimals are available from API
+                    }));
+
+                    // Set default selected tokens if they are in the portfolio
+                    if (this.tokens.length > 0) {
+                        // Try to keep current selections if they exist in the new portfolio
+                        const currentInputTokenExists = this.tokens.some(token => token.mint === this.inputToken);
+                        const currentOutputTokenExists = this.tokens.some(token => token.mint === this.outputToken);
+
+                        if (!currentInputTokenExists) {
+                            this.inputToken = this.tokens[0].mint;
+                        }
+                        if (!currentOutputTokenExists && this.tokens.length > 1) {
+                            this.outputToken = this.tokens[1].mint;
+                        } else if (!currentOutputTokenExists) {
+                            this.outputToken = this.tokens[0].mint; // Fallback if only one token
+                        }
+                    }
+                } else {
+                    console.error('Failed to fetch portfolio:', response.data.message);
+                    // Fallback to default tokens if portfolio fetch fails
+                    this.resetToDefaultTokens();
+                }
+            } catch (error) {
+                console.error('Error fetching portfolio:', error);
+                // Fallback to default tokens on error
+                this.resetToDefaultTokens();
+            }
+        },
+
+        resetToDefaultTokens() {
+            this.tokens = [
+                tokens: [], // Initialize as empty, will be populated by fetchPortfolio
+            ];
+            this.inputToken = this.tokens[0].mint;
+            this.outputToken = this.tokens[1] ? this.tokens[1].mint : this.tokens[0].mint;
         }
     }
 });
