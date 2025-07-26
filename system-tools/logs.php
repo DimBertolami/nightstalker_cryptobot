@@ -75,6 +75,37 @@ if (isset($_GET['file']) && in_array($_GET['file'], $logFiles)) {
 // Read log content
 $logContent = file_get_contents($logFile);
 
+// Filter log content for entries within the last 3 hours
+$filteredLogContent = [];
+$yesterday = strtotime('yesterday'); // Start of yesterday
+$logLines = explode("\n", $logContent);
+foreach ($logLines as $line) {
+    // Attempt to extract timestamp from the beginning of the line
+    // This assumes log lines start with a parseable timestamp, e.g., "YYYY-MM-DD HH:MM:SS - Message"
+    $timestampString = substr($line, 0, 19); // Assuming YYYY-MM-DD HH:MM:SS format
+    $lineTimestamp = strtotime($timestampString);
+
+    // If a valid timestamp is found and it's from yesterday or today, or if no timestamp is found (include by default)
+    if ($lineTimestamp === false || $lineTimestamp >= $yesterday) {
+        $filteredLogContent[] = $line;
+    }
+}
+$logContent = implode("\n", $filteredLogContent);
+
+$logLines = explode("\n", $logContent);
+foreach ($logLines as $line) {
+    // Attempt to extract timestamp from the beginning of the line
+    // This assumes log lines start with a parseable timestamp, e.g., "YYYY-MM-DD HH:MM:SS - Message"
+    $timestampString = substr($line, 0, 19); // Assuming YYYY-MM-DD HH:MM:SS format
+    $lineTimestamp = strtotime($timestampString);
+
+    // If a valid timestamp is found and it's within the last 3 hours, or if no timestamp is found (include by default)
+    if ($lineTimestamp === false || $lineTimestamp >= $threeHoursAgo) {
+        $filteredLogContent[] = $line;
+    }
+}
+$logContent = implode("\n", $filteredLogContent);
+
 // Format log content with timestamp header
 $logName = basename($logFile);
 $timestamp = preg_replace('/^' . $tool . '_(\d{8})_(\d{6})\.log$/', '$1 $2', $logName);

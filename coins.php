@@ -194,6 +194,20 @@ try {
     }
     $coins = array_values($uniqueCoins);
 
+    // Fetch apex status for coins
+    $apexStatuses = [];
+    try {
+        $db = getDbConnection();
+        $stmt = $db->query("SELECT coin_id, status FROM coin_apex_prices");
+        if ($stmt) {
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                $apexStatuses[$row['coin_id']] = $row['status'];
+            }
+        }
+    } catch (PDOException $e) {
+        error_log("Database error fetching apex prices: " . $e->getMessage());
+    }
+
 } catch (Exception $e) {
     error_log("Market data error: " . $e->getMessage());
     $_SESSION['error'] = "Market data temporarily unavailable. <a href='?use_mock=1'>Click here to use mock data</a> or <a href='?refresh=1'>Try again</a>.";
@@ -456,6 +470,7 @@ $coins = array_filter($coins, function($coin) {
                                     <th class="sortable" data-sort="age">Age <i class="fas fa-sort"></i></th>
                                     <th>Status</th>
                                     <th>Source</th>
+                                    <th>Apex Status</th>
                                     <th>Trade</th>
                                 </tr>
                             </thead>
@@ -477,10 +492,14 @@ $coins = array_filter($coins, function($coin) {
                                     $isNew = $coin['age_hours'] < 24;
                                     $ageClass = $isNew ? 'new-coin' : '';
                                     
+                                    // Determine apex status for coloring
+                                    $apexStatus = $apexStatuses[$coin['symbol']] ?? 'none'; // Default to 'none' if no status
+                                    $apexClass = 'apex-status-' . $apexStatus;
+                                    
                                     // Always display age in hours with 1 decimal place
                                     $ageDisplay = number_format($coin['age_hours'], 1) . ' hours';
                                 ?>
-                                <tr class="<?= $ageClass ?>">
+                                <tr class="<?= $ageClass ?> <?= $apexClass ?>">
                                     <td>
                                         <div class="d-flex align-items-center">
                                             <div>
@@ -513,6 +532,9 @@ $coins = array_filter($coins, function($coin) {
                                         <?php endif; ?>
                                     </td>
                                     <td class="text-center"><?= $coin['source'] ?? 'Local' ?></td>
+                                    <td class="apex-status-<?= htmlspecialchars($apexStatus) ?>">
+                                        <?= htmlspecialchars(ucfirst($apexStatus)) ?>
+                                    </td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
                                             <a href="dashboard/trading_dashboard.php?symbol=<?= $coin['symbol'] ?>" class="btn btn-outline-primary btn-sm">
