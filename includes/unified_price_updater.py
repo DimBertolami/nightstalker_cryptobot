@@ -6,6 +6,13 @@ import logging
 import signal
 import sys
 from datetime import datetime, timedelta
+BITVAVO_API_KEY='ce59283de845c416deef1dd91f10c3879f0554e18c938dc9170550cebfcfbe37'
+BITVAVO_API_SECRET='28de1f1699a1bc9845a132e91dfa888801d7437d297e419521f6b9bbce670c88ea3a937b6f5c09421573340b5cc75f98edb05cd3ca19a79ddcc820e43b20c29b'
+BINANCE_API_KEY='X8HpKiRKv6fNCulGEV2ReFpgyeS4wT0SWgokopvObB6ICUADi5nOEUZNFbcWUP9I'
+BINANCE_API_SECRET='qeJ3x3SByFxFepLXrBqkWkSYijPt2DjvNA1MVA7fykgOqgUw6Jrb0Cmmvm7DWqWs'
+BINANCE_API_URL='https://api.binance.com'
+BITVAVO_API_URL='https://api.bitvavo.com/v2/order'
+
 
 # For clean exit
 running = True
@@ -307,10 +314,8 @@ def unified_price_update_loop():
                 script_logger.warning(f"Price not found for {full_symbol}. Skipping insertion and apex tracking.")
 
         return True # Return True to indicate coins were processed
-
     except mysql.connector.Error as err:
         script_logger.error(f"Database error in unified_price_update_loop: {err}")
-        return False
     except Exception as e:
         script_logger.error(f"An unexpected error occurred in unified_price_update_loop: {e}")
         return False
@@ -319,13 +324,14 @@ def unified_price_update_loop():
             connection.close()
 
 if __name__ == '__main__':
-    script_logger.info("Unified price update script started.")
+    script_logger.info("Bitvavo - Binance price update script started.")
     script_logger.handlers[0].flush()
     script_logger.info("--- Script starting ---")
     while running:
-        if not unified_price_update_loop():
+       if not unified_price_update_loop():
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             script_logger.info(f"No active portfolio items found. Script stopped at {timestamp}.")
             break
-        time.sleep(3)
+       time.sleep(3)
     script_logger.info("--- Script finished ---")
+    

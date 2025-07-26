@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadNewCoinCharts();
     
     // Auto-refresh new coin charts every 5 minutes (adjust as needed)
-    setInterval(loadNewCoinCharts, 300000);
+    setInterval(loadNewCoinCharts, 3000);
 });
 
 /**

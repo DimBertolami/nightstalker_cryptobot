@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // You'll need to create a PHP endpoint (e.g., api/get-coins-list.php)
             // that returns a JSON array of { id: 'bitcoin', name: 'Bitcoin' } objects.
-            const response = await fetch('api/get-coins-list.php'); // TODO: Implement this PHP endpoint
+            const response = await fetch('api/get-portfolio-coins.php');
             const coins = await response.json();
 
             if (coins.error) {

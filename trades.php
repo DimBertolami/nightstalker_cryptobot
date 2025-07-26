@@ -44,7 +44,7 @@ require_once __DIR__ . '/includes/header.php';
 
 try {
     // Use the new function to get trade data from trade_log table
-    $trades = getTradeLogWithMarketDataPDO(100);
+    $trades = getRecentTradesWithMarketDataPDO(100);
     
     // Debug output
     error_log("Trade data fetched: " . json_encode([
@@ -138,19 +138,16 @@ if (!empty($trades)) {
                                         <th>Coin</th>
                                         <th>Type</th>
                                         <th>Amount</th>
-                                        <th>Price</th>
-                                        <th>Current</th>
-                                        <th>Value</th>
+                                        <th>Buy Price</th>
+                                        <th>Sell Price</th>
+                                        <th>Profit/Loss</th>
                                         <th>Strategy</th>
                                     </tr>
                                 </thead>
                                 <tbody background-color: #061e36; color: rgb(241, 207, 10);">
                                     <?php foreach ($trades as $trade): ?>
                                     <?php
-                                        $currentPrice = $trade['current_price'] ?? 0;
-                                        $entryPrice = $trade['price'] ?? 0;
                                         $amount = $trade['amount'] ?? 0;
-                                        $invested = $trade['total_value'] ?? ($amount * $entryPrice);
                                         $symbol = $trade['symbol'] ?? 'UNKNOWN';
                                         $tradeType = strtolower($trade['trade_type'] ?? 'unknown');
                                         $isBuy = $tradeType === 'buy';
@@ -160,15 +157,7 @@ if (!empty($trades)) {
                                     <tr>
                                         <td><?= htmlspecialchars(date('Y-m-d H:i', strtotime($tradeTime))) ?></td>
                                         <td>
-                                            <div class="d-flex align-items-center">
-                                                <img src="assets/img/coins/<?= strtolower($symbol) ?>.png" 
-                                                     alt="<?= htmlspecialchars($symbol) ?>"
-                                                     class="coin-icon me-2"
-                                                     onerror="this.onerror=null; this.src='assets/img/coins/generic.png';">
-                                                <div>
-                                                    <strong><?= htmlspecialchars($symbol) ?></strong>
-                                                </div>
-                                            </div>
+                                            <strong><?= htmlspecialchars($symbol) ?></strong>
                                         </td>
                                         <td>
                                             <span class="badge <?= $isBuy ? 'bg-success' : 'bg-danger' ?>">
@@ -176,11 +165,28 @@ if (!empty($trades)) {
                                             </span>
                                         </td>
                                         <td><?= number_format($amount, 8) ?></td>
-                                        <td>$<?= is_numeric($entryPrice) ? rtrim(rtrim(number_format($entryPrice, 4, '.', ''), '0'), '.') : '–' ?></td>
-                                        <td>$<?= is_numeric($currentPrice) ? rtrim(rtrim(number_format($currentPrice, 4, '.', ''), '0'), '.') : '–' ?></td>
-                                        <td>$<?= is_numeric($invested) ? number_format($invested, 2) : '–' ?></td>
+                                        <!-- Buy Price -->
+                                        <td>$<?= (isset($trade['entry_price']) && is_numeric($trade['entry_price'])) ? number_format($trade['entry_price'], 4) : '–' ?></td>
+                                        <!-- Sell Price -->
+                                        <td>
+                                            <?php if (!$isBuy && isset($trade['price']) && is_numeric($trade['price'])): ?>
+                                                $<?= number_format($trade['price'], 4) ?>
+                                            <?php else: ?>
+                                                —
+                                            <?php endif; ?>
+                                        </td>
+                                        <!-- Profit/Loss -->
+                                        <td>
+                                            <?php if (!$isBuy && isset($trade['profit_loss']) && is_numeric($trade['profit_loss'])): ?>
+                                                <span class="badge bg-<?= $trade['profit_loss'] >= 0 ? 'success' : 'danger' ?>">
+                                                    $<?= number_format($trade['profit_loss'], 2) ?>
+                                                    (<?= (isset($trade['profit_loss_percent']) && is_numeric($trade['profit_loss_percent'])) ? number_format($trade['profit_loss_percent'], 2) : '0.00' ?>%)
+                                                </span>
+                                            <?php else: ?>
+                                                —
+                                            <?php endif; ?>
+                                        </td>
                                         <td><?= htmlspecialchars($strategy) ?></td>
-                                    </tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>

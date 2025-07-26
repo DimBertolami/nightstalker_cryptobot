@@ -58,6 +58,14 @@ $tools = [
         'category' => 'Data',
         'last_run' => getLastRunTime('delete_all_coins')
     ],
+    'delete_all_price_history' => [
+        'name' => 'delete price history" NS',
+        'description' => 'delete price history from the database',
+        'script' => '/opt/lampp/htdocs/NS/system-tools/truncate_price_history_table.sh',
+        'icon' => 'fa-coins',
+        'category' => 'Data',
+        'last_run' => getLastRunTime('delete_price_history')
+    ],
     'cmc_fetch_bitvavo_coins' => [
         'name' => 'CMC list of bitvavo coins',
         'description' => 'Updates the database with latest bitvavo coins from CoinMarketCap API',

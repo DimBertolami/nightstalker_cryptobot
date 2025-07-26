@@ -22,6 +22,7 @@ $allowedTools = [
     'cmc_fetch_bitvavo_coins' => 'CMC Bitvavo Coins Fetcher',
     'cmc_fetch_binance_coins' => 'CMC Binance Coins Fetcher',
     'delete_all_coins' => 'Delete All Coins',
+    'delete_all_price_history' => 'Delete All Price History',
     'trending_fetcher' => 'Crypto Trending Data Fetcher',
     'cron_manager' => 'Cron Manager',
     'price_history' => '/opt/lampp/htdocs/NS/system-tools/vph.php',

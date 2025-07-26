@@ -24,6 +24,7 @@ try {
         'price_history_diagnostics' => '/opt/lampp/htdocs/NS/tools/debug_price_history.php',
         'coins_table__diagnostics' => '/opt/lampp/htdocs/NS/debug_coins_table.php',
         'delete_all_coins' => '/opt/lampp/htdocs/NS/delete_coins.php',
+        'delete_all_price_history' => '/opt/lampp/htdocs/NS/system-tools/truncate_price_history_table.sh',
         'cmc_fetch_bitvavo_coins' => '/opt/lampp/htdocs/NS/crons/bitvavoFromCMC4NS.py',
         'cmc_fetch_binance_coins' => '/opt/lampp/htdocs/NS/crons/binanceFromCMC4NS.py',
         'trending_fetcher' => '/opt/lampp/htdocs/NS/crypto_sources/crypto_trending_fetcher.py',

@@ -792,6 +792,41 @@ Several critical issues with the coin data fetching, storage, and display were i
 
 These fixes ensure that coin prices are correctly fetched from Binance, properly stored in the database, and accurately displayed in the UI with working filters.
 
+## Recent Updates (July 2025)
+
+Significant enhancements and fixes have been implemented to improve the system's real-time price monitoring, automated trading, and user interface:
+
+1.  **Unified Price Updater (`unified_price_updater.py`)**:
+    *   Replaced separate `binance_price_updater_for_terminal.py` and `bitvavo_price_udater_for_terminal.py` scripts with a single, unified Python service.
+    *   This script now fetches real-time prices from both Binance (using USDT trading pairs) and Bitvavo (using EUR trading pairs) based on the associated exchange in the `coins` table.
+    *   Continuously updates the `price_history` table for all active portfolio coins.
+    *   Includes robust logging and gracefully shuts down when the portfolio is empty, logging the timestamp of cessation.
+
+2.  **Integrated Apex Tracking and Automated Trading**:
+    *   The `unified_price_updater.py` now incorporates the advanced apex tracking logic.
+    *   Monitors the highest recorded price (apex) for each coin in the portfolio.
+    *   Detects significant price drops from the apex and, if sustained, automatically triggers sell orders via PHP API endpoints (`execute-sell.php`).
+    *   Manages coin statuses (`monitoring`, `dropping`, `sold`) to guide trading decisions.
+
+3.  **Enhanced Log Reader Tool (`log_reader.sh`)**:
+    *   Improved the `log_reader.sh` script to accurately filter log entries.
+    *   Now correctly identifies and displays log lines from yesterday onwards, filtering out older, irrelevant data.
+    *   Includes better handling for various log formats (application, Apache, syslog/cron) and non-existent log files.
+
+4.  **Coin Display Enhancements (`coins.php`)**:
+    *   The portfolio view in `coins.php` now visually indicates the apex status of each coin.
+    *   Coins are color-coded: Green for `monitoring`, Orange for `dropping`, and Red for `sold`, providing immediate visual feedback on trading status.
+    *   A new "Apex Status" column has been added to the table.
+
+5.  **Tutorial Integration**:
+    *   A simple version of the tutorial has been started, guiding users through initial setup and core functionalities. (Further details on accessing the tutorial will be provided.)
+
+
+
+## Recent Updates (July 2025)
+
+
+
 ## Security Considerations
 
 - Change the default admin password (set in `includes/auth.php`)

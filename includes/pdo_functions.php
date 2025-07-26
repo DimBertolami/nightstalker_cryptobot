@@ -1040,6 +1040,58 @@ function getUserCoinBalancePDO($coinId): array {
 
 
 /**
+ * Get coins from the user's portfolio with PDO
+ * @return array An array of associative arrays, each containing 'id', 'symbol', and 'name' for portfolio coins.
+ */
+function getPortfolioCoinsPDO(): array {
+    try {
+        $db = getDBConnection();
+        if (!$db) {
+            throw new Exception("Database connection failed");
+        }
+
+        // Select coins from the portfolio that have an amount > 0
+        // Join with cryptocurrencies table to get symbol and name
+        $stmt = $db->prepare("SELECT p.coin_id AS id, c.symbol, c.name
+                             FROM portfolio p
+                             JOIN cryptocurrencies c ON p.coin_id = c.id
+                             WHERE p.amount > 0
+                             ORDER BY c.name ASC"); // Order by name for better display
+
+        $stmt->execute();
+        $portfolioCoins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // If no coins found in cryptocurrencies, try joining with the 'coins' table as a fallback
+        if (empty($portfolioCoins)) {
+            $stmt = $db->prepare("SELECT p.coin_id AS id, co.symbol, co.coin_name AS name
+                                 FROM portfolio p
+                                 JOIN coins co ON p.coin_id = co.id
+                                 WHERE p.amount > 0
+                                 ORDER BY co.coin_name ASC");
+            $stmt->execute();
+            $portfolioCoins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        // Ensure 'id', 'symbol', and 'name' are always present
+        $formattedCoins = [];
+        foreach ($portfolioCoins as $coin) {
+            $formattedCoins[] = [
+                'id' => $coin['id'] ?? null,
+                'symbol' => $coin['symbol'] ?? 'UNKNOWN',
+                'name' => $coin['name'] ?? $coin['symbol'] ?? 'Unknown Coin'
+            ];
+        }
+
+        return $formattedCoins;
+
+    } catch (Exception $e) {
+        error_log("[getPortfolioCoinsPDO] Error: " . $e->getMessage());
+        return [];
+    }
+}
+
+
+/**
  * Get coin data by ID or symbol with PDO
  */
 function getCoinDataPDO($coinId) {
