@@ -1,4 +1,6 @@
 <?php
+
+$title = 'Night Stalker - built from the remains of a decommmissioned early tsunami warning Artificial Intelligence, its new objectives to track and exploit a vulnerability discovered in all new coins over all major exchanges, which allows this system to predict and profit from their forseeable price movements.';
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/pdo_functions.php';

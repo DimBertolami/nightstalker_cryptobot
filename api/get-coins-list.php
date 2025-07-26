@@ -1,39 +1,29 @@
 <?php
+require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+
 header('Content-Type: application/json');
 
-// Database connection details - Use the same as get-chart-data.php
-$servername = "localhost";
-$username = "dimi";
-$password = "1304";
-$dbname = "NS";
+try {
+    $db = getDbConnection();
+    $stmt = $db->query("SELECT id, coin_name FROM coins ORDER BY coin_name ASC");
+    $coins = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-if ($conn->connect_error) {
-    die(json_encode(["error" => "Connection failed: " . $conn->connect_error]));
-}
-
-$coins = [];
-
-// Fetch coin_id from coin_apex_prices (portfolio items) and their names from cryptocurrencies table
-$sql = "SELECT cap.coin_id, c.name FROM coin_apex_prices cap JOIN cryptocurrencies c ON cap.coin_id = c.id ORDER BY c.name ASC";
-$result = $conn->query($sql);
-
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $coins[] = [
-            "id" => $row['coin_id'],
-            "name" => $row['name']
+    $formattedCoins = [];
+    foreach ($coins as $coin) {
+        $formattedCoins[] = [
+            'id' => $coin['id'],
+            'name' => $coin['coin_name']
         ];
     }
-} else {
-    echo json_encode(["error" => "Error fetching coins: " . $conn->error]);
-    $conn->close();
-    exit();
+
+    echo json_encode($formattedCoins);
+
+} catch (PDOException $e) {
+    error_log("Error fetching coin list: " . $e->getMessage());
+    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+} catch (Exception $e) {
+    error_log("General error fetching coin list: " . $e->getMessage());
+    echo json_encode(['error' => 'An unexpected error occurred: ' . $e->getMessage()]);
 }
-
-$conn->close();
-
-echo json_encode($coins);
-
 ?>

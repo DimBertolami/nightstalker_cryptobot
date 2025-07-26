@@ -1,5 +1,5 @@
 <?php
-$title = "Night Stalker - built from the remains of a decommissioned tsunami prediction warning system's Artificial Intelligence, it's new mission objectives to track and exploit a vulnerability discovered in all the new coins, which allows this system to predict and benefit from their price movements."; 
+$title = 'Night Stalker - built from the remains of a decommmissioned early tsunami warning system\'s Artificial Intelligence, it\'s new objectives to track and exploit a vulnerability discovered in all new coins over all major exchanges, which allows this system to predict and profit from their forseeable price movements.';
 
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/functions.php';
@@ -26,7 +26,7 @@ $showAll = isset($_GET['show_all']) ? $_GET['show_all'] == '1' : true;
 $filterAge = isset($_COOKIE['filter_age']) ? (int)$_COOKIE['filter_age'] : 24;
 $filterMarketCap = isset($_COOKIE['filter_marketcap']) ? (int)$_COOKIE['filter_marketcap'] : 1500000;
 $filterVolume = isset($_COOKIE['filter_volume']) ? (int)$_COOKIE['filter_volume'] : 1500000;
-$filterAgeEnabled = isset($_COOKIE['filter_age_enabled']) ? $_COOKIE['filter_age_enabled'] == '1' : false;
+$filterAgeEnabled = isset($_COOKIE['filter_age_enabled']) ? $_COOKIE['filter_age_enabled'] == '1' : true;
 $filterMarketCapEnabled = isset($_COOKIE['filter_marketcap_enabled']) ? $_COOKIE['filter_marketcap_enabled'] == '1' : true;
 $filterVolumeEnabled = isset($_COOKIE['filter_volume_enabled']) ? $_COOKIE['filter_volume_enabled'] == '1' : true;
 $autoRefresh = isset($_COOKIE['auto_refresh']) ? $_COOKIE['auto_refresh'] == '1' : true;

@@ -4,13 +4,6 @@
  * Generates sparkline charts for new coins based on their price history.
  */
 
-document.addEventListener('DOMContentLoaded', function() {
-    loadNewCoinCharts();
-    
-    // Auto-refresh new coin charts every 5 minutes (adjust as needed)
-    setInterval(loadNewCoinCharts, 300000);
-});
-
 /**
  * Fetches new coin price history data and renders sparklines.
  */
@@ -33,6 +26,13 @@ function loadNewCoinCharts() {
             console.error('Error fetching new coin price history:', error);
         });
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadNewCoinCharts();
+    
+    // Auto-refresh new coin charts every 5 minutes (adjust as needed)
+    setInterval(loadNewCoinCharts, 300000);
+});
 
 /**
  * Renders sparkline charts for new coins.

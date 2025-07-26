@@ -5,7 +5,7 @@
     function injectPhantomWallet() {
         try {
             if (window.solana) {
-                console.warn('window.solana already exists');
+                console.warn('window.solana already exists, skipping Phantom simulation injection.');
                 return;
             }
             // Simulate Phantom wallet object
@@ -23,18 +23,18 @@
                     this.publicKey = null;
                 }
             };
-            console.log('Phantom wallet injected');
+            console.log('Phantom wallet injected (simulation).');
         } catch (e) {
-            console.error('Unable to set window.solana, try uninstalling Phantom.');
+            console.log('Error setting window.solana for Phantom simulation:', e.message); // Changed from console.error
         }
     }
 
     // Simulate Phantom wallet detection
     function detectPhantomWallet() {
         if (!window.solana || !window.solana.isPhantom) {
-            console.error('Unable to set window.phantom.solana, try uninstalling Phantom.');
+            console.log('Phantom simulation not detected or not fully injected.'); // Changed from console.error
         } else {
-            console.log('Phantom wallet detected');
+            console.log('Phantom wallet detected (simulation).');
         }
     }
 

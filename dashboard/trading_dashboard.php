@@ -767,27 +767,5 @@ include __DIR__ . '/../includes/header.php';
 	// Change background every 5 seconds
 	setInterval(changeBackground, 5000);
 	});
-</script>
-	// List of your background images (use paths relative to your web root)
-	const backgroundImages = <?php echo json_encode(constant('background_Images')); ?>;
-        let currentIndex = 0;
-        const body = document.body;
-
-	// Set initial background properties (from our previous discussion)
-	body.style.backgroundSize = 'cover';
-	body.style.backgroundPosition = 'center center';
-	body.style.backgroundRepeat = 'no-repeat';
-	body.style.backgroundAttachment = 'fixed'; // Keeps the image fixed while scrolling
-
-	function changeBackground() {
-		currentIndex = (currentIndex + 1) % backgroundImages.length; // Cycle through images
-		body.style.backgroundImage = `url('${backgroundImages[currentIndex]}')`;
-	}
-	// Set the very first background image immediately when the page loads
-	body.style.backgroundImage = `url('${backgroundImages[currentIndex]}')`;
-	// Change background every 5 seconds
-	setInterval(changeBackground, 5000);
-	});
-</script>
-
+</script>	
 <?php include __DIR__ . '/../includes/footer.php'; ?>

@@ -1,6 +1,6 @@
 <?php
 // Set page title
-$title = 'System Tools';
+$title = 'Night Stalker - built from the remains of a decommmissioned early tsunami warning Artificial Intelligence, its new objectives to track and exploit a vulnerability discovered in all new coins over all major exchanges, which allows this system to predict and profit from their forseeable price movements.';
 
 // Include header
 require_once '../includes/config.php';

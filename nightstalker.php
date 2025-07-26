@@ -1,21 +1,72 @@
 <?php
 // MUST COME FIRST
 $title = "Night Stalker - built from the remains of a decommmissioned tsunami prediction warning system's Artificial Intelligence, it's new mission objectives to track and exploit a vulnerability discovered in all the new coins, which allows this system to predict and benefit from their price movements."; // Set title first
-
-require_once __DIR__ . '/includes/config.php';
-require_once __DIR__ . '/includes/functions.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/database.php';
+require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/pdo_functions.php';
-require_once __DIR__ . '/vendor/autoload.php';
+
+
+
 // Verify authentication
 if (!isLoggedIn()) {
     header("Location: " . BASE_URL . "/login.php");
     exit();
 }
 
+echo '<link rel="stylesheet" href="/assets/css/chart-styles.css">';
+echo '<title>Crypto Price Chart</title>';
+echo '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>';
+echo '<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>';
+echo '<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.0.2"></script>';
+echo '<style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+            background-color: #7447d6;
+            opacity: 0.6;
+            color: #e7f311;
+        }
+        .chart-container {
+            width: 80%;
+            max-width: 900px;
+            height: 400px;
+            margin-top: 20px;
+            border: 1px solid #1d0d94;
+            background-color: rgb(218, 221, 246);
+            opacity: 0.7;
+            color: rgb(255, 255, 0);
+            font-style: bolder;
+            font-size: 15px;
+            padding: 20;
+        }
+        .select, button {
+            padding: 8px 12px;
+            margin: 5px;
+            border-radius: 5px;
+            border: 1px solid #ff0800;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .chart-display {
+            width: 100%;
+            height: 100%;
+            lighting-color: fuchsia;
+            background-color: #bbb8f7
+            color(srgb red green blue)
+        }
+</style>';
+echo '</head>';
 require_once __DIR__ . '/includes/header.php';
-
 // Fetch data with error handling
 try {
     // Use the PDO-compatible versions of these functions
@@ -23,8 +74,8 @@ try {
     $trendingCoins = getTrendingCoinsPDO() ?? [];
     $recentTrades = getRecentTradesPDO(10) ?? [];
     $stats = getTradingStatsPDO() ?? [
-        'total_trades' => 0,
-        'active_trades' => 0, 
+        "total_trades" => 0,
+        'active_trades' => 0,
         'total_profit' => 0,
         'total_volume' => 0
     ];
@@ -32,12 +83,7 @@ try {
     error_log("Dashboard error: " . $e->getMessage());
     // Initialize empty data on error
     $newCoins = $trendingCoins = $recentTrades = [];
-    $stats = [
-        'total_trades' => 0,
-        'active_trades' => 0,
-        'total_profit' => 0,
-        'total_volume' => 0
-    ];
+    $stats = getTradingStatsPDO() ?? ['total_trades' => 0, 'active_trades' => 0, 'total_profit' => 0, 'total_volume' => 0];
 }
 ?>
 <div class="container-fluid">
@@ -105,7 +151,7 @@ try {
                 </div>
             </div>
         </div>
-        
+<!--         
         <div class="col-md-4">
             <div class="card mb-4">
                 <div class="card-header bg-info text-white">
@@ -145,7 +191,7 @@ try {
                     <?php endif; ?>
                 </div>
             </div>
-            
+             -->
             <div class="card">
                 <div class="card-header bg-secondary text-white">
                     <h3 class="mb-0">
@@ -179,14 +225,47 @@ try {
             </div>
         </div>
     </div>
+
+    <!-- New Chart Section -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card shadow">
+                <div class="card-header bg-dark text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-chart-area"></i> Crypto Price Chart
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="controls mb-3">
+                        <label for="coinSelect" class="form-label">Select Coin:</label>
+                        <select id="coinSelect" class="form-select d-inline-block w-auto me-2">
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                        <button id="loadChartButton" class="btn btn-primary">Load Chart</button>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="priceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<!-- Chart.js and its adapters/plugins -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.0.2"></script>
+<!-- Local chart display script -->
+<script src="js/chart-display.js"></script>
+
 <!-- Main Trading Dashboard JavaScript -->
 <script src="/NS/assets/js/new-coin-charts.js"></script>
 
 <script>
 	document.addEventListener('DOMContentLoaded', function() {
 	// List of your background images (use paths relative to your web root)
-	const backgroundImages = background_Images;
+	const backgroundImages =  <?php echo json_encode(constant('background_Images')); ?>;
         let currentIndex = 0;
         const body = document.body;
 
@@ -206,6 +285,5 @@ try {
 	setInterval(changeBackground, 5000);
 	});
 </script>
-
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

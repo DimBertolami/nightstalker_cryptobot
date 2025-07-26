@@ -1,78 +1,70 @@
 <?php
+require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+
 header('Content-Type: application/json');
 
-// Database connection details
-$servername = "localhost";
-$username = "dimi";
-$password = "1304";
-$dbname = "NS";
+$coinId = $_GET['coin_id'] ?? null;
 
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-if ($conn->connect_error) {
-    die(json_encode(["error" => "Connection failed: " . $conn->connect_error]));
+if (!$coinId) {
+    echo json_encode(['error' => 'Coin ID is required.']);
+    exit();
 }
 
-$coin_id = $_GET['coin_id'] ?? '';
+try {
+    $db = getDbConnection();
 
-if (empty($coin_id)) {
-    die(json_encode(["error" => "coin_id parameter is required."]));
-}
+    // Fetch historical price data
+    $stmt = $db->prepare("SELECT timestamp, price FROM price_history WHERE coin_id = ? ORDER BY timestamp ASC");
+    $stmt->execute([$coinId]);
+    $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$data = [];
-$apex_data = null;
-$purchase_time = null;
-$latest_recorded_time = null;
-$coin_status = null;
-$drop_start_timestamp = null;
-
-// Fetch price history
-$stmt_history = $conn->prepare("SELECT recorded_at, price FROM price_history WHERE coin_id = ? ORDER BY recorded_at ASC");
-$stmt_history->bind_param("s", $coin_id);
-$stmt_history->execute();
-$result_history = $stmt_history->get_result();
-
-while ($row = $result_history->fetch_assoc()) {
-    $timestamp_ms = strtotime($row['recorded_at']) * 1000;
-    if ($purchase_time === null) {
-        $purchase_time = $timestamp_ms; // First recorded_at is purchase time
+    $formattedHistory = [];
+    foreach ($history as $row) {
+        $formattedHistory[] = [
+            'time' => strtotime($row['timestamp']) * 1000, // Convert to milliseconds for JavaScript
+            'price' => (float)$row['price']
+        ];
     }
-    $latest_recorded_time = $timestamp_ms; // Keep updating to get the latest
-    $data[] = [
-        "time" => $timestamp_ms,
-        "price" => (float)$row['price']
-    ];
-}
-$stmt_history->close();
 
-// Fetch apex price data and coin status
-$stmt_apex = $conn->prepare("SELECT apex_price, apex_timestamp, status, drop_start_timestamp FROM coin_apex_prices WHERE coin_id = ?");
-$stmt_apex->bind_param("s", $coin_id);
-$stmt_apex->execute();
-$result_apex = $stmt_apex->get_result();
+    // Placeholder for apex, purchase_time, etc. - these would typically come from other tables or calculations
+    $apex = null;
+    $purchaseTime = null;
+    $latestRecordedTime = null;
+    $coinStatus = 'active'; // or 'sold'
+    $dropStartTimestamp = null;
 
-if ($result_apex->num_rows > 0) {
-    $row_apex = $result_apex->fetch_assoc();
-    $apex_data = [
-        "price" => (float)$row_apex['apex_price'],
-        "timestamp" => strtotime($row_apex['apex_timestamp']) * 1000 // Convert to milliseconds
-    ];
-    $coin_status = $row_apex['status'];
-    if ($row_apex['drop_start_timestamp']) {
-        $drop_start_timestamp = strtotime($row_apex['drop_start_timestamp']) * 1000;
+    // Example: If you had a way to determine apex from history
+    if (!empty($formattedHistory)) {
+        $maxPrice = 0;
+        $apexTimestamp = 0;
+        foreach ($formattedHistory as $point) {
+            if ($point['price'] > $maxPrice) {
+                $maxPrice = $point['price'];
+                $apexTimestamp = $point['time'];
+            }
+        }
+        $apex = [
+            'price' => $maxPrice,
+            'timestamp' => $apexTimestamp
+        ];
+        $latestRecordedTime = end($formattedHistory)['time'];
     }
+
+    echo json_encode([
+        'history' => $formattedHistory,
+        'apex' => $apex,
+        'purchase_time' => $purchaseTime,
+        'latest_recorded_time' => $latestRecordedTime,
+        'coin_status' => $coinStatus,
+        'drop_start_timestamp' => $dropStartTimestamp
+    ]);
+
+} catch (PDOException $e) {
+    error_log("Error fetching chart data: " . $e->getMessage());
+    echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
+} catch (Exception $e) {
+    error_log("General error fetching chart data: " . $e->getMessage());
+    echo json_encode(['error' => 'An unexpected error occurred: ' . $e->getMessage()]);
 }
-$stmt_apex->close();
-
-$conn->close();
-
-echo json_encode([
-    "history" => $data,
-    "apex" => $apex_data,
-    "purchase_time" => $purchase_time,
-    "latest_recorded_time" => $latest_recorded_time,
-    "coin_status" => $coin_status,
-    "drop_start_timestamp" => $drop_start_timestamp
-]);
-
 ?>

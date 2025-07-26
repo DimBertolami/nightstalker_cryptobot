@@ -2,8 +2,7 @@
 import os
 import requests
 from alpaca_trade_api.rest import REST
-
-api = REST(os.getenv("ALPACA_KEY"), os.getenv("ALPACA_SECRET"), base_url="https://data.alpaca.markets")
+api = REST(os.getenv("ALPACA_KEY"), os.getenv("ALPACA_SECRET"), base_url="https://api.alpaca.markets") # https://data.alpaca.markets
 bars = api.get_crypto_bars("BTC/USD", timeframe="1Day", start="2022-01-01", end="2024-12-31").df
 
 print(bars)

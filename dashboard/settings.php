@@ -1,6 +1,7 @@
 <?php
+$title = 'Night Stalker - built from the remains of a decommmissioned tsunami prediction warning system Artificial Intelligence, its new mission objectives to track and exploit a vulnerability discovered in all the new coins, which allows this system to predict and benefit from their price movements.';
 require_once __DIR__ . '/../includes/config.php';
-require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/pdo_functions.php';
 require_once __DIR__ . '/../includes/TradingLogger.php';
 require_once __DIR__ . '/../includes/auth.php';
 
@@ -820,4 +821,38 @@ $allTimePerformance = $logger->getPerformance('new_coin_strategy', 'all');
 </script>
 <script src="../assets/js/exchange-config.js"></script>
 </body>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const showTutorialButton = document.getElementById('show-tutorial');
+        const tutorialModal = new bootstrap.Modal(document.getElementById('tutorialModal'));
+
+        if (showTutorialButton) {
+            showTutorialButton.addEventListener('click', function() {
+                tutorialModal.show();
+            });
+        }
+
+	// List of your background images (use paths relative to your web root)
+	const backgroundImages = <?php echo json_encode(constant('background_Images')); ?>;
+        let currentIndex = 0;
+        const body = document.body;
+
+	// Set initial background properties (from our previous discussion)
+	body.style.backgroundSize = 'cover';
+	body.style.backgroundPosition = 'center center';
+	body.style.backgroundRepeat = 'no-repeat';
+	body.style.backgroundAttachment = 'fixed'; // Keeps the image fixed while scrolling
+
+	function changeBackground() {
+		currentIndex = (currentIndex + 1) % backgroundImages.length; // Cycle through images
+		body.style.backgroundImage = `url('${backgroundImages[currentIndex]}')`;
+	}
+	// Set the very first background image immediately when the page loads
+	body.style.backgroundImage = `url('${backgroundImages[currentIndex]}')`;
+	// Change background every 5 seconds
+	setInterval(changeBackground, 5000);
+	});
+</script>	
+
+include_once '../includes/footer.php';
 </html>

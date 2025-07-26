@@ -1,0 +1,27 @@
+.chart-container {
+    width: 100%;
+    max-width: 900px;
+    height: 400px;
+    margin-top: 20px;
+    border: 1px solid #1d0d94;
+    background-color: rgb(218, 221, 246);
+    opacity: 0.8;
+    color: rgb(255, 255, 0);
+    font-style: bolder;
+    font-size: 15px;
+    padding: 20px;
+}
+.controls .select, .controls button {
+    padding: 8px 12px;
+    margin: 5px;
+    border-radius: 5px;
+    border: 1px solid #ff0800;
+}
+.controls button {
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+}
+.controls button:hover {
+    background-color: #0056b3;
+}
