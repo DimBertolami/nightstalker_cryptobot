@@ -5,6 +5,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let priceChart = null;
 
     // Function to fetch and populate coin list
+    function createOrUpdateChart(coinId) {
+        loadChart(coinId);
+    }
+
+    // Listen for localStorage events to trigger chart refresh
+    window.addEventListener('storage', (event) => {
+        if (event.key === 'nightstalker_chart_refresh') {
+            const selectedCoinId = coinSelect.value;
+            if (selectedCoinId) {
+                createOrUpdateChart(selectedCoinId);
+            }
+        }
+    });
+
+    // Function to fetch and populate coin list
     async function populateCoinSelect() {
         try {
             const response = await fetch('api/get-portfolio-coins.php');
@@ -241,19 +256,24 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             if (priceChart) {
-                try {
-                    priceChart.destroy(); // Destroy existing chart before creating a new one
-                } catch (e) {
-                    console.warn('Error destroying existing chart:', e);
-                }
-                priceChart = null; // Reset to null after destruction
+                priceChart.data.labels = chartData.labels;
+                priceChart.data.datasets[0].data = chartData.datasets[0].data;
+                priceChart.options.scales.x.min = xMin;
+                priceChart.options.scales.x.max = xMax;
+                priceChart.options.scales.x.time.unit = timeUnit;
+                priceChart.options.scales.x.time.stepSize = stepSize;
+                priceChart.options.plugins.annotation.annotations = annotations;
+                priceChart.update({
+                    duration: 800,
+                    easing: 'easeOutQuart'
+                });
+            } else {
+                priceChart = new Chart(ctx, {
+                    type: 'line',
+                    data: chartData,
+                    options: chartOptions
+                });
             }
-            priceChart = new Chart(ctx, {
-                type: 'line',
-                data: chartData,
-                options: chartOptions
-            });
-
         } catch (error) {
             console.error('Failed to load chart:', error);
         }
@@ -262,13 +282,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event Listeners
     loadChartButton.addEventListener('click', () => {
         const selectedCoinId = coinSelect.value;
-        loadChart(selectedCoinId);
+        createOrUpdateChart(selectedCoinId);
     });
 
     // Initial population of coin select dropdown
-    populateCoinSelect();
+    populateCoinSelect().then(() => {
+        // Load chart for first coin immediately after population
+        const initialCoinId = coinSelect.value;
+        if (initialCoinId) {
+            createOrUpdateChart(initialCoinId);
+        }
+    });
 
-    // Auto-refresh chart every 3 seconds
+    // Auto-refresh chart
     setInterval(() => {
         const selectedCoinId = coinSelect.value;
         if (selectedCoinId) {

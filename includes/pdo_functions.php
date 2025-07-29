@@ -117,12 +117,21 @@ function executeBuyPDO($coinId, $amount, $price) {
                 $portfolioStmt->execute([$coinSymbol, $amount, $price, $price]);
                 error_log("[executeBuyPDO] Updated portfolio for coin: $coinSymbol, amount: $amount, price: $price");
 
+                // Reset coin_apex_prices status to 'monitoring' on buy
+                $apexResetStmt = $db->prepare("INSERT INTO coin_apex_prices (coin_id, status, apex_price, apex_timestamp, drop_start_timestamp, last_checked) VALUES (?, 'monitoring', 0, NOW(), NULL, NOW()) ON DUPLICATE KEY UPDATE status = 'monitoring', apex_price = 0, apex_timestamp = NOW(), drop_start_timestamp = NULL, last_checked = NOW()");
+                if ($apexResetStmt) {
+                    $apexResetStmt->execute([$coinSymbol]);
+                    error_log("[executeBuyPDO] Reset coin_apex_prices status for $coinSymbol to monitoring.");
+                } else {
+                    error_log("[executeBuyPDO] Failed to prepare apex reset statement: " . $db->errorInfo()[2]);
+                }
+
                 // Launch the Python script for real-time price updates
                 $script_path = '/opt/lampp/htdocs/NS/includes/bitvavo_price_udater_for_terminal.py';
                 $python_executable = '/usr/bin/python3'; // Explicitly define the Python executable
 
                 // Check if the script is already running
-                $pgrep_command = "/usr/bin/pgrep -f " . escapeshellarg($script_path);
+                $pgrep_command = "/usr/bin/pgrep -f \"^" . $python_executable . " " . escapeshellarg($script_path) . "$\"";
                 $process_check = shell_exec($pgrep_command);
 
                 if (empty($process_check)) {
@@ -142,7 +151,10 @@ function executeBuyPDO($coinId, $amount, $price) {
                 error_log("[executeBuyPDO] Failed to update portfolio: " . $db->errorInfo()[2]);
             }
 
-            return $tradeId;
+            return [
+                'trade_id' => $tradeId,
+                'coin_symbol' => $coinSymbol
+            ];
         } else {
             error_log("[executeBuyPDO] Failed to insert trade (no rows affected): " . $stmt->errorInfo()[2]);
             return false;

@@ -1,6 +1,5 @@
 <?php
-
-require_once __DIR__ . '/config.php';  // Added to include DB constants
+require_once __DIR__ . '/config.php';  // Ensure DB constants are loaded first
 
 // initDB() should only be called during installation or explicit setup, not on every page load.
 // The following block is commented out to prevent database schema reset on every request.

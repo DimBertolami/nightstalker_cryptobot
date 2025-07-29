@@ -66,7 +66,7 @@ def get_portfolio_symbols():
         symbols = cursor.fetchall()
         cursor.close()
         connection.close()
-        return [f"{symbol[0].upper()}-EUR" for symbol in symbols]
+        return [symbol[0].upper() for symbol in symbols]
     except mysql.connector.Error as err:
         script_logger.error(f"Database error in get_portfolio_symbols: {err}")
         return []

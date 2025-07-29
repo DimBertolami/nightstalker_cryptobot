@@ -8,10 +8,12 @@
 
 // Prevent any output before our JSON response
 error_reporting(E_ALL);
-ini_set('display_errors', 0);
+ini_set('display_errors', 1);
 
 // Buffer all output to prevent headers already sent errors
 ob_start();
+
+error_log("get-new-coin-price-history.php: Script started");
 
 try {
     require_once '/opt/lampp/htdocs/NS/includes/config.php';
@@ -30,16 +32,20 @@ try {
     
     $db = getDBConnection();
     if (!$db) {
+        error_log("get-new-coin-price-history.php: Database connection failed");
         throw new Exception("Database connection failed");
     }
     
     // Get all new coins from the newcoins table
+    error_log("get-new-coin-price-history.php: Fetching new coin symbols");
     $stmt = $db->prepare("SELECT symbol FROM newcoins");
     $stmt->execute();
     $newCoinSymbols = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    error_log("get-new-coin-price-history.php: Found " . count($newCoinSymbols) . " new coin symbols");
     
     // If no new coins, return empty array
     if (empty($newCoinSymbols)) {
+        error_log("get-new-coin-price-history.php: No new coin data available");
         echo json_encode([
             'success' => true,
             'data' => [],
@@ -51,6 +57,7 @@ try {
     $priceHistoryData = [];
     
     foreach ($newCoinSymbols as $coinSymbol) {
+        error_log("get-new-coin-price-history.php: Processing coin: " . $coinSymbol);
         // Get the most recent price data for this new coin
         $stmt = $db->prepare("
         SELECT price, recorded_at
@@ -63,6 +70,7 @@ try {
         $latestData = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if (!$latestData) {
+            error_log("get-new-coin-price-history.php: No latest price data found for " . $coinSymbol);
             continue; // Skip if no data found for this coin
         }
         
@@ -70,6 +78,7 @@ try {
         $currentTime = strtotime($latestData['recorded_at']);
         
         // Get all price history for this new coin
+        error_log("get-new-coin-price-history.php: Fetching full price history for " . $coinSymbol);
         $stmt = $db->prepare("
             SELECT price, recorded_at 
             FROM price_history 
@@ -78,9 +87,17 @@ try {
         ");
         $stmt->execute([$coinSymbol]);
         $priceHistory = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        error_log("get-new-coin-price-history.php: Found " . count($priceHistory) . " historical price points for " . $coinSymbol);
         
         // Calculate price changes at different intervals and generate price points for sparkline
         $pricePoints = [];
+        
+        // Ensure priceHistory is not empty before accessing its elements
+        if (empty($priceHistory)) {
+            error_log("get-new-coin-price-history.php: Price history is empty for " . $coinSymbol . ", skipping calculations.");
+            continue;
+        }
+
         $firstPrice = (float)$priceHistory[0]['price'];
         $firstTime = strtotime($priceHistory[0]['recorded_at']);
         $totalChange = calculatePercentChange($firstPrice, $currentPrice);
@@ -184,6 +201,7 @@ try {
     }
     
     // Return success response
+    error_log("get-new-coin-price-history.php: Returning success response");
     echo json_encode([
         'success' => true,
         'data' => $priceHistoryData,

@@ -4,8 +4,10 @@
  */
 
     const POLL_INTERVAL_MS = 3000;
+    const MAX_FAILURE_COUNT = 3; // Number of consecutive failures before refresh
     let priceUpdaterInterval = null;
-    let hasLoggedPortfolioEmpty = false; // New flag to prevent repeated empty messages
+    let hasLoggedPortfolioEmpty = false;
+    let failureCount = 0; // Track consecutive failures
 
     // Store purchase prices for portfolio coins (symbol -> purchase price)
     // This should be initialized from portfolio data or fetched from backend if available
@@ -58,14 +60,26 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success && Array.isArray(data.data)) {
-                    //console.log('Public price updates data received:', data.data);
+                    failureCount = 0; // Reset on success
                     updatePortfolioPrices(data.data);
+
                 } else {
                     console.warn('Public price updates API returned no data or failure:', data);
                 }
             })
             .catch(error => {
                 console.error('Error fetching public price updates for portfolio:', error);
+                failureCount++;
+                
+                // If we've hit max failures, trigger refresh
+                if (failureCount >= MAX_FAILURE_COUNT) {
+                    console.log('Max failures reached, triggering refresh...');
+                    const refreshBtn = document.getElementById('refresh-data');
+                    if (refreshBtn) {
+                        refreshBtn.click();
+                    }
+                    failureCount = 0; // Reset counter
+                }
             });
     }
 

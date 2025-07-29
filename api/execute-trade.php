@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__.'/../includes/config.php';
 /**
  * Execute Trade API Endpoint
  * 
@@ -7,6 +8,7 @@
  */
 
 header('Content-Type: application/json');
+error_log('execute-trade.php reached at ' . date('Y-m-d H:i:s'));
 
 // Enable error reporting but don't display errors to the client
 error_reporting(E_ALL);
@@ -97,7 +99,7 @@ try {
     if ($action === 'buy') {
         $tradeId = executeBuyPDO($coinId, $amount, $price);
         if ($tradeId) {
-            $message = "Successfully bought $amount of $symbol";
+            $message = "Successfully executed buy trade.";
         } else {
             throw new Exception("Failed to execute buy trade.");
         }

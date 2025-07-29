@@ -74,7 +74,9 @@ define('TRADE_LOG_PATH', __DIR__ . '/../logs/trades_' . date('Y-m-d') . '.log');
 
 // Error reporting
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/../logs/php-error.log');
 
 // Start session
 if (session_status() === PHP_SESSION_NONE) {

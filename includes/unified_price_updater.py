@@ -194,9 +194,9 @@ def fetch_binance_prices(symbols):
         script_logger.error(f"Error fetching prices from Binance API: {e}")
     return prices
 
-def fetch_bitvavo_prices(symbols):
+def fetch_bitvavo_prices(symbols_to_fetch):
     """Fetches current prices for given symbols from Bitvavo API."""
-    from python_bitvavo_api.bitvavo import Bitvavo # Import here to avoid global import issues if not always needed
+    from python_bitvavo_api.bitvavo import Bitvavo
     prices = {}
     try:
         bitvavo_engine = Bitvavo({
@@ -204,8 +204,14 @@ def fetch_bitvavo_prices(symbols):
             'APISECRET': BITVAVO_API_SECRET
         })
         response = bitvavo_engine.ticker24h({})
-        # Filter response to only include requested symbols
-        prices = {item['market']: float(item['bid']) for item in response if 'bid' in item and item['bid'] is not None and item['market'] in symbols}
+        for item in response:
+            market = item.get('market')
+            bid_price = item.get('bid')
+            if market and bid_price is not None:
+                # Extract base coin symbol from market (e.g., BTC-EUR -> BTC)
+                base_coin_symbol = market.split('-')[0]
+                if base_coin_symbol in [s.split('-')[0] for s in symbols_to_fetch]:
+                    prices[base_coin_symbol] = float(bid_price)
     except Exception as e:
         script_logger.error(f"Error fetching prices from Bitvavo API: {e}")
     return prices
@@ -273,8 +279,13 @@ def unified_price_update_loop():
         current_time = datetime.now()
 
         for full_symbol, base_coin_id in coin_exchange_map.items():
-            if full_symbol in all_fetched_prices:
+            price = None
+            if full_symbol in all_fetched_prices: # For Binance symbols (e.g., BTCUSDT)
                 price = all_fetched_prices[full_symbol]
+            elif base_coin_id in all_fetched_prices: # For Bitvavo symbols (e.g., USDC)
+                price = all_fetched_prices[base_coin_id]
+
+            if price is not None:
                 price_logger.info(f"{full_symbol}:{price}")
                 print(f"{full_symbol}:{price}") # Terminal output
 
@@ -286,14 +297,15 @@ def unified_price_update_loop():
                 # --- Apex Tracking Logic ---
                 apex_data = get_apex_data(base_coin_id)
 
+                apex_data = get_apex_data(base_coin_id)
+                script_logger.info(f"Retrieved apex data for {base_coin_id}: {apex_data}")
+
                 if apex_data:
                     apex_price = float(apex_data['apex_price'])
                     drop_start_timestamp = apex_data['drop_start_timestamp']
                     status = apex_data['status']
 
-                    if status == 'sold':
-                        script_logger.info(f"Coin {base_coin_id} is marked as 'sold'. Skipping further processing.")
-                        continue
+                    
 
                     if price > apex_price:
                         script_logger.info(f"New apex for {base_coin_id}: {price} (old: {apex_price})")

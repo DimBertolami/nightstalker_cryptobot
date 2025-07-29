@@ -357,6 +357,13 @@ $(document).ready(function() {
                         $(form)[0].reset();
                         loadOpenOrders();
                         loadBalances();
+
+                        // If it was a buy order, load the chart for the purchased coin
+                        if (orderType === 'Market' || orderType === 'Limit') { // Assuming these are buy orders
+                            if (response.coin_symbol && typeof loadChart === 'function') {
+                                loadChart(response.coin_symbol);
+                            }
+                        }
                     } else {
                         showToast(response.error || 'Failed to place order', 'danger');
                     }

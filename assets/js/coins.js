@@ -687,6 +687,13 @@ $(document).ready(function() {
                         // Refresh data to show updated portfolio
                         fetchAndUpdateData();
                         updatePortfolioDisplay();
+
+                        // Notify nightstalker.php to refresh chart via localStorage event
+                        try {
+                            localStorage.setItem('nightstalker_chart_refresh', Date.now().toString());
+                        } catch (e) {
+                            console.warn('Failed to set localStorage for chart refresh notification:', e);
+                        }
                     } else {
                         // Show error message
                         showToast(`Error: ${data.message || 'Unknown error'}`, 'error');
