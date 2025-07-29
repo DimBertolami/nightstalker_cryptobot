@@ -14,10 +14,10 @@ ini_set('display_errors', 0);
 ob_start();
 
 try {
-    require_once __DIR__ . '/../../includes/config.php';
-    require_once __DIR__ . '/../../includes/functions.php';
-    require_once __DIR__ . '/../../includes/pdo_functions.php';
-    require_once __DIR__ . '/../../includes/auth.php';
+    require_once '/opt/lampp/htdocs/NS/includes/config.php';
+    require_once '/opt/lampp/htdocs/NS/includes/functions.php';
+    require_once '/opt/lampp/htdocs/NS/includes/pdo_functions.php';
+    require_once '/opt/lampp/htdocs/NS/includes/auth.php';
     
     // Start session if not already started
     if (session_status() === PHP_SESSION_NONE) {
@@ -210,7 +210,7 @@ try {
     header('Content-Type: application/json');
     echo json_encode([
         'success' => false,
-        'message' => 'Critical error retrieving new coin price history data'
+        'message' => 'Critical error retrieving new coin price history data: ' . $e->getMessage()
     ]);
 }
 

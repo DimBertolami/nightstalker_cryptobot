@@ -16,7 +16,7 @@ body {
     padding-top: 56px;
 }
 body {
-    background-image: url('../images/oni1.jpg'); /* Path relative to styles.css */
+    background-image: url('../images/oni2.jpg'); /* Path relative to styles.css */
     background-size: cover; /* Ensures the image covers the entire background */
     background-position: center center; /* Centers the image */
     background-repeat: no-repeat; /* Prevents the image from repeating */

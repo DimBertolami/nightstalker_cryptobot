@@ -9,6 +9,7 @@
 
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/pdo_functions.php';
 require_once __DIR__ . '/../includes/database.php';
 require_once __DIR__ . '/../includes/CryptoDataSourceInterface.php';
 require_once __DIR__ . '/../includes/CoinGeckoDataSource.php';
@@ -177,16 +178,16 @@ echo $log_prefix . "Fetched " . count($allCoins) . " coins from " . $dataSourceM
 // Prepare database statement for inserting/updating coins
 $stmt = $db->prepare(
     "INSERT INTO coins (
-        id, symbol, name, current_price, price_change_24h, 
-        market_cap, date_added, volume_24h, last_updated, is_trending
+        id, symbol, coin_name, current_price, price_change_24h, 
+        marketcap, date_added, volume_24h, last_updated, is_trending
     ) VALUES (
         NULL, ?, ?, ?, ?, 
         ?, ?, ?, NOW(), ?
     ) ON DUPLICATE KEY UPDATE
-        name = VALUES(name),
+        coin_name = VALUES(coin_name),
         current_price = VALUES(current_price),
         price_change_24h = VALUES(price_change_24h),
-        market_cap = VALUES(market_cap),
+        marketcap = VALUES(marketcap),
         volume_24h = VALUES(volume_24h),
         last_updated = NOW()"
 );
@@ -210,7 +211,7 @@ echo $log_prefix . "Starting from offset: $offset\n";
 $existingSymbols = [];
 $existingResult = $db->query("SELECT symbol FROM coins");
 if ($existingResult) {
-    while ($row = $existingResult->fetch_assoc()) {
+    while ($row = $existingResult->fetch(PDO::FETCH_ASSOC)) {
         $existingSymbols[] = strtolower($row['symbol']);
     }
 }

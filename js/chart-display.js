@@ -7,8 +7,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Function to fetch and populate coin list
     async function populateCoinSelect() {
         try {
-            // You'll need to create a PHP endpoint (e.g., api/get-coins-list.php)
-            // that returns a JSON array of { id: 'bitcoin', name: 'Bitcoin' } objects.
             const response = await fetch('api/get-portfolio-coins.php');
             const coins = await response.json();
 
@@ -128,6 +126,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 xMax = latestRecordedTime + (60 * 1000); // 60 seconds buffer
             }
 
+            // Calculate time range in milliseconds
+            const timeRange = xMax && xMin ? new Date(xMax) - new Date(xMin) : 0;
+
+            // Determine appropriate time unit and stepSize based on timeRange
+            let timeUnit = 'second';
+            let stepSize = 3;
+
+            if (timeRange > 1000 * 60 * 60 * 24) { // More than 1 day
+                timeUnit = 'hour';
+                stepSize = 1;
+            } else if (timeRange > 1000 * 60 * 60) { // More than 1 hour
+                timeUnit = 'minute';
+                stepSize = 5;
+            } else if (timeRange > 1000 * 60) { // More than 1 minute
+                timeUnit = 'second';
+                stepSize = 10;
+            }
+
+            // Validate xMin and xMax to prevent too large range errors
+            if (timeRange > 1000 * 60 * 60 * 24 * 7) { // More than 7 days
+                console.warn('Time range too large for chart, adjusting max to min + 7 days');
+                xMax = new Date(new Date(xMin).getTime() + 1000 * 60 * 60 * 24 * 7);
+            }
+
             const chartOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -135,22 +157,61 @@ document.addEventListener('DOMContentLoaded', () => {
                     x: {
                         type: 'time',
                         time: {
-                            unit: 'second',
-                            stepSize: 3 // Force labels every 3 seconds
+                            unit: timeUnit,
+                            stepSize: stepSize,
+                            displayFormats: {
+                                second: 'h:mm:ss a',
+                                minute: 'h:mm a',
+                                hour: 'h:mm a',
+                                day: 'MMM d',
+                                week: 'MMM d',
+                                month: 'MMM yyyy',
+                            }
                         },
                         min: xMin ? new Date(xMin) : undefined,
                         max: xMax ? new Date(xMax) : undefined,
                         title: {
                             display: true,
-                            text: 'Date'
+                            text: 'Date',
+                            color: '#FFFFFF', // White color for title
+                            font: { size: 14 }
+                        },
+                        ticks: {
+                            source: 'auto',
+                            maxRotation: 0,
+                            minRotation: 0,
+                            autoSkipPadding: 10, // Add padding between labels
+                            color: '#E0E0E0', // Light gray for tick labels
+                            font: { size: 10 },
+                            callback: function(value, index, values) {
+                                // Only show time for smaller units, date for larger
+                                if (timeUnit === 'second' || timeUnit === 'minute' || timeUnit === 'hour') {
+                                    return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                                } else {
+                                    return new Date(value).toLocaleDateString();
+                                }
+                            }
                         }
                     },
                     y: {
                         title: {
                             display: true,
-                            text: 'Price (USD)'
+                            text: 'Price (USD)',
+                            color: '#FFFFFF', // White color for title
+                            font: { size: 14 }
                         },
-                        beginAtZero: false
+                        beginAtZero: false,
+                        ticks: {
+                            color: '#E0E0E0', // Light gray for tick labels
+                            font: { size: 10 },
+                            callback: function(value, index, values) {
+                                // Format price with appropriate precision
+                                return new Intl.NumberFormat('en-US', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 8 // Adjust as needed for coin prices
+                                }).format(value);
+                            }
+                        }
                     }
                 },
                 plugins: {
@@ -169,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         style: 'currency',
                                         currency: 'USD',
                                         minimumFractionDigits: 2,
-                                        maximumFractionDigits: 6
+                                        maximumFractionDigits: 8 // Consistent with Y-axis ticks
                                     }).format(context.parsed.y);
                                 }
                                 return label;
@@ -180,7 +241,12 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             if (priceChart) {
-                priceChart.destroy(); // Destroy existing chart before creating a new one
+                try {
+                    priceChart.destroy(); // Destroy existing chart before creating a new one
+                } catch (e) {
+                    console.warn('Error destroying existing chart:', e);
+                }
+                priceChart = null; // Reset to null after destruction
             }
             priceChart = new Chart(ctx, {
                 type: 'line',
@@ -201,4 +267,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial population of coin select dropdown
     populateCoinSelect();
+
+    // Auto-refresh chart every 3 seconds
+    setInterval(() => {
+        const selectedCoinId = coinSelect.value;
+        if (selectedCoinId) {
+            loadChart(selectedCoinId);
+        }
+    }, 1500);
 });

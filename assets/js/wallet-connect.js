@@ -1,150 +1,117 @@
-// Wallet connection handlers
-let walletProvider = null;
-
-// Initialize wallet providers
-async function initializeWalletProviders() {
-    // Check for Phantom wallet
-    if (window?.phantom?.solana) {
-        console.log('Phantom wallet initialization complete');
-        if (window.phantom.solana.isPhantom) {
-            console.log('Phantom wallet detected');
+window.onload = function() {
+    // Generic function to show wallet status
+    function updateWalletStatus(message, type = 'info') {
+        const statusEl = document.getElementById('wallet-status');
+        if (statusEl) {
+            statusEl.classList.remove('d-none', 'alert-success', 'alert-danger', 'alert-warning', 'alert-info');
+            statusEl.classList.add(`alert-${type}`);
+            statusEl.innerHTML = message;
         }
     }
-}
 
-// Generic function to show wallet status
-function updateWalletStatus(message, type = 'info') {
-    const statusEl = document.getElementById('wallet-status');
-    if (statusEl) {
-        statusEl.classList.remove('d-none', 'alert-success', 'alert-danger', 'alert-warning', 'alert-info');
-        statusEl.classList.add(`alert-${type}`);
-        statusEl.innerHTML = message;
-    }
-}
-
-// Handle wallet connection response
-async function handleWalletResponse(provider, response) {
-    try {
-        const publicKey = response.publicKey.toString();
-        
-        updateWalletStatus('<i class="fas fa-spinner fa-spin me-2"></i>Linking wallet to your account...', 'info');
-        
-        const link = await fetch('/NS/api/wallet-auth.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                provider: provider,
-                publicKey: publicKey
-            })
-        });
-        
-        if (!link.ok) {
-            throw new Error(`HTTP error! status: ${link.status}`);
-        }
-        
-        let result;
+    // Handle wallet connection response
+    async function handleWalletResponse(providerName, response) {
         try {
-            const clone = link.clone();
-            result = await clone.json();
-        } catch (jsonErr) {
-            const text = await link.text();
-            throw new Error(`Invalid JSON response: ${text}`);
-        }
-        
-        if (result.success) {
-            updateWalletStatus(
-                '<i class="fas fa-check-circle me-2"></i>Wallet linked successfully! ' + 
-                '<a href="/NS/dashboard/trading_dashboard.php" class="alert-link">Go to Trading Dashboard</a>',
-                'success'
-            );
-            // Store wallet info in session
-            sessionStorage.setItem('walletProvider', provider);
-            sessionStorage.setItem('walletAddress', publicKey);
-            console.log('Wallet linked successfully:', provider, publicKey);
-
-            // Refresh wallet balances to update UI
-            if (typeof refreshWalletBalances === 'function') {
-                refreshWalletBalances();
-            } else {
-                // Fallback: reload the page
-                window.location.reload();
+            const publicKey = response.publicKey.toString();
+            
+            updateWalletStatus('<i class="fas fa-spinner fa-spin me-2"></i>Linking wallet to your account...', 'info');
+            
+            const link = await fetch('/NS/api/wallet-auth.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    provider: providerName,
+                    publicKey: publicKey
+                })
+            });
+            
+            if (!link.ok) {
+                throw new Error(`HTTP error! status: ${link.status}`);
             }
-        } else {
+            
+            const result = await link.json();
+            
+            if (result.success) {
+                updateWalletStatus(
+                    '<i class="fas fa-check-circle me-2"></i>Wallet linked successfully! <a href="/NS/dashboard/trading_dashboard.php" class="alert-link">Go to Trading Dashboard</a>',
+                    'success'
+                );
+                // Store all connected wallets in session storage
+                sessionStorage.setItem('connectedWallets', JSON.stringify(result.connectedWallets));
+                console.log('Wallets linked successfully:', result.connectedWallets);
+                // Redirect after a short delay
+                setTimeout(() => {
+                    window.location.href = '/NS/dashboard/trading_dashboard.php';
+                }, 1500);
+            } else {
+                throw new Error(result.message || 'Failed to link wallet');
+            }
+        } catch (err) {
+            console.error('Wallet connection error:', err);
             updateWalletStatus(
                 '<i class="fas fa-exclamation-triangle me-2"></i>' + 
-                (result.message || 'Failed to link wallet'),
+                'Connection failed: ' + (err.message || 'Unknown error'),
                 'danger'
             );
-            console.error('Wallet linking failed:', result.message);
         }
-    } catch (err) {
-        console.error('Wallet connection error:', err);
-        updateWalletStatus(
-            '<i class="fas fa-exclamation-triangle me-2"></i>' + 
-            'Connection failed: ' + (err.message || 'Unknown error'),
-            'danger'
-        );
-    }
-}
-
-// Phantom Wallet Connection
-async function connectPhantomWallet() {
-    if (!window?.phantom?.solana?.isPhantom) {
-        updateWalletStatus(
-            '<i class="fas fa-exclamation-triangle me-2"></i>' + 
-            'Phantom Wallet not detected. <a href="https://phantom.app/" target="_blank" class="alert-link">Install Phantom Wallet</a> first.',
-            'warning'
-        );
-        return;
     }
 
-    try {
-        updateWalletStatus('<i class="fas fa-spinner fa-spin me-2"></i>Connecting to Phantom Wallet...', 'info');
-        const response = await window.phantom.solana.connect();
-        await handleWalletResponse('phantom', response);
-    } catch (err) {
-        console.error('Phantom connection error:', err);
-        updateWalletStatus(
-            '<i class="fas fa-exclamation-triangle me-2"></i>' + 
-            'Connection failed: ' + (err.message || 'Unknown error'),
-            'danger'
-        );
+    // Phantom Wallet Connection
+    async function connectPhantomWallet() {
+        try {
+            // More robust provider detection for multi-wallet environments
+            const provider = window.phantom?.solana || window.solana?.providers?.find(p => p.isPhantom);
+
+            if (!provider) {
+                throw new Error('Phantom Wallet not detected. Please install Phantom Wallet.');
+            }
+
+            updateWalletStatus('<i class="fas fa-spinner fa-spin me-2"></i>Connecting to Phantom Wallet...', 'info');
+            
+            const resp = await provider.connect();
+            handleWalletResponse('phantom', resp);
+
+        } catch (err) {
+            console.error('Phantom connection error:', err);
+            updateWalletStatus(
+                '<i class="fas fa-exclamation-triangle me-2"></i>' +
+                'Connection failed: ' + (err.message || 'User rejected the request'),
+                'danger'
+            );
+        }
     }
-}
 
-// Solflare Wallet Connection
-async function connectSolflareWallet() {
-    if (!window?.solflare) {
-        updateWalletStatus(
-            '<i class="fas fa-exclamation-triangle me-2"></i>' + 
-            'Solflare Wallet not detected. <a href="https://solflare.com/" target="_blank" class="alert-link">Install Solflare Wallet</a> first.',
-            'warning'
-        );
-        return;
+    // Solflare Wallet Connection
+    async function connectSolflareWallet() {
+        try {
+            // More robust provider detection for multi-wallet environments
+            const provider = window.solflare || window.solana?.providers?.find(p => p.isSolflare);
+
+            if (!provider) {
+                throw new Error('Solflare Wallet not detected. Please install Solflare Wallet.');
+            }
+
+            updateWalletStatus('<i class="fas fa-spinner fa-spin me-2"></i>Connecting to Solflare Wallet...', 'info');
+
+            await provider.connect();
+            // After successful connection, publicKey should be available on the provider
+            if (!provider.publicKey) {
+                throw new Error('Public key not found after Solflare connection.');
+            }
+            handleWalletResponse('solflare', { publicKey: provider.publicKey });
+
+        } catch (err) {
+            console.error('Solflare connection error:', err);
+            updateWalletStatus(
+                '<i class="fas fa-exclamation-triangle me-2"></i>' +
+                'Connection failed: ' + (err.message || 'User rejected the request'),
+                'danger'
+            );
+        }
     }
 
-    try {
-        updateWalletStatus('<i class="fas fa-spinner fa-spin me-2"></i>Connecting to Solflare Wallet...', 'info');
-        await window.solflare.connect();
-        const publicKey = window.solflare.publicKey.toString();
-        await handleWalletResponse('solflare', { publicKey: window.solflare.publicKey });
-    } catch (err) {
-        console.error('Solflare connection error:', err);
-        updateWalletStatus(
-            '<i class="fas fa-exclamation-triangle me-2"></i>' + 
-            'Connection failed: ' + (err.message || 'Unknown error'),
-            'danger'
-        );
-    }
-}
-
-// Initialize wallet connections when document is ready
-document.addEventListener('DOMContentLoaded', () => {
-    initializeWalletProviders();
-
-    // Set up event listeners for wallet buttons
     const phantomBtn = document.getElementById('link-phantom');
     if (phantomBtn) {
         phantomBtn.addEventListener('click', connectPhantomWallet);
@@ -173,4 +140,4 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     });
-});
+};

@@ -109,7 +109,7 @@ function syncTradesWithLogger($strategy = 'main_strategy') {
         }
         
         // Get all trades
-        $query = "SELECT t.*, c.symbol, c.coin_name 
+        $query = "SELECT t.*, c.symbol, c.name 
                  FROM trades t 
                  LEFT JOIN cryptocurrencies c ON t.coin_id = c.id 
                  ORDER BY t.trade_time ASC";
@@ -1165,6 +1165,29 @@ function syncPortfolioCoinsToCryptocurrencies() {
     return true;
 }
 
+function ensurePriceUpdaterRunning() {
+    $script_path = '/opt/lampp/htdocs/NS/includes/unified_price_updater.py';
+    $python_executable = '/usr/bin/python3'; // Explicitly define the Python executable
+
+    // Check if the script is already running
+    $pgrep_command = "/usr/bin/pgrep -f " . escapeshellarg($script_path);
+    $process_check = shell_exec($pgrep_command);
+
+    if (empty($process_check)) {
+        // Not running, so launch it
+        $command = $python_executable . ' ' . escapeshellarg($script_path) . ' > /dev/null 2>&1 &';
+        error_log("[ensurePriceUpdaterRunning] Launching Python script: " . $command);
+        exec($command, $output, $return_var);
+        if ($return_var === 0) {
+            error_log("[ensurePriceUpdaterRunning] Python script '" . $script_path . "' launched successfully.");
+        } else {
+            error_log("[ensurePriceUpdaterRunning] Failed to launch Python script '" . $script_path . "'. Return var: " . $return_var);
+        }
+    } else {
+        error_log("[ensurePriceUpdaterRunning] Python script '" . $script_path . "' is already running (PID: " . trim($process_check) . "). Not launching a new instance.");
+    }
+}
+
 function executeBuy($coinId, $amount, $price) {
     $db = getDBConnection();
     if (!$db) return false;
@@ -1241,6 +1264,23 @@ function executeBuy($coinId, $amount, $price) {
         if ($portfolioStmt) {
             $portfolioStmt->execute([$cryptoCoinId, $amount, $price, $price]);
             error_log("[executeBuy] Updated portfolio for coin: $cryptoCoinId, amount: $amount, price: $price");
+
+            
+
+            // Check if coin symbol exists in newcoins table, insert if not
+            try {
+                $checkNewCoinStmt = $db->prepare("SELECT 1 FROM newcoins WHERE symbol = ? LIMIT 1");
+                $checkNewCoinStmt->execute([$symbol]);
+                $existsNewCoin = $checkNewCoinStmt->fetchColumn();
+
+                if (!$existsNewCoin) {
+                    $insertNewCoinStmt = $db->prepare("INSERT INTO newcoins (symbol) VALUES (?)");
+                    $insertNewCoinStmt->execute([$symbol]);
+                    error_log("[executeBuy] Inserted new coin symbol into newcoins table: $symbol");
+                }
+            } catch (Exception $e) {
+                error_log("[executeBuy] Error checking/inserting new coin symbol in newcoins table: " . $e->getMessage());
+            }
         } else {
             error_log("[executeBuy] Failed to update portfolio: " . $db->errorInfo()[2]);
         }
@@ -1363,42 +1403,60 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
         ];
     }
     
-    // Calculate values
-    $totalValue = $amount * $price;
-    $buyPrice = $avgBuyPrice > 0 ? $avgBuyPrice : $price;
-    $profitLoss = ($price - $buyPrice) * $amount;
-    $profitPercentage = $buyPrice > 0 ? (($price - $buyPrice) / $buyPrice) * 100 : 0;
-    
     // Begin transaction
     $db->beginTransaction();
     
     try {
-        // Insert trade record without user_id
-        // Use the clean coin ID (without COIN_ prefix) for the trades table
-        $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, trade_time) VALUES (?, 'sell', ?, ?, ?, NOW())");
-        $stmt->execute([$cleanCoinId, $amount, $price, $totalValue]);
+        // FIFO matching to calculate profit_loss and profit_percentage
+        $stmtBuys = $db->prepare("SELECT id, amount, price FROM trades WHERE coin_id = ? AND trade_type = 'buy' ORDER BY trade_time ASC");
+        $stmtBuys->execute([$cleanCoinId]);
+        $buyTrades = $stmtBuys->fetchAll(PDO::FETCH_ASSOC);
+        
+        $remainingSellAmount = $amount;
+        $totalInvested = 0;
+        $totalProfitLoss = 0;
+        
+        foreach ($buyTrades as &$buyTrade) {
+            if ($remainingSellAmount <= 0) break;
+            $availableAmount = $buyTrade['amount'];
+            $matchAmount = min($availableAmount, $remainingSellAmount);
+            
+            $invested = $matchAmount * $buyTrade['price'];
+            $revenue = $matchAmount * $price;
+            $profitLoss = $revenue - $invested;
+            
+            $totalInvested += $invested;
+            $totalProfitLoss += $profitLoss;
+            
+            $buyTrade['amount'] -= $matchAmount;
+            $remainingSellAmount -= $matchAmount;
+        }
+        unset($buyTrade);
+        
+        $profitPercentage = $totalInvested > 0 ? ($totalProfitLoss / $totalInvested) * 100 : 0;
+        $totalValue = $amount * $price;
+        
+        // Insert sell trade with profit_loss and profit_percentage
+        $stmt = $db->prepare("INSERT INTO trades (coin_id, trade_type, amount, price, total_value, profit_loss, profit_percentage, trade_time) VALUES (?, 'sell', ?, ?, ?, ?, ?, NOW())");
+        $stmt->execute([$cleanCoinId, $amount, $price, $totalValue, $totalProfitLoss, $profitPercentage]);
         
         // Update portfolio
         $remainingAmount = $userBalance - $amount;
         
-        // First try with the exact portfolio ID, then try with clean ID if needed
         if ($remainingAmount <= 0.00000001) { // Effectively zero
-            // Try to delete with the exact portfolio ID first
             $stmt = $db->prepare("DELETE FROM portfolio WHERE coin_id IN (?, ?)");
             $stmt->execute([$portfolioId, $cleanCoinId]);
         } else {
-            // Update remaining amount - try with both ID formats
             $stmt = $db->prepare("UPDATE portfolio SET amount = ? WHERE coin_id IN (?, ?)");
             $stmt->execute([$remainingAmount, $portfolioId, $cleanCoinId]);
         }
         
-        // Commit transaction
         $db->commit();
         
         return [
             "success" => true,
             "message" => "Successfully sold $amount coins",
-            "profit_loss" => $profitLoss,
+            "profit_loss" => $totalProfitLoss,
             "profit_percentage" => $profitPercentage
         ];
     } catch (Exception $e) {

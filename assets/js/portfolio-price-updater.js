@@ -117,7 +117,7 @@
     }
 
     // This function is now globally accessible
-    window.startPortfolioPriceUpdaterPolling = function(initialPortfolioData = null) {
+window.startPortfolioPriceUpdaterPolling = function(initialPortfolioData = null) {
         // If the interval is already running, do nothing.
         if (priceUpdaterInterval !== null) {
             return;
@@ -142,3 +142,17 @@
             priceUpdaterInterval = setInterval(fetchAndUpdatePortfolioPrices, POLL_INTERVAL_MS);
         }
     }
+
+// New code to call the backend script immediately on script load
+fetch('/NS/api/trigger_unified_price_updater.php')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Unified price updater backend script executed successfully.');
+        } else {
+            console.error('Failed to execute unified price updater backend script:', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error calling unified price updater backend script:', error);
+    });

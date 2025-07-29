@@ -14,21 +14,22 @@ if (!isset($_SESSION['user_id'])) {
 
 // Define allowed tools
 $allowedTools = [
-    'sync_trade_tables' => 'Trade Table Synchronizer',
-    'trade_diagnostics' => 'Trade Diagnostics',
+    'sync_trade_tables' => '/opt/lampp/htdocs/NS/tools/sync_trade_tables.php',
+    'trade_diagnostics' => '/opt/lampp/htdocs/NS/tools/trade_diagnostics.php',
     'price_history_diagnostics' => '/opt/lampp/htdocs/NS/tools/debug_price_history.php',
     'coins_table__diagnostics' => '/opt/lampp/htdocs/NS/debug_coins_table.php',
-    'cmc_fetch_coins' => 'CoinMarketCap Data Fetcher',
-    'cmc_fetch_bitvavo_coins' => 'CMC Bitvavo Coins Fetcher',
-    'cmc_fetch_binance_coins' => 'CMC Binance Coins Fetcher',
-    'delete_all_coins' => 'Delete All Coins',
-    'delete_all_price_history' => 'Delete All Price History',
-    'trending_fetcher' => 'Crypto Trending Data Fetcher',
-    'cron_manager' => 'Cron Manager',
+    'delete_all_coins' => '/opt/lampp/htdocs/NS/delete_coins.php',
+    'delete_all_price_history' => '/opt/lampp/htdocs/NS/system-tools/truncate_price_history_table.sh',
+    'delete_coin_apex_prices' => '/opt/lampp/htdocs/NS/system-tools/empty_coin_apex_prices.php',
+    'cmc_fetch_bitvavo_coins' => '/opt/lampp/htdocs/NS/crons/bitvavoFromCMC4NS.py',
+    'cmc_fetch_binance_coins' => '/opt/lampp/htdocs/NS/crons/binanceFromCMC4NS.py',
+    'trending_fetcher' => '/opt/lampp/htdocs/NS/crypto_sources/crypto_trending_fetcher.py',
+    'cron_manager' => '/opt/lampp/htdocs/NS/tools/cron_manager_tool.php',
     'price_history' => '/opt/lampp/htdocs/NS/system-tools/vph.php',
-    'export_sensitive_data' => 'Export Sensitive Data',
-    'log_reader' => 'log reader',
-    'sync_portfolio_to_cryptocurrencies' => 'Sync Portfolio to Cryptocurrencies',
+    'export_sensitive_data' => '/opt/lampp/htdocs/NS/export_sensitive_data.sh',
+    'log_reader' => '/opt/lampp/htdocs/NS/tools/log_reader.sh',
+    'fix_portfolio_coin_id' => '/opt/lampp/htdocs/NS/system-tools/fix_portfolio_coin_id.php',
+    'sync_portfolio_to_cryptocurrencies' => '/opt/lampp/htdocs/NS/crons/sync_portfolio_to_cryptocurrencies.php'
 ];
 
 

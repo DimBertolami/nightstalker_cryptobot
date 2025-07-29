@@ -42,7 +42,7 @@ $tools = [
         'category' => 'Data',
         'last_run' => getLastRunTime('price_history_debug')
     ],
-            'coins_table__diagnostics' => [
+        'coins_table__diagnostics' => [
         'name' => 'coins table Diagnostics',
         'description' => 'Diagnoses coins table and provides insights',
         'script' => '/opt/lampp/htdocs/NS/debug_coins_table.php',
@@ -101,7 +101,7 @@ $tools = [
      'export_sensitive_data' => [
         'name' => 'Export Sensitive Data',
         'description' => 'Backs up all sensitive data including database, config files, and credentials',
-        'script' => '/opt/lampp/htdocs/NS/export_sensitive_data.sh',
+        'script' => '/opt/lampp/htdocs/NS/system-tools/export_sensitive_data.sh',
         'icon' => 'fa-shield-alt',
         'category' => 'Maintenance',
         'last_run' => null
@@ -121,7 +121,23 @@ $tools = [
         'icon' => 'fa-shield-alt',
         'category' => 'Data',
         'last_run' => null
-    ]
+    ],
+    'fix_portfolio_coin_id' => [
+        'name' => 'Fix Portfolio Coin ID',
+        'description' => 'Update coin_id in portfolio table to correct mismatches',
+        'script' => '/opt/lampp/htdocs/NS/system-tools/fix_portfolio_coin_id.php',
+        'icon' => 'fa-exchange-alt',
+        'category' => 'Maintenance',
+        'last_run' => null
+    ],
+    'delete_coin_apex_prices' => [
+        'name' => 'Empty Coin Apex Prices',
+        'description' => 'Empties the coin_apex_prices table. This will remove all historical apex price data.',
+        'script' => '/opt/lampp/htdocs/NS/system-tools/empty_coin_apex_prices.php',
+        'icon' => 'fa-trash',
+        'category' => 'Data',
+        'last_run' => null
+    ],
     // Add more tools here as they are created
 ];
 

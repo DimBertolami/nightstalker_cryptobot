@@ -57,8 +57,19 @@ try {
     $stmt->execute();
 
     if ($stmt->fetch()) {
-        // Wallet already linked
-        echo json_encode(['success' => true, 'message' => 'Wallet already linked']);
+        // Wallet already linked, fetch all wallets for the user and store them in session
+        $stmt = $pdo->prepare("SELECT id, provider, wallet_id FROM user_wallets WHERE user_id = :user_id");
+        $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+        $stmt->execute();
+        $connectedWallets = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $_SESSION['connected_wallets'] = $connectedWallets;
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Wallet already linked',
+            'connectedWallets' => $connectedWallets
+        ]);
         exit;
     }
 
@@ -69,11 +80,19 @@ try {
     $stmt->bindParam(':wallet_id', $publicKey, PDO::PARAM_STR);
     $stmt->execute();
 
-    // Save wallet info to session
-    $_SESSION['walletProvider'] = $provider;
-    $_SESSION['walletAddress'] = $publicKey;
+    // After linking, fetch all wallets for the user and store them in session
+    $stmt = $pdo->prepare("SELECT id, provider, wallet_id FROM user_wallets WHERE user_id = :user_id");
+    $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+    $stmt->execute();
+    $connectedWallets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    echo json_encode(['success' => true, 'message' => 'Wallet linked successfully']);
+    $_SESSION['connected_wallets'] = $connectedWallets;
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Wallet linked successfully',
+        'connectedWallets' => $connectedWallets
+    ]);
     exit;
 
 } catch (Exception $e) {

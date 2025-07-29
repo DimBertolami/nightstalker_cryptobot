@@ -3,6 +3,11 @@
  * Handles real-time updates and interactive features
  */
 
+let priceChart = null; // Chart.js instance
+let priceData = { labels: [], prices: [] }; // Data for the price chart
+let currentMonitoredSymbol = null; // To track the currently monitored symbol
+let activeTradeInterval = null; // To store the interval ID for active trade updates
+
 document.addEventListener('DOMContentLoaded', function() {
     // Handle strategy selection
     const strategyForm = document.getElementById('strategy-form');
@@ -91,7 +96,18 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('get_active_trade_data.php')
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
+                if (data.success && data.symbol !== 'N/A') {
+                    // If the monitored symbol changes, reset the chart
+                    if (currentMonitoredSymbol !== data.symbol) {
+                        currentMonitoredSymbol = data.symbol;
+                        priceData = { labels: [], prices: [] }; // Clear old data
+                        if (priceChart) {
+                            priceChart.destroy(); // Destroy old chart instance
+                            priceChart = null;
+                        }
+                        initPriceChart(); // Re-initialize chart for new symbol
+                    }
+
                     if (currentPriceElement) {
                         currentPriceElement.textContent = data.current_price;
                     }
@@ -111,13 +127,50 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     // Update price chart if it exists
-                    updatePriceChart(data);
+                    updatePriceChart(data.current_price, data.symbol, data.apex_price, data.drop_start_timestamp);
+
+                    // Ensure interval is running if there's an active trade
+                    if (!activeTradeInterval) {
+                        activeTradeInterval = setInterval(updateActiveTrade, 3000); // Update every 3 seconds
+                    }
+
+                } else {
+                    // No active trade or error, clear chart and stop updates
+                    if (priceChart) {
+                        priceChart.destroy();
+                        priceChart = null;
+                    }
+                    priceData = { labels: [], prices: [] };
+                    currentMonitoredSymbol = null;
+                    if (activeTradeInterval) {
+                        clearInterval(activeTradeInterval);
+                        activeTradeInterval = null;
+                    }
+
+                    if (currentPriceElement) {
+                        currentPriceElement.textContent = 'N/A';
+                    }
+                    if (profitPercentageElement) {
+                        profitPercentageElement.textContent = '0.00%';
+                        profitPercentageElement.className = 'stat-value';
+                    }
+                    if (holdingTimeElement) {
+                        holdingTimeElement.textContent = '0s';
+                    }
+                    if (priceUpdatesElement) {
+                        priceUpdatesElement.textContent = 'Updated: N/A';
+                    }
                 }
             })
             .catch(error => {
                 console.error('Error fetching active trade data:', error);
                 if (currentPriceElement) {
                     currentPriceElement.textContent = 'Error';
+                }
+                // Also stop updates on error
+                if (activeTradeInterval) {
+                    clearInterval(activeTradeInterval);
+                    activeTradeInterval = null;
                 }
             });
     }
@@ -244,11 +297,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Update price chart with new data
-    function updatePriceChart(data) {
+    function updatePriceChart(currentPrice, symbol, apexPrice, dropStartTimestamp) {
         if (!priceChart) {
             initPriceChart();
             if (!priceChart) return;
         }
+
+        // Update chart label with the symbol
+        priceChart.data.datasets[0].label = `${symbol} Price`;
 
         // Add new data point
         const now = new Date();
@@ -257,7 +313,7 @@ document.addEventListener('DOMContentLoaded', function() {
                           now.getSeconds().toString().padStart(2, '0');
         
         priceData.labels.push(timeString);
-        priceData.prices.push(parseFloat(data.current_price.replace(/,/g, '')));
+        priceData.prices.push(parseFloat(currentPrice.replace(/,/g, '')));
         
         // Keep only the last 50 data points
         if (priceData.labels.length > 50) {
@@ -265,6 +321,47 @@ document.addEventListener('DOMContentLoaded', function() {
             priceData.prices.shift();
         }
         
+        // Add Apex Price and Drop Start Timestamp as new datasets or annotations
+        // For simplicity, let's add them as annotations if they exist
+        const annotations = {};
+
+        if (apexPrice && apexPrice !== 'N/A') {
+            annotations.apexLine = {
+                type: 'line',
+                yMin: parseFloat(apexPrice.replace(/,/g, '')),
+                yMax: parseFloat(apexPrice.replace(/,/g, '')),
+                borderColor: 'rgb(255, 99, 132)', // Red
+                borderWidth: 2,
+                borderDash: [5, 5],
+                label: {
+                    content: `Apex: ${apexPrice}`,
+                    enabled: true,
+                    position: 'end'
+                }
+            };
+        }
+
+        if (dropStartTimestamp && dropStartTimestamp !== 'N/A') {
+            // Assuming dropStartTimestamp is a valid date string
+            const dropDate = new Date(dropStartTimestamp);
+            annotations.dropLine = {
+                type: 'line',
+                xMin: dropDate,
+                xMax: dropDate,
+                borderColor: 'rgb(255, 159, 64)', // Orange
+                borderWidth: 2,
+                borderDash: [5, 5],
+                label: {
+                    content: 'Drop Start',
+                    enabled: true,
+                    position: 'top'
+                }
+            };
+        }
+
+        // Update chart options with new annotations
+        priceChart.options.plugins.annotation = { annotations: annotations };
+
         // Update chart
         priceChart.data.labels = priceData.labels;
         priceChart.data.datasets[0].data = priceData.prices;
@@ -328,11 +425,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Initial update
         updateActiveTrade();
         
-        // Update every 3 seconds (20 times per minute)
-        setInterval(updateActiveTrade, 3000);
-        
-        // Initialize price chart
-        initPriceChart();
+        // The interval is now managed within updateActiveTrade
     }
     
     // Performance chart functionality

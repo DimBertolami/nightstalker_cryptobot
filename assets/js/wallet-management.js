@@ -265,8 +265,85 @@ $(document).ready(function() {
         refreshWalletBalances();
     });
     
-    // Initial load of balances
-    refreshWalletBalances();
+    // Function to update wallet connection status display
+    function updateWalletConnectionStatus() {
+        const connectedWallets = JSON.parse(sessionStorage.getItem('connectedWallets') || '[]');
+        const statusContainer = $('#wallet-connection-status');
+        const connectedWalletsList = $('#connected-wallets-list');
+
+        // Clear previous content
+        statusContainer.empty();
+        connectedWalletsList.empty();
+
+        if (connectedWallets.length > 0) {
+            // Update dashboard status
+            statusContainer.html(`
+                <div class="wallet-status wallet-status-connected">
+                    <div class="wallet-status-icon">
+                        <i class="bi bi-wallet2"></i>
+                    </div>
+                    <div class="wallet-status-text">
+                        <strong>Wallet Connected</strong>
+                        <div class="small text-muted">
+                            ${connectedWallets.length} wallet${connectedWallets.length > 1 ? 's' : ''} connected
+                        </div>
+                    </div>
+                    <div class="wallet-status-actions">
+                        <button class="btn btn-sm btn-outline-secondary manage-wallets-btn" data-bs-toggle="modal" data-bs-target="#manageWalletsModal">
+                            <i class="bi bi-gear"></i> Manage
+                        </button>
+                    </div>
+                </div>
+            `);
+
+            // Populate modal list
+            connectedWallets.forEach(wallet => {
+                connectedWalletsList.append(`
+                    <div class="card mb-2 wallet-card">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>${wallet.provider.charAt(0).toUpperCase() + wallet.provider.slice(1)}</strong>
+                                    <div class="small wallet-address" title="${wallet.wallet_id}">${wallet.wallet_id.substring(0, 6)}...${wallet.wallet_id.substring(wallet.wallet_id.length - 4)}</div>
+                                </div>
+                                <button class="btn btn-sm btn-outline-danger disconnect-wallet-btn"
+                                        data-wallet-id="${wallet.id}"
+                                        data-wallet-address="${wallet.wallet_id}">
+                                    <i class="bi bi-x-circle"></i> Disconnect
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `);
+            });
+        } else {
+            // No wallets connected
+            statusContainer.html(`
+                <div class="wallet-status wallet-status-disconnected">
+                    <div class="wallet-status-icon">
+                        <i class="bi bi-wallet"></i>
+                    </div>
+                    <div class="wallet-status-text">
+                        <strong>No Wallet Connected</strong>
+                        <div class="small text-muted">Connect a wallet to get started</div>
+                    </div>
+                    <div class="wallet-status-actions">
+                        <a href="/NS/link-wallet.php" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Connect Wallet
+                        </a>
+                    </div>
+                </div>
+            `);
+            connectedWalletsList.html(`
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i> No wallets connected
+                </div>
+            `);
+        }
+    }
+
+    // Initial wallet status check
+    updateWalletConnectionStatus();
     
     // ===== Multi-Signature Wallet Support =====
     

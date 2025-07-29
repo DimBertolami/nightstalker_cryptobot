@@ -276,11 +276,25 @@ function executeSellPDO($coinId, $amount, $price) {
 
         $portfolioStmt->execute();
 
+        // Update coin_apex_prices table for the sold coin
+        $apexUpdateStmt = $db->prepare("UPDATE coin_apex_prices SET status = 'sold', drop_start_timestamp = NULL WHERE coin_id = ?");
+        if ($apexUpdateStmt) {
+            $executed = $apexUpdateStmt->execute([$coinId]);
+            if ($executed) {
+                $rowCount = $apexUpdateStmt->rowCount();
+                error_log("[executeSellPDO] coin_apex_prices update for $coinId executed. Rows affected: $rowCount");
+            } else {
+                error_log("[executeSellPDO] Failed to execute coin_apex_prices update statement for $coinId: " . json_encode($apexUpdateStmt->errorInfo()));
+            }
+        } else {
+            error_log("[executeSellPDO] Failed to prepare coin_apex_prices update statement: " . json_encode($db->errorInfo()));
+        }
+
         // Commit transaction
         $db->commit();
 
         // Log the trade
-        error_log("Sell executed: $amount of $coinId at $price. Profit: $profitLoss ($profitPercentage%)");
+        error_log(sprintf("Sell executed: %s of %s at %s. Profit: %.10f (%.10f%%)", $amount, $coinId, $price, $profitLoss, $profitPercentage));
 
         return [
             "success" => true,
@@ -1065,7 +1079,7 @@ function getPortfolioCoinsPDO(): array {
         if (empty($portfolioCoins)) {
             $stmt = $db->prepare("SELECT p.coin_id AS id, co.symbol, co.coin_name AS name
                                  FROM portfolio p
-                                 JOIN coins co ON p.coin_id = co.id
+                                 JOIN coins co ON p.coin_id = co.symbol
                                  WHERE p.amount > 0
                                  ORDER BY co.coin_name ASC");
             $stmt->execute();
@@ -1105,7 +1119,7 @@ function getCoinDataPDO($coinId) {
         
         // Try to get from coins table first (if numeric ID)
         if (is_numeric($coinId)) {
-            $stmt = $db->prepare("SELECT id, symbol, name, current_price as price, price_change_24h as price_change,
+            $stmt = $db->prepare("SELECT id, symbol, coin_name as name, current_price as price, price_change_24h as price_change,
                                     volume_24h as volume, market_cap, date_added, is_trending as trending 
                                     FROM coins WHERE id = ? LIMIT 1");
             if ($stmt) {
@@ -1172,7 +1186,7 @@ function getCoinDataPDO($coinId) {
             }
             
             // Then try coins table
-            $coinSymbolStmt = $db->prepare("SELECT id, symbol, name, current_price as price, price_change_24h as price_change,
+            $coinSymbolStmt = $db->prepare("SELECT id, symbol, coin_name as name, current_price as price, price_change_24h as price_change,
                                            volume_24h as volume, market_cap, date_added, is_trending as trending 
                                            FROM coins WHERE symbol = ? LIMIT 1");
             if ($coinSymbolStmt) {

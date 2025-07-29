@@ -9,10 +9,10 @@ ini_set('display_errors', 1); // Temporarily enable for debugging
 ob_start();
 
 try {
-    require_once __DIR__ . '/../../includes/config.php';
-    require_once __DIR__ . '/../../includes/functions.php';
-    require_once __DIR__ . '/../../includes/database.php';
-    require_once __DIR__ . '/../../includes/pdo_functions.php';
+    require_once '/opt/lampp/htdocs/NS/includes/config.php';
+    require_once '/opt/lampp/htdocs/NS/includes/functions.php';
+    require_once '/opt/lampp/htdocs/NS/includes/database.php';
+    require_once '/opt/lampp/htdocs/NS/includes/pdo_functions.php';
 
     header('Content-Type: application/json');
 

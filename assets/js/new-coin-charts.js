@@ -27,12 +27,12 @@ function loadNewCoinCharts() {
         });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    loadNewCoinCharts();
-    
-    // Auto-refresh new coin charts every 5 minutes (adjust as needed)
-    setInterval(loadNewCoinCharts, 3000);
-});
+    document.addEventListener('DOMContentLoaded', function() {
+        loadNewCoinCharts();
+        
+        // Auto-refresh new coin charts every 5 minutes (adjust as needed)
+        setInterval(loadNewCoinCharts, 3000);
+    });
 
 /**
  * Renders sparkline charts for new coins.

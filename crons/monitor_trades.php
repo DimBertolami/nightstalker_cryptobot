@@ -1,7 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
-
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/pdo_functions.php';
 /**
  * Night Stalker Trading Algorithm
  */
@@ -19,7 +20,7 @@ class TradeMonitor {
         try {
             $this->processActiveTrades();
             $this->findNewOpportunities();
-            echo "Trade monitoring completed successfully\n";
+            logEvent("Trade monitoring completed successfully");
         } catch (Exception $e) {
             logEvent("Trade monitoring failed: " . $e->getMessage(), 'error');
             throw $e;
@@ -125,7 +126,7 @@ class TradeMonitor {
     }
     
     private function updatePriceHistory($trade, $currentPrice) {
-        error_log("Attempting to update price history for: ".$trade['coin_id']);
+        logEvent("Attempting to update price history for: ".$trade['coin_id']);
         
         if (!in_array($trade['coin_id'], COIN_WHITELIST)) {
             return;
@@ -140,9 +141,9 @@ class TradeMonitor {
         $stmt->bind_param('sddd', $coinId, $price, $volume, $marketCap);
         
         if ($stmt->execute()) {
-            error_log("Price history updated for: ".$coinId);
+            logEvent("Price history updated for: ".$coinId);
         } else {
-            error_log("Price history update failed: " . $this->db->error);
+            logEvent("Price history update failed: " . $this->db->error);
         }
     }
         

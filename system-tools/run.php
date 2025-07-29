@@ -25,6 +25,7 @@ try {
         'coins_table__diagnostics' => '/opt/lampp/htdocs/NS/debug_coins_table.php',
         'delete_all_coins' => '/opt/lampp/htdocs/NS/delete_coins.php',
         'delete_all_price_history' => '/opt/lampp/htdocs/NS/system-tools/truncate_price_history_table.sh',
+        'delete_coin_apex_prices' => '/opt/lampp/htdocs/NS/system-tools/empty_coin_apex_prices.php',
         'cmc_fetch_bitvavo_coins' => '/opt/lampp/htdocs/NS/crons/bitvavoFromCMC4NS.py',
         'cmc_fetch_binance_coins' => '/opt/lampp/htdocs/NS/crons/binanceFromCMC4NS.py',
         'trending_fetcher' => '/opt/lampp/htdocs/NS/crypto_sources/crypto_trending_fetcher.py',
@@ -32,6 +33,7 @@ try {
         'price_history' => '/opt/lampp/htdocs/NS/system-tools/vph.php',
         'export_sensitive_data' => '/opt/lampp/htdocs/NS/export_sensitive_data.sh',
         'log_reader' => '/opt/lampp/htdocs/NS/tools/log_reader.sh',
+        'fix_portfolio_coin_id' => '/opt/lampp/htdocs/NS/system-tools/fix_portfolio_coin_id.php',
         'sync_portfolio_to_cryptocurrencies' => '/opt/lampp/htdocs/NS/crons/sync_portfolio_to_cryptocurrencies.php'
     ];
     
@@ -66,7 +68,7 @@ try {
         
         $scriptOutput = implode("\n", $output);
         
-        if ($returnCode == 0) {
+        if ($returnCode == 1) {
             // Debugging output
             error_log("Shell script output: " . implode("\\n", $output));
             error_log("Shell script command: $command");

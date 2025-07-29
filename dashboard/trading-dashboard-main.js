@@ -106,42 +106,7 @@ $(document).ready(function() {
             toast.show();
         }
 
-        // Disconnect Wallet Modal Handlers
-        $(document).on('click', '.disconnect-wallet-btn', function() {
-            var walletId = $(this).data('wallet-id');
-            var walletAddress = $(this).data('wallet-address');
-            $('#disconnect-wallet-id').val(walletId);
-            $('#disconnect-wallet-address').val(walletAddress);
-            var disconnectModal = new bootstrap.Modal(document.getElementById('disconnectWalletModal'));
-            disconnectModal.show();
-        });
-
-        $('#confirm-disconnect-wallet').on('click', function() {
-            var walletId = $('#disconnect-wallet-id').val();
-            var walletAddress = $('#disconnect-wallet-address').val();
-            var disconnectModalEl = document.getElementById('disconnectWalletModal');
-            var disconnectModal = bootstrap.Modal.getInstance(disconnectModalEl);
-
-            $.ajax({
-                url: '/NS/api/disconnect-wallet.php',
-                method: 'POST',
-                data: { wallet_id: walletId, wallet_address: walletAddress },
-                dataType: 'json',
-                success: function(response) {
-                    if (response.success) {
-                        showToast('Wallet disconnected successfully', 'success');
-                        disconnectModal.hide();
-                        // Optionally refresh wallet list or page
-                        location.reload();
-                    } else {
-                        showToast(response.error || 'Failed to disconnect wallet', 'danger');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    showToast('Error disconnecting wallet: ' + error, 'danger');
-                }
-            });
-        });
+        
 
         // Global variables for request handling
         let balanceRetryCount = 0;

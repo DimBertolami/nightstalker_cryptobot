@@ -106,7 +106,7 @@ function logEvent(message) {
 
 // Function to update the portfolio display
 function updatePortfolioDisplay() {
-    console.trace('updatePortfolioDisplay called');
+    console.groupCollapsed('updatePortfolioDisplay called');
     const $portfolio = $('#portfolio');
     const $totalValue = $('#total-portfolio-value');
     
@@ -704,64 +704,66 @@ $(document).ready(function() {
             }
 
             // Function to handle selling a coin
-            function sellCoin(symbol, amount, price) {
-                // Check if a trade is already in progress
-                if (isProcessingTrade) {
-                    alert('A trade is already in progress. Please wait for it to complete.');
-                    return;
+function sellCoin(coinId, amount, price, symbol = null) {
+    // Check if a trade is already in progress
+    if (isProcessingTrade) {
+        alert('A trade is already in progress. Please wait for it to complete.');
+        return;
+    }
+    
+    isProcessingTrade = true;
+    $('.buy-btn, .sell-btn').prop('disabled', true);
+    
+    // Use jQuery AJAX for this request
+    $.ajax({
+        url: '/NS/api/execute-trade.php',
+        type: 'POST',
+        data: {
+            action: 'sell',
+            coin_id: coinId, // Use numeric coin_id
+            symbol: symbol || coinId, // Use symbol if provided, else coinId
+            amount: amount,
+            price: price
+        },
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                showToast(`Successfully sold ${amount} ${symbol || coinId}!`, 'success');
+                // Refresh portfolio and clear input field
+                updatePortfolioDisplay();
+                if (symbol) {
+                    $('.sell-amount[data-symbol="' + symbol + '"]').val(''); // Clear specific input
                 }
-                
-                isProcessingTrade = true;
-                $('.buy-btn, .sell-btn').prop('disabled', true);
-                
-                // Use jQuery AJAX for this request
-                $.ajax({
-                    url: '/NS/api/execute-trade.php',
-                    type: 'POST',
-                    data: {
-                        action: 'sell',
-                        coin_id: symbol, // Use symbol as coin_id
-                        symbol: symbol,
-                        amount: amount,
-                        price: price
-                    },
-                    dataType: 'json',
-                    success: function(response) {
-                        if (response.success) {
-                            showToast(`Successfully sold ${amount} ${symbol}!`, 'success');
-                            // Refresh portfolio and clear input field
-                            updatePortfolioDisplay();
-                            $('.sell-amount[data-symbol="' + symbol + '"]').val(''); // Clear specific input
-                        } else {
-                            showToast(`Error: ${response.message || 'Unknown error'}`, 'error');
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        console.error('Trade error:', xhr, status, error);
-                        let errorMessage = 'Trade failed: Unknown error'; // Default generic message
-                        try {
-                            const response = JSON.parse(xhr.responseText);
-                            if (response && response.message) {
-                                errorMessage = response.message;
-                            } else if (error) {
-                                errorMessage = 'Trade failed: ' + error;
-                            }
-                        } catch (e) {
-                            console.error('Error parsing error response:', e);
-                            if (error) {
-                                errorMessage = 'Trade failed: ' + error;
-                            }
-                        }
-                        console.log('Final error message for toast:', errorMessage);
-                        showToast(errorMessage, 'error');
-                    },
-                    complete: function() {
-                        // Re-enable button
-                        isProcessingTrade = false;
-                        $('.buy-btn, .sell-btn').prop('disabled', false);
-                    }
-                });
+            } else {
+                showToast(`Error: ${response.message || 'Unknown error'}`, 'error');
             }
+        },
+        error: function(xhr, status, error) {
+            console.error('Trade error:', xhr, status, error);
+            let errorMessage = 'Trade failed: Unknown error'; // Default generic message
+            try {
+                const response = JSON.parse(xhr.responseText);
+                if (response && response.message) {
+                    errorMessage = response.message;
+                } else if (error) {
+                    errorMessage = 'Trade failed: ' + error;
+                }
+            } catch (e) {
+                console.error('Error parsing error response:', e);
+                if (error) {
+                    errorMessage = 'Trade failed: ' + error;
+                }
+            }
+            console.log('Final error message for toast:', errorMessage);
+            showToast(errorMessage, 'error');
+        },
+        complete: function() {
+            // Re-enable button
+            isProcessingTrade = false;
+            $('.buy-btn, .sell-btn').prop('disabled', false);
+        }
+    });
+}
 
             // Event handler for selling from portfolio widget
             $(document).on('click', '.btn-sell, .crypto-widget-action.sell', function() {

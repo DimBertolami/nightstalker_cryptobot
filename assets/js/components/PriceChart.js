@@ -217,6 +217,7 @@ Vue.component('price-chart', {
         renderChart() {
             if (this.chart) {
                 this.chart.destroy();
+                this.chart = null;
             }
             
             const ctx = this.$refs.chartCanvas.getContext('2d');

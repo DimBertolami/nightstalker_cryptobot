@@ -6,8 +6,8 @@
     border: 1px solid #1d0d94;
     background-color: rgb(0, 0, 0);
     opacity: 1;
-    color: rgb(255, 255, 0);
-    text-decoration-color: white;
+    color: rgb(255, 0, 238);
+    text-decoration-color: rgb(153, 255, 0);
     lighting-color: aliceblue;
     font-style: bolder;
     font-size: 20px;
@@ -17,7 +17,7 @@
     padding: 8px 12px;
     margin: 5px;
     border-radius: 5px;
-    border: 1px solid #ff0800;
+    border: 3px solid #ff0800;
 }
 .controls button {
     background-color: #007bff;

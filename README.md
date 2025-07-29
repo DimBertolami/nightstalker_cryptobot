@@ -661,6 +661,40 @@ To add a new tool to the dashboard:
                             `"DESCRIBE night_stalker.cryptocurrencies"`
                             `"DESCRIBE night_stalker.coins"`
 
+- **Using the debug_portfolio.php Script to Investigate Coin Registration Issues**
+
+  If you encounter issues where a coin in your portfolio (e.g., SPX) does not update its price chart or latest recorded time remains unchanged, it may be due to the coin not being properly registered in the portfolio or coins tables.
+
+  A helpful debugging tool is provided in the `debug_portfolio.php` script located in the project root. This script allows you to test if a specific coin is found in your portfolio and how it is registered.
+
+  ### How to Use
+
+  1. Open your web browser and navigate to the script URL, for example:
+     ```
+     http://localhost/NS/debug_portfolio.php
+     ```
+
+  2. In the input field labeled "Coin ID", enter the coin symbol or ID you want to test, e.g., `SPX`.
+
+  3. Click the "Test" button.
+
+  4. The script will perform several checks:
+     - Direct database query to find the coin in the portfolio.
+     - Using the `getUserCoinBalancePDO()` function to fetch portfolio data.
+     - Simulated sell action checks (without executing actual sell).
+     - Displays the portfolio table schema.
+     - Lists all coins currently in the portfolio, highlighting the tested coin if found.
+
+  ### Interpreting the Output
+
+  - **Success messages** indicate the coin was found in the portfolio and relevant data such as amount and average buy price.
+  - **Failure messages** indicate the coin was not found, which may explain why price updates or chart data are not working.
+  - The portfolio table listing helps you verify how the coin is stored (coin_id, amount, last updated, etc.).
+
+  ### Why This Helps
+
+  If the coin is missing or mismatched in the portfolio or coins tables, the price update loop will skip it, resulting in no new price data and no chart updates. Using this script helps you identify registration issues so you can correct them.
+
 - **Scheduled Tasks**:
   - Make sure cron jobs are running: `crontab -l`
   - Check cron logs: `grep CRON /var/log/syslog`
@@ -673,6 +707,7 @@ To add a new tool to the dashboard:
   - Ensure config directory has proper write permissions: `chmod -R 777 /opt/lampp/htdocs/NS/config`
   - Check browser console for JavaScript errors when adding exchanges
   - Verify `api_url` parameter is included in exchange credentials
+
 
 ## Recent Fixes
 ###   Phase 1: Backend - Price History API Endpoint (Already Done)

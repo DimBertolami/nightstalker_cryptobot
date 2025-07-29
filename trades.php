@@ -166,11 +166,11 @@ if (!empty($trades)) {
                                         </td>
                                         <td><?= number_format($amount, 8) ?></td>
                                         <!-- Buy Price -->
-                                        <td>$<?= (isset($trade['entry_price']) && is_numeric($trade['entry_price'])) ? number_format($trade['entry_price'], 4) : '–' ?></td>
+                                        <td>$<?= (isset($trade['entry_price']) && is_numeric($trade['entry_price'])) ? number_format($trade['entry_price'], 8) : '–' ?></td>
                                         <!-- Sell Price -->
                                         <td>
                                             <?php if (!$isBuy && isset($trade['price']) && is_numeric($trade['price'])): ?>
-                                                $<?= number_format($trade['price'], 4) ?>
+                                                $<?= number_format($trade['price'], 8) ?>
                                             <?php else: ?>
                                                 —
                                             <?php endif; ?>
@@ -179,8 +179,8 @@ if (!empty($trades)) {
                                         <td>
                                             <?php if (!$isBuy && isset($trade['profit_loss']) && is_numeric($trade['profit_loss'])): ?>
                                                 <span class="badge bg-<?= $trade['profit_loss'] >= 0 ? 'success' : 'danger' ?>">
-                                                    $<?= number_format($trade['profit_loss'], 2) ?>
-                                                    (<?= (isset($trade['profit_loss_percent']) && is_numeric($trade['profit_loss_percent'])) ? number_format($trade['profit_loss_percent'], 2) : '0.00' ?>%)
+                                                    $<?= number_format($trade['profit_loss'], 8) ?>
+                                                    (<?= (isset($trade['profit_loss_percent']) && is_numeric($trade['profit_loss_percent'])) ? number_format($trade['profit_loss_percent'], 8) : '0.00' ?>%)
                                                 </span>
                                             <?php else: ?>
                                                 —

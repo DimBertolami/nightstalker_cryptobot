@@ -24,43 +24,7 @@
     <?php endif; ?>
     
 
-    <!-- Web3/Wallet Integration -->
-    <script>
-    // Improved Phantom Wallet initialization - runs immediately
-    (function() {
-        // Make sure phantom is available globally
-        window.phantom = window.phantom || {};
-        window.phantom.solana = window.phantom.solana || {
-            isPhantom: false,
-            connect: () => Promise.reject('Phantom not available'),
-            on: () => {},
-            off: () => {}
-        };
-        
-        // For compatibility with both API styles
-        if (window.solana && window.solana.isPhantom && !window.phantom.solana.isPhantom) {
-            window.phantom.solana = window.solana;
-        }
-        
-        console.log("Phantom wallet initialization complete");
-    })();
     
-    // Add event listeners after DOM is loaded
-    document.addEventListener('DOMContentLoaded', function() {
-        // Wallet detection
-        if (window?.phantom?.solana?.isPhantom) {
-            console.log("Phantom wallet detected");
-            
-            // Connect handler with error catching
-            document.getElementById('connect-wallet')?.addEventListener('click', function() {
-                window.phantom.solana.connect()
-                    .then(() => console.log("Connected to Phantom wallet"))
-                    .catch(err => console.warn("Connection rejected:", err));
-            });
-        } else {
-            console.log("Phantom wallet not detected");
-        }
-    });
     
     <?php if($auto_refresh_enabled ?? false): ?>
     // Auto-refresh with activity monitoring

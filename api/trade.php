@@ -148,7 +148,7 @@ try {
         
         if (is_numeric($coinId)) {
             // Look up by ID in coins table
-            $stmt = $db->prepare("SELECT id, current_price, symbol, name, market_cap, volume_24h FROM coins WHERE id = ?");
+            $stmt = $db->prepare("SELECT id, current_price, symbol, coin_name as name, marketcap, volume_24h FROM coins WHERE id = ?");
             if (!$stmt) {
                 returnJsonError('Database prepare error: PDO prepare failed', 500);
             }
@@ -169,7 +169,7 @@ try {
             }
         } else {
             // Look up by symbol in coins table
-            $stmt = $db->prepare("SELECT id, current_price, symbol, name, market_cap, volume_24h FROM coins WHERE symbol = ?");
+            $stmt = $db->prepare("SELECT id, current_price, symbol, coin_name as name, marketcap, volume_24h FROM coins WHERE symbol = ?");
             if (!$stmt) {
                 returnJsonError('Database prepare error: PDO prepare failed', 500);
             }

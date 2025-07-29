@@ -53,12 +53,12 @@
 
 .wallet-status-connected .wallet-status-icon {
     background-color: rgba(25, 135, 84, 0.15);
-    color: #198754;
+    color: #f2ff00;
 }
 
 .wallet-status-disconnected .wallet-status-icon {
     background-color: rgba(108, 117, 125, 0.15);
-    color: #6c757d;
+    color: #ff2600;
 }
 
 .wallet-status-text {

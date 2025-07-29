@@ -1,3 +1,6 @@
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
 <?php
 // first!
 $title = 'Night Stalker - built from the remains of a decommmissioned tsunami prediction warning system Artificial Intelligence, its new mission objectives to track and exploit a vulnerability discovered in all the new coins, which allows this system to predict and benefit from their price movements.';
@@ -331,7 +334,7 @@ include __DIR__ . '/../includes/header.php';
                         <div class="form-check form-switch mb-2">
                             <input class="form-check-input" type="checkbox" id="phantomWallet" name="wallets[phantom]" checked>
                             <label class="form-check-label" for="phantomWallet">
-                                <img src="assets/images/wallets/phantom.png" alt="Phantom" width="20" class="me-2">
+                                <img src="/NS/assets/images/wallets/phantom.png" alt="Phantom" width="20" class="me-2">
                                 Phantom (Solana)
                             </label>
                         </div>
@@ -339,7 +342,7 @@ include __DIR__ . '/../includes/header.php';
                         <div class="form-check form-switch mb-2">
                             <input class="form-check-input" type="checkbox" id="metamaskWallet" name="wallets[metamask]">
                             <label class="form-check-label" for="metamaskWallet">
-                                <img src="assets/images/wallets/metamask.png" alt="MetaMask" width="20" class="me-2">
+                                <img src="/NS/assets/images/wallets/metamask.png" alt="MetaMask" width="20" class="me-2">
                                 MetaMask (Ethereum)
                             </label>
                         </div>
@@ -347,7 +350,7 @@ include __DIR__ . '/../includes/header.php';
                         <div class="form-check form-switch mb-2">
                             <input class="form-check-input" type="checkbox" id="keplrWallet" name="wallets[keplr]">
                             <label class="form-check-label" for="keplrWallet">
-                                <img src="assets/images/wallets/keplr.png" alt="Keplr" width="20" class="me-2">
+                                <img src="/NS/assets/images/wallets/keplr.png" alt="Keplr" width="20" class="me-2">
                                 Keplr (Cosmos)
                             </label>
                         </div>
@@ -355,7 +358,7 @@ include __DIR__ . '/../includes/header.php';
                         <div class="form-check form-switch mb-2">
                             <input class="form-check-input" type="checkbox" id="trustWallet" name="wallets[trust]">
                             <label class="form-check-label" for="trustWallet">
-                                <img src="assets/images/wallets/trust.png" alt="Trust Wallet" width="20" class="me-2">
+                                <img src="/NS/assets/images/wallets/trust.png" alt="Trust Wallet" width="20" class="me-2">
                                 Trust Wallet (Multi-chain)
                             </label>
                         </div>
@@ -610,7 +613,7 @@ include __DIR__ . '/../includes/header.php';
 
 <!-- Manage Wallets Modal -->
 <div class="modal fade" id="manageWalletsModal" tabindex="-1" aria-labelledby="manageWalletsModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="manageWalletsModalLabel">Manage Wallets</h5>
@@ -626,8 +629,8 @@ include __DIR__ . '/../includes/header.php';
                                     <div class="card-body p-3">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
-                                                <strong><?= htmlspecialchars($wallet['type'] ?? 'Wallet') ?></strong>
-                                                <div class="small wallet-address"><?= htmlspecialchars($wallet['address'] ?? '') ?></div>
+                                                <strong><?= htmlspecialchars($wallet['provider'] ?? 'Wallet') ?></strong>
+                                                <div class="small wallet-address"><?= htmlspecialchars($wallet['wallet_id'] ?? '') ?></div>
                                             </div>
                                             <button class="btn btn-sm btn-outline-danger disconnect-wallet-btn" 
                                                     data-wallet-id="<?= htmlspecialchars($wallet['id'] ?? '') ?>"

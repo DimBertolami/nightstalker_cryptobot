@@ -14,7 +14,7 @@ if (!isLoggedIn()) {
     exit();
 }
 
-echo '<link rel="stylesheet" href="/assets/css/chart-styles.css">';
+echo '<link rel="stylesheet" href="assets/css/chart-styles.css">';
 echo '<title>Crypto Price Chart</title>';
 echo '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>';
 echo '<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>';
@@ -27,7 +27,7 @@ echo '<style>
             align-items: center;
             margin-top: 20px;
             background-color: #7447d6;
-            opacity: 0.6;
+            opacity: 1;
             color: #e7f311;
         }
         .chart-container {
@@ -281,8 +281,8 @@ try {
 	}
 	// Set the very first background image immediately when the page loads
 	body.style.backgroundImage = `url('${backgroundImages[currentIndex]}')`;
-	// Change background every 5 seconds
-	setInterval(changeBackground, 5000);
+	// Change background every 10 minutes 
+	setInterval(changeBackground, 600000);
 	});
 </script>
 
