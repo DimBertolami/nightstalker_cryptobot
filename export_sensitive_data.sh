@@ -155,6 +155,7 @@ SENSITIVE_FILES=(
     "includes/database.php"
     "includes/exchange_config.php"
     "wallet-auth.php"
+    ".htaccess"
 )
 
 # Process each file
@@ -231,7 +232,7 @@ This backup contains sensitive data required to restore your Night Stalker insta
    - Copy files from the 'includes' directory to your Night Stalker 'includes' directory
 
 4. Other Files:
-   - Copy any other files (.env, wallet-auth.php, etc.) to your Night Stalker root directory
+   - Copy any other files (.env, .htaccess, wallet-auth.php, etc.) to your Night Stalker root directory
 
 IMPORTANT: Keep this backup secure as it contains sensitive information!
 EOL

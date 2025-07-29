@@ -1,0 +1,47 @@
+/* Custom styles */
+body {
+    background-color: #f7fafc;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Custom table styles */
+tr:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+    transition: background-color 0.2s ease;
+}
+
+/* Custom button styles */
+.btn {
+    @apply px-4 py-2 rounded-md font-medium transition-colors duration-200;
+}
+
+.btn-primary {
+    @apply bg-blue-600 text-white hover:bg-blue-700;
+}
+
+.btn-secondary {
+    @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
+}
+
+/* Custom card styles */
+.card {
+    @apply bg-white rounded-lg shadow-md p-6 mb-6;
+}
+
+/* Custom metrics styles */
+.metric-value {
+    @apply text-2xl font-bold;
+}
+
+.positive {
+    @apply text-green-600;
+}
+
+.negative {
+    @apply text-red-600;
+}
+
+/* Custom plot container styles */
+.plot-container {
+    @apply w-full h-[600px] bg-white rounded-lg shadow-md p-6;
+}

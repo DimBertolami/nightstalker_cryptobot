@@ -1,0 +1,70 @@
+{
+    "memory_settings": {
+        "max_data_points": 500,
+        "data_retention_days": 15,
+        "batch_size": 32,
+        "use_lightweight_models": true,
+        "cache_size": 50,
+        "cleanup_interval_seconds": 120,
+        "max_memory_usage": 0.7,
+        "max_swap_usage": 0.3,
+        "low_memory_actions": {
+            "skip_data_fetch": true,
+            "reduce_model_complexity": true,
+            "increase_cleanup_frequency": true,
+            "reduce_indicator_complexity": true
+        }
+    },
+    
+    "api_settings": {
+        "rate_limits": {
+            "yfinance": {"calls_per_minute": 5},
+            "binance": {"calls_per_minute": 600},
+            "coingecko": {"calls_per_minute": 50}
+        },
+        "retry_settings": {
+            "max_retries": 3,
+            "backoff_factor": 1.5,
+            "max_delay_seconds": 300
+        },
+        "error_config": {
+            "rate_limit_wait": 60,
+            "error_cooldown": 300,
+            "max_consecutive_errors": 5
+        }
+    },
+    
+    "trading_settings": {
+        "update_interval_seconds": 120,
+        "max_concurrent_trades": 1,
+        "order_size": "0.001"
+    },
+    
+    "error_handling": {
+        "memory": {
+            "threshold": 0.7,
+            "swap_threshold": 0.3,
+            "max_restarts": 5,
+            "restart_delay_seconds": 600,
+            "actions": {
+                "reduce_load": true,
+                "emergency_cleanup": true
+            }
+        },
+        "network": {
+            "max_retries": 3,
+            "backoff_factor": 1.5,
+            "timeout_seconds": 30,
+            "error_cooldown_seconds": 300
+        },
+        "api": {
+            "rate_limit_wait": 60,
+            "error_cooldown": 300,
+            "max_consecutive_errors": 5
+        },
+        "system": {
+            "max_restarts": 5,
+            "restart_delay_seconds": 600
+        }
+    }
+}
