@@ -24,7 +24,7 @@ class TradingStrategy {
         // Connect to database
         $this->conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
         if ($this->conn->connect_error) {
-            logEvent("Database connection failed: " . $this->conn->connect_error, 'error');
+            log_message("Database connection failed: " . $this->conn->connect_error, 'error');
             throw new Exception("Database connection failed: " . $this->conn->connect_error);
         }
     }
@@ -50,23 +50,23 @@ class TradingStrategy {
             $stmt->close();
             
             if (empty($trendingCoins)) {
-                logEvent("No trending coins found for trading", 'info');
+                log_message("No trending coins found for trading", 'info');
                 return $results;
             }
             
-            logEvent("Found " . count($trendingCoins) . " trending coins for potential trading", 'info');
+            log_message("Found " . count($trendingCoins) . " trending coins for potential trading", 'info');
             
             // Get account balance
             $balance = $this->trader->getBalance();
             if (isset($balance['error'])) {
-                logEvent("Error fetching balance: " . $balance['error'], 'error');
+                log_message("Error fetching balance: " . $balance['error'], 'error');
                 return $results;
             }
             
             // Get available markets
             $markets = $this->trader->getMarkets();
             if (isset($markets['error'])) {
-                logEvent("Error fetching markets: " . $markets['error'], 'error');
+                log_message("Error fetching markets: " . $markets['error'], 'error');
                 return $results;
             }
             
@@ -82,7 +82,7 @@ class TradingStrategy {
                 } elseif (isset($markets["{$symbol}/USDT"])) {
                     $tradingPair = "{$symbol}/USDT";
                 } else {
-                    logEvent("No suitable trading pair found for {$symbol}", 'warning');
+                    log_message("No suitable trading pair found for {$symbol}", 'warning');
                     $results['details'][] = [
                         'symbol' => $symbol,
                         'status' => 'skipped',
@@ -94,7 +94,7 @@ class TradingStrategy {
                 // Get ticker information
                 $ticker = $this->trader->getTicker($tradingPair);
                 if (isset($ticker['error'])) {
-                    logEvent("Error fetching ticker for {$tradingPair}: " . $ticker['error'], 'error');
+                    log_message("Error fetching ticker for {$tradingPair}: " . $ticker['error'], 'error');
                     $results['trades_failed']++;
                     $results['details'][] = [
                         'symbol' => $symbol,
@@ -117,7 +117,7 @@ class TradingStrategy {
                     
                     // Skip if trade amount is too small
                     if ($tradeAmount < 10) { // Minimum 10 EUR/USDT
-                        logEvent("Available balance too low for trading {$symbol}", 'info');
+                        log_message("Available balance too low for trading {$symbol}", 'info');
                         $results['details'][] = [
                             'symbol' => $symbol,
                             'status' => 'skipped',
@@ -128,7 +128,7 @@ class TradingStrategy {
                     
                     // In test mode, just log what would happen
                     if ($this->testMode) {
-                        logEvent("TEST MODE: Would buy {$coinAmount} {$symbol} at {$ticker['last']} {$quoteCurrency}", 'info');
+                        log_message("TEST MODE: Would buy {$coinAmount} {$symbol} at {$ticker['last']} {$quoteCurrency}", 'info');
                         $results['trades_successful']++;
                         $results['details'][] = [
                             'symbol' => $symbol,
@@ -144,7 +144,7 @@ class TradingStrategy {
                         $order = $this->trader->marketBuy($tradingPair, $coinAmount);
                         
                         if (isset($order['error'])) {
-                            logEvent("Error placing buy order for {$tradingPair}: " . $order['error'], 'error');
+                            log_message("Error placing buy order for {$tradingPair}: " . $order['error'], 'error');
                             $results['trades_failed']++;
                             $results['details'][] = [
                                 'symbol' => $symbol,
@@ -152,7 +152,7 @@ class TradingStrategy {
                                 'reason' => 'Error placing buy order: ' . $order['error']
                             ];
                         } else {
-                            logEvent("Successfully bought {$coinAmount} {$symbol} at {$ticker['last']} {$quoteCurrency}", 'info');
+                            log_message("Successfully bought {$coinAmount} {$symbol} at {$ticker['last']} {$quoteCurrency}", 'info');
                             $results['trades_successful']++;
                             $results['details'][] = [
                                 'symbol' => $symbol,
@@ -170,7 +170,7 @@ class TradingStrategy {
                         }
                     }
                 } else {
-                    logEvent("Trading conditions not met for {$symbol}", 'info');
+                    log_message("Trading conditions not met for {$symbol}", 'info');
                     $results['details'][] = [
                         'symbol' => $symbol,
                         'status' => 'skipped',
@@ -184,7 +184,7 @@ class TradingStrategy {
             return $results;
             
         } catch (Exception $e) {
-            logEvent("Error executing trading strategy: " . $e->getMessage(), 'error');
+            log_message("Error executing trading strategy: " . $e->getMessage(), 'error');
             return [
                 'error' => $e->getMessage(),
                 'trades_attempted' => $results['trades_attempted'],
@@ -218,14 +218,14 @@ class TradingStrategy {
             $stmt->close();
             
             if ($result) {
-                logEvent("Trade recorded in database: {$action} {$amount} {$symbol}", 'info');
+                log_message("Trade recorded in database: {$action} {$amount} {$symbol}", 'info');
                 return true;
             } else {
-                logEvent("Failed to record trade in database", 'error');
+                log_message("Failed to record trade in database", 'error');
                 return false;
             }
         } catch (Exception $e) {
-            logEvent("Error recording trade: " . $e->getMessage(), 'error');
+            log_message("Error recording trade: " . $e->getMessage(), 'error');
             return false;
         }
     }
@@ -257,14 +257,14 @@ class TradingStrategy {
             $stmt->close();
             
             if (empty($buyTrades)) {
-                logEvent("No buy trades found to check for selling", 'info');
+                log_message("No buy trades found to check for selling", 'info');
                 return $results;
             }
             
             // Get account balance
             $balance = $this->trader->getBalance();
             if (isset($balance['error'])) {
-                logEvent("Error fetching balance: " . $balance['error'], 'error');
+                log_message("Error fetching balance: " . $balance['error'], 'error');
                 return $results;
             }
             
@@ -285,7 +285,7 @@ class TradingStrategy {
                     // Check if we have enough balance of this coin
                     $availableBalance = $balance['free'][$symbol] ?? 0;
                     if ($availableBalance < $trade['amount']) {
-                        logEvent("Not enough {$symbol} available for selling", 'warning');
+                        log_message("Not enough {$symbol} available for selling", 'warning');
                         $results['sells_failed']++;
                         $results['details'][] = [
                             'symbol' => $symbol,
@@ -299,7 +299,7 @@ class TradingStrategy {
                     
                     // In test mode, just log what would happen
                     if ($this->testMode) {
-                        logEvent("TEST MODE: Would sell {$trade['amount']} {$symbol} at {$currentPrice} {$trade['currency']} (profit: {$profitPercentage}%)", 'info');
+                        log_message("TEST MODE: Would sell {$trade['amount']} {$symbol} at {$currentPrice} {$trade['currency']} (profit: {$profitPercentage}%)", 'info');
                         $results['sells_successful']++;
                         $results['details'][] = [
                             'symbol' => $symbol,
@@ -316,7 +316,7 @@ class TradingStrategy {
                         $order = $this->trader->marketSell($tradingPair, $trade['amount']);
                         
                         if (isset($order['error'])) {
-                            logEvent("Error placing sell order for {$tradingPair}: " . $order['error'], 'error');
+                            log_message("Error placing sell order for {$tradingPair}: " . $order['error'], 'error');
                             $results['sells_failed']++;
                             $results['details'][] = [
                                 'symbol' => $symbol,
@@ -324,7 +324,7 @@ class TradingStrategy {
                                 'reason' => 'Error placing sell order: ' . $order['error']
                             ];
                         } else {
-                            logEvent("Successfully sold {$trade['amount']} {$symbol} at {$currentPrice} {$trade['currency']} (profit: {$profitPercentage}%)", 'info');
+                            log_message("Successfully sold {$trade['amount']} {$symbol} at {$currentPrice} {$trade['currency']} (profit: {$profitPercentage}%)", 'info');
                             $results['sells_successful']++;
                             $results['details'][] = [
                                 'symbol' => $symbol,
@@ -351,7 +351,7 @@ class TradingStrategy {
             return $results;
             
         } catch (Exception $e) {
-            logEvent("Error checking for profitable coins: " . $e->getMessage(), 'error');
+            log_message("Error checking for profitable coins: " . $e->getMessage(), 'error');
             return [
                 'error' => $e->getMessage(),
                 'sells_attempted' => $results['sells_attempted'],
@@ -375,14 +375,14 @@ class TradingStrategy {
             $stmt->close();
             
             if ($result) {
-                logEvent("Trade ID {$tradeId} marked as sold", 'info');
+                log_message("Trade ID {$tradeId} marked as sold", 'info');
                 return true;
             } else {
-                logEvent("Failed to mark trade ID {$tradeId} as sold", 'error');
+                log_message("Failed to mark trade ID {$tradeId} as sold", 'error');
                 return false;
             }
         } catch (Exception $e) {
-            logEvent("Error marking trade as sold: " . $e->getMessage(), 'error');
+            log_message("Error marking trade as sold: " . $e->getMessage(), 'error');
             return false;
         }
     }

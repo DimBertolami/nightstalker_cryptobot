@@ -52,6 +52,7 @@ function ensureTradesTableExists() {
 
 // Main execution
 try {
+    log_message("Cron job started: execute_trades.php");
     echo "===== EXECUTING TRADING STRATEGIES =====" . PHP_EOL;
     
     // Ensure trades table exists

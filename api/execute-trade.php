@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__.'/../includes/config.php';
+require_once __DIR__.'/../includes/functions.php';
 /**
  * Execute Trade API Endpoint
  * 
@@ -8,10 +9,9 @@ require_once __DIR__.'/../includes/config.php';
  */
 
 header('Content-Type: application/json');
-error_log('execute-trade.php reached at ' . date('Y-m-d H:i:s'));
+log_message('execute-trade.php reached at ' . date('Y-m-d H:i:s'));
 
 // Enable error reporting but don't display errors to the client
-error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__.'/../logs/php-error.log');
@@ -64,7 +64,7 @@ try {
     $price = $_POST['price'];
     
     // Debug the incoming data
-    error_log("Execute trade - Coin ID: $coinId, Symbol: $symbol, Amount: $amount, Price: $price");
+    log_message("Execute trade - Coin ID: $coinId, Symbol: $symbol, Amount: $amount, Price: $price");
     
     // Validate numeric values
     if ($amount !== 'all') {
@@ -153,7 +153,7 @@ try {
         $logStmt->execute();
     } catch (Exception $e) {
         // Log the error but don't fail the trade if logging fails
-        error_log("Failed to log trade: " . $e->getMessage());
+        log_message("Failed to log trade: " . $e->getMessage(), 'error');
     }
     
     // Return success response

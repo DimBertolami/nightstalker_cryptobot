@@ -3,6 +3,56 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadChartButton = document.getElementById('loadChartButton');
     const ctx = document.getElementById('priceChart').getContext('2d');
     let priceChart = null;
+    let countdownInterval = null;
+
+    // Function to create and style the countdown timer
+    function createCountdownTimer() {
+        const countdownContainer = document.getElementById('countdown-timer-container');
+        if (!document.getElementById('countdown-timer')) {
+            const timerElement = document.createElement('div');
+            timerElement.id = 'countdown-timer';
+            timerElement.style.position = 'absolute';
+            timerElement.style.top = '50%';
+            timerElement.style.left = '50%';
+            timerElement.style.transform = 'translate(-50%, -50%)';
+            timerElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            timerElement.style.color = '#ff0000';
+            timerElement.style.padding = '20px';
+            timerElement.style.borderRadius = '10px';
+            timerElement.style.fontSize = '48px';
+            timerElement.style.fontWeight = 'bold';
+            timerElement.style.zIndex = '10';
+            timerElement.innerHTML = '<span id="countdown-time">30</span>s';
+            countdownContainer.appendChild(timerElement);
+        }
+    }
+
+    // Function to update the countdown timer
+    function updateCountdown(endTime) {
+        const now = new Date().getTime();
+        const distance = endTime - now;
+        const countdownTimer = document.getElementById('countdown-timer');
+
+        if (distance <= 0) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+            if (countdownTimer) {
+                countdownTimer.style.display = 'none';
+            }
+            return;
+        }
+
+        const seconds = Math.ceil(distance / 1000);
+        if (countdownTimer) {
+            const timeSpan = countdownTimer.querySelector('#countdown-time');
+            if(timeSpan) {
+                timeSpan.textContent = seconds;
+            }
+            if (countdownTimer.style.display !== 'block') {
+                countdownTimer.style.display = 'block';
+            }
+        }
+    }
 
     // Function to fetch and populate coin list
     function createOrUpdateChart(coinId) {
@@ -67,6 +117,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const latestRecordedTime = data.latest_recorded_time;
             const coinStatus = data.coin_status;
             const dropStartTimestamp = data.drop_start_timestamp;
+
+            if (coinStatus === 'dropping' && dropStartTimestamp) {
+                if (!countdownInterval) { // Only start if not already running
+                    const endTime = dropStartTimestamp + 30000; // 30 seconds after drop starts
+                    createCountdownTimer();
+                    countdownInterval = setInterval(() => updateCountdown(endTime), 1000);
+                }
+            } else {
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
+                const countdownTimer = document.getElementById('countdown-timer');
+                if (countdownTimer) {
+                    countdownTimer.style.display = 'none';
+                }
+            }
 
             const chartData = {
                 labels: history.map(point => new Date(point.time)),

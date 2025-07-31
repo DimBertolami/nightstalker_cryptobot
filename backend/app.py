@@ -2,6 +2,10 @@ import os
 import sys
 import logging
 from logging.handlers import RotatingFileHandler
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add the current directory to Python path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -9,9 +13,9 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask, jsonify, request
 from flask_cors import CORS, cross_origin
 from flask_socketio import SocketIO # type: ignore
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from backend.models.unified_models import Base, LearningMetric, TradingPerformance, BotThought, TradingSignal, Trade, Position
 import os
 from datetime import datetime, timedelta
 import pandas as pd
@@ -24,7 +28,7 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Configure logging
-log_dir = os.getenv('LOG_DIR', '/home/dim/git/Cryptobot/logs')
+log_dir = os.getenv('LOG_DIR', '/tmp')
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
@@ -34,6 +38,7 @@ file_handler.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
 app.logger.addHandler(file_handler)
+app.logger.info(f"Logging to: {log_file}")
 
 # Also log to stderr for systemd
 stream_handler = logging.StreamHandler()
@@ -64,68 +69,19 @@ INTERVAL_MAP = {
 }
 
 # Database configuration
-DATABASE_URL = "sqlite:///trading.db"
+# DB_USER= 'dimi'
+# DB_PASS= 1304
+# DB_HOST= '127.0.0.1'
+# DB_NAME= 'NS'
+DATABASE_URL = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@{os.getenv('DB_HOST')}/{os.getenv('DB_NAME')}"
 engine = create_engine(DATABASE_URL)
-Base = declarative_base()
 
 # Create a configured "Session" class
 SessionLocal = sessionmaker(bind=engine)
 
 # Define SQLAlchemy models
-class TradingSignal(Base):
-    __tablename__ = "trading_signals"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    symbol = Column(String, nullable=False)
-    timestamp = Column(DateTime, nullable=False)
-    signal = Column(String, nullable=False)
-    confidence = Column(Float, nullable=False)
-    price = Column(Float, nullable=False)
-    price_change_24h = Column(Float)
-    model_id = Column(String)
-
-class TradingPerformance(Base):
-    __tablename__ = "trading_performance"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(DateTime, nullable=False)
-    symbol = Column(String, nullable=False)
-    initial_price = Column(Float, nullable=False)
-    final_price = Column(Float, nullable=False)
-    profit_loss = Column(Float, nullable=False)
-    signal = Column(String, nullable=False)
-    confidence = Column(Float, nullable=False)
-    duration_minutes = Column(Integer)
-    success = Column(Boolean)
-
-class BotThought(Base):
-    __tablename__ = "bot_thoughts"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(DateTime, nullable=False)
-    thought_type = Column(String, nullable=False)
-    thought_content = Column(String, nullable=False)
-    symbol = Column(String)
-    confidence = Column(Float)
-    metrics = Column(JSON)
-
-class LearningMetric(Base):
-    __tablename__ = "learning_metrics"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(DateTime, nullable=False)
-    model_id = Column(String, nullable=False)
-    accuracy = Column(Float)
-    precision = Column(Float)
-    recall = Column(Float)
-    f1_score = Column(Float)
-    profit_factor = Column(Float)
-    sharpe_ratio = Column(Float)
-    win_rate = Column(Float)
-    dataset_size = Column(Integer)
-    training_duration = Column(Float)
-
 # Initialize database
+app.logger.info(f"Current working directory: {os.getcwd()}")
 try:
     # Create all tables defined in the models
     Base.metadata.create_all(engine)
@@ -167,11 +123,14 @@ def get_status():
 def get_chart_data():
     session = SessionLocal()
     try:
-        # Fetch data from LearningMetric for accuracy and bot confidence
-        learning_metrics = session.query(LearningMetric).order_by(LearningMetric.timestamp).all()
+        # Define a time window, e.g., last 30 days
+        time_window = datetime.now() - timedelta(days=30)
+
+        # Fetch data from LearningMetric for accuracy and bot confidence, filtered by time window
+        learning_metrics = session.query(LearningMetric).filter(LearningMetric.timestamp >= time_window).order_by(LearningMetric.timestamp).all()
         
-        # Fetch data from TradingPerformance for cumulative profit
-        trading_performance = session.query(TradingPerformance).order_by(TradingPerformance.timestamp).all()
+        # Fetch data from TradingPerformance for cumulative profit, filtered by time window
+        trading_performance = session.query(TradingPerformance).filter(TradingPerformance.timestamp >= time_window).order_by(TradingPerformance.timestamp).all()
 
         labels = []
         decision_accuracy = []

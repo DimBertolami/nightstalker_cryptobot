@@ -2,26 +2,24 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/database.php';
 
-
-function logEvent($message) {
-    $logFile = '/opt/lampp/htdocs/NS/logs/events.log';
-    
-    // Check if directory exists, if not try to create it
-    $logDir = dirname($logFile);
-    if (!is_dir($logDir)) {
-        @mkdir($logDir, 0755, true);
-    }
-    
-    // Try to write to log file, but don't fail if we can't
-    @file_put_contents($logFile, 
-        date('Y-m-d H:i:s') . ' - ' . $message . PHP_EOL, 
-        FILE_APPEND);
-    
-    // If in debug mode, also output to PHP error log
-    if (defined('DEBUG_MODE') && DEBUG_MODE) {
-        error_log($message);
-    }
+/**
+ * Centralized logging function.
+ *
+ * @param string $message The message to log.
+ * @param string $level The log level (e.g., 'info', 'warning', 'error').
+ */
+function log_message($message, $level = 'info') {
+    $log_file = __DIR__ . '/../logs/system.log';
+    $timestamp = date('Y-m-d H:i:s');
+    $log_entry = "[{$timestamp}] [{$level}] {$message}\n";
+    file_put_contents($log_file, $log_entry, FILE_APPEND);
 }
+
+
+function logEvent($message, $level = 'info') {
+    log_message($message, $level);
+}
+
 
 /**
  * Get trading statistics
@@ -80,7 +78,7 @@ function getTradingStats(string $strategy = 'new_coin_strategy'): array {
         return $stats;
 
     } catch (Exception $e) {
-        error_log("[getTradingStats] Error: " . $e->getMessage());
+        log_message("[getTradingStats] Error: " . $e->getMessage(), 'error');
         return [
             'total_trades' => 0,
             'active_trades' => 0,
@@ -183,7 +181,7 @@ function syncTradesWithLogger($strategy = 'main_strategy') {
         
         return true;
     } catch (Exception $e) {
-        error_log("[syncTradesWithLogger] Error: " . $e->getMessage());
+        log_message("[syncTradesWithLogger] Error: " . $e->getMessage(), 'error');
         return false;
     }
 }
@@ -243,7 +241,7 @@ function fetchFromCMC(): array {
     $formattedData = [];
     foreach ($data['data'] as $coin) {
         // Debug the volume data
-        error_log("Coin {$coin['symbol']} volume: " . $coin['quote']['USD']['volume_24h']);
+        log_message("Coin {$coin['symbol']} volume: " . $coin['quote']['USD']['volume_24h']);
         
         $formattedData[$coin['symbol']] = [
             'name' => $coin['name'],
@@ -292,7 +290,7 @@ function fetchFromCoinGecko() {
     $response = curl_exec($ch);
     
     if (curl_errno($ch)) {
-        logEvent("CoinGecko API error: " . curl_error($ch), 'error');
+        log_message("CoinGecko API error: " . curl_error($ch), 'error');
         curl_close($ch);
         return [];
     }
@@ -301,7 +299,7 @@ function fetchFromCoinGecko() {
     $data = json_decode($response, true);
     
     if (!$data || !is_array($data)) {
-        logEvent("Invalid response from CoinGecko", 'error');
+        log_message("Invalid response from CoinGecko", 'error');
         return [];
     }
     
@@ -345,7 +343,7 @@ function fetchFromJupiter() {
     $response = curl_exec($ch);
     
     if (curl_errno($ch)) {
-        logEvent("Jupiter API error: " . curl_error($ch), 'error');
+        log_message("Jupiter API error: " . curl_error($ch), 'error');
         curl_close($ch);
         return [];
     }
@@ -354,7 +352,7 @@ function fetchFromJupiter() {
     $data = json_decode($response, true);
     
     if (!$data || !isset($data['data']) || !is_array($data['data'])) {
-        logEvent("Invalid response from Jupiter", 'error');
+        log_message("Invalid response from Jupiter", 'error');
         return [];
     }
     
@@ -392,7 +390,7 @@ function fetchFromBitvavo() {
     $marketsResponse = curl_exec($ch);
     
     if (curl_errno($ch)) {
-        logEvent("Bitvavo Markets API error: " . curl_error($ch), 'error');
+        log_message("Bitvavo Markets API error: " . curl_error($ch), 'error');
         curl_close($ch);
         return [];
     }
@@ -401,7 +399,7 @@ function fetchFromBitvavo() {
     $markets = json_decode($marketsResponse, true);
     
     if (!$markets || !is_array($markets)) {
-        logEvent("Invalid response from Bitvavo Markets API", 'error');
+        log_message("Invalid response from Bitvavo Markets API", 'error');
         return [];
     }
     
@@ -416,7 +414,7 @@ function fetchFromBitvavo() {
     $tickerResponse = curl_exec($ch);
     
     if (curl_errno($ch)) {
-        logEvent("Bitvavo Ticker API error: " . curl_error($ch), 'error');
+        log_message("Bitvavo Ticker API error: " . curl_error($ch), 'error');
         curl_close($ch);
         return [];
     }
@@ -425,7 +423,7 @@ function fetchFromBitvavo() {
     $tickers = json_decode($tickerResponse, true);
     
     if (!$tickers || !is_array($tickers)) {
-        logEvent("Invalid response from Bitvavo Ticker API", 'error');
+        log_message("Invalid response from Bitvavo Ticker API", 'error');
         return [];
     }
     
@@ -507,7 +505,7 @@ function fetchFromAllSources() {
             }
         }
     } catch (Exception $e) {
-        logEvent("Error fetching from CoinMarketCap: " . $e->getMessage(), 'error');
+        log_message("Error fetching from CoinMarketCap: " . $e->getMessage(), 'error');
     }
     
     // Fetch from CoinGecko
@@ -528,7 +526,7 @@ function fetchFromAllSources() {
             }
         }
     } catch (Exception $e) {
-        logEvent("Error fetching from CoinGecko: " . $e->getMessage(), 'error');
+        log_message("Error fetching from CoinGecko: " . $e->getMessage(), 'error');
     }
     
     // Fetch from Jupiter
@@ -549,7 +547,7 @@ function fetchFromAllSources() {
             }
         }
     } catch (Exception $e) {
-        logEvent("Error fetching from Jupiter: " . $e->getMessage(), 'error');
+        log_message("Error fetching from Jupiter: " . $e->getMessage(), 'error');
     }
     
     // Fetch from Bitvavo
@@ -570,7 +568,7 @@ function fetchFromAllSources() {
             }
         }
     } catch (Exception $e) {
-        logEvent("Error fetching from Bitvavo: " . $e->getMessage(), 'error');
+        log_message("Error fetching from Bitvavo: " . $e->getMessage(), 'error');
     }
     
     if ($debugOutput) {
@@ -715,7 +713,7 @@ function getUserBalance($userId = 1): array {
         return $balances;
         
     } catch (Exception $e) {
-        error_log("Error getting user balance: " . $e->getMessage());
+        log_message("Error getting user balance: " . $e->getMessage(), 'error');
         
         // Return demo data on error for better user experience
         return [
@@ -792,7 +790,7 @@ function getRecentTrades(int $limit = 100): array {
         
         return $trades;
     } catch (Exception $e) {
-        error_log("[getRecentTrades] " . $e->getMessage());
+        log_message("[getRecentTrades] " . $e->getMessage(), 'error');
         return [];
     }
 }
@@ -805,12 +803,12 @@ function getNewCryptocurrencies(): array {
     try {
         $db = getDBConnection();
         if (!$db) {
-            error_log("[getNewCryptocurrencies] Database connection failed");
+            log_message("[getNewCryptocurrencies] Database connection failed", 'error');
             throw new Exception("Database connection failed");
         }
 
         $maxAge = MAX_COIN_AGE; // Store constant in variable
-        error_log("[getNewCryptocurrencies] MAX_COIN_AGE: $maxAge");
+        log_message("[getNewCryptocurrencies] MAX_COIN_AGE: $maxAge");
         
         // Calculate age in hours using TIMESTAMPDIFF since we don't have an age_hours column
         $query = "SELECT *, 
@@ -819,35 +817,35 @@ function getNewCryptocurrencies(): array {
                  WHERE date_added >= DATE_SUB(NOW(), INTERVAL ? HOUR)
                  ORDER BY date_added DESC";
                  
-        error_log("[getNewCryptocurrencies] Query: $query");
+        log_message("[getNewCryptocurrencies] Query: $query");
         
         try {
             $stmt = $db->prepare($query);
             if (!$stmt) {
-                error_log("[getNewCryptocurrencies] Prepare failed");
+                log_message("[getNewCryptocurrencies] Prepare failed", 'error');
                 throw new Exception("Prepare failed");
             }
             
             $executed = $stmt->execute([$maxAge]);
             if (!$executed) {
-                error_log("[getNewCryptocurrencies] Execute failed");
+                log_message("[getNewCryptocurrencies] Execute failed", 'error');
                 throw new Exception("Execute failed");
             }
             
             $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            error_log("[getNewCryptocurrencies] Found " . count($data) . " coins");
+            log_message("[getNewCryptocurrencies] Found " . count($data) . " coins");
             if (!empty($data)) {
-                error_log("[getNewCryptocurrencies] First coin: " . json_encode($data[0]));
+                log_message("[getNewCryptocurrencies] First coin: " . json_encode($data[0]));
             }
             
             return $data;
         } catch (PDOException $e) {
-            error_log("[getNewCryptocurrencies] PDO Error: " . $e->getMessage());
+            log_message("[getNewCryptocurrencies] PDO Error: " . $e->getMessage(), 'error');
             throw new Exception("Database error: " . $e->getMessage());
         }
     } catch (Exception $e) {
-        error_log("[getNewCryptocurrencies] " . $e->getMessage());
+        log_message("[getNewCryptocurrencies] " . $e->getMessage(), 'error');
         return [];
     }
 }
@@ -877,7 +875,7 @@ function getTrendingCoins(): array {
         $stmt->execute([$minVolume]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
-        error_log("[getTrendingCoins] " . $e->getMessage());
+        log_message("[getTrendingCoins] " . $e->getMessage(), 'error');
         return [];
     }
 }
@@ -923,7 +921,7 @@ function getRecentTradesWithMarketData(int $limit = 100): array {
         try {
             $marketData = fetchFromAllSources();
         } catch (Exception $e) {
-            error_log("Error fetching market data: " . $e->getMessage());
+            log_message("Error fetching market data: " . $e->getMessage(), 'error');
         }
         // Normalize marketData: strip suffixes for easier lookup by symbol
         $normalizedMarketData = [];
@@ -1112,16 +1110,16 @@ function syncPortfolioCoinsToCryptocurrencies() {
     $query = "SELECT DISTINCT coin_id FROM portfolio";
     $stmt = $db->prepare($query);
     if (!$stmt) {
-        error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to prepare portfolio query: " . $db->errorInfo()[2]);
+        log_message("[syncPortfolioCoinsToCryptocurrencies] Failed to prepare portfolio query: " . $db->errorInfo()[2], 'error');
         return false;
     }
     if (!$stmt->execute()) {
-        error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to execute portfolio query: " . $stmt->errorInfo()[2]);
+        log_message("[syncPortfolioCoinsToCryptocurrencies] Failed to execute portfolio query: " . $stmt->errorInfo()[2], 'error');
         return false;
     }
     $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if (!$result) {
-        error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to fetch all results");
+        log_message("[syncPortfolioCoinsToCryptocurrencies] Failed to fetch all results");
         return false;
     }
 
@@ -1133,7 +1131,7 @@ function syncPortfolioCoinsToCryptocurrencies() {
             // Get symbol and name from coins table
             $stmt = $db->prepare("SELECT symbol, coin_name FROM coins WHERE id = ?");
             if (!$stmt) {
-                error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to prepare coins query: " . $db->errorInfo()[2]);
+                log_message("[syncPortfolioCoinsToCryptocurrencies] Failed to prepare coins query: " . $db->errorInfo()[2], 'error');
                 continue;
             }
             $stmt->execute([$coinId]);
@@ -1146,7 +1144,7 @@ function syncPortfolioCoinsToCryptocurrencies() {
                 // Check if symbol exists in cryptocurrencies
                 $checkStmt = $db->prepare("SELECT id FROM cryptocurrencies WHERE symbol = ? LIMIT 1");
                 if (!$checkStmt) {
-                    error_log("[syncPortfolioCoinsToCryptocurrencies] Failed to prepare crypto check query: " . $db->errorInfo()[2]);
+                    log_message("[syncPortfolioCoinsToCryptocurrencies] Failed to prepare crypto check query: " . $db->errorInfo()[2], 'error');
                     continue;
                 }
                 $checkStmt->execute([$symbol]);
@@ -1156,7 +1154,7 @@ function syncPortfolioCoinsToCryptocurrencies() {
                     $insertStmt = $db->prepare("INSERT INTO cryptocurrencies (id, symbol, name, created_at) VALUES (?, ?, ?, NOW())");
                     if ($insertStmt) {
                         $insertStmt->execute([$symbol, $symbol, $name]);
-                        error_log("[syncPortfolioCoinsToCryptocurrencies] Inserted coin $symbol into cryptocurrencies");
+                        log_message("[syncPortfolioCoinsToCryptocurrencies] Inserted coin $symbol into cryptocurrencies");
                     }
                 }
             }
@@ -1176,15 +1174,15 @@ function ensurePriceUpdaterRunning() {
     if (empty($process_check)) {
         // Not running, so launch it
         $command = $python_executable . ' ' . escapeshellarg($script_path) . ' > /dev/null 2>&1 &';
-        error_log("[ensurePriceUpdaterRunning] Launching Python script: " . $command);
+        log_message("[ensurePriceUpdaterRunning] Launching Python script: " . $command);
         exec($command, $output, $return_var);
         if ($return_var === 0) {
-            error_log("[ensurePriceUpdaterRunning] Python script '" . $script_path . "' launched successfully.");
+            log_message("[ensurePriceUpdaterRunning] Python script '" . $script_path . "' launched successfully.");
         } else {
-            error_log("[ensurePriceUpdaterRunning] Failed to launch Python script '" . $script_path . "'. Return var: " . $return_var);
+            log_message("[ensurePriceUpdaterRunning] Failed to launch Python script '" . $script_path . "'. Return var: " . $return_var, 'error');
         }
     } else {
-        error_log("[ensurePriceUpdaterRunning] Python script '" . $script_path . "' is already running (PID: " . trim($process_check) . "). Not launching a new instance.");
+        log_message("[ensurePriceUpdaterRunning] Python script '" . $script_path . "' is already running (PID: " . trim($process_check) . "). Not launching a new instance.");
     }
 }
 
@@ -1207,7 +1205,7 @@ function executeBuy($coinId, $amount, $price) {
         // Get the symbol from the coins table
         $symbolStmt = $db->prepare("SELECT symbol FROM coins WHERE id = ?");
         if (!$symbolStmt) {
-            error_log("[executeBuy] Failed to prepare symbol query: " . $db->errorInfo()[2]);
+            log_message("[executeBuy] Failed to prepare symbol query: " . $db->errorInfo()[2], 'error');
             return false;
         }
 
@@ -1220,7 +1218,7 @@ function executeBuy($coinId, $amount, $price) {
             // Now get the corresponding ID from the cryptocurrencies table
             $cryptoStmt = $db->prepare("SELECT id FROM cryptocurrencies WHERE symbol = ? LIMIT 1");
             if (!$cryptoStmt) {
-                error_log("[executeBuy] Failed to prepare crypto query: " . $db->errorInfo()[2]);
+                log_message("[executeBuy] Failed to prepare crypto query: " . $db->errorInfo()[2], 'error');
                 return false;
             }
 
@@ -1241,7 +1239,7 @@ function executeBuy($coinId, $amount, $price) {
                 }
             }
         } else {
-            error_log("[executeBuy] Could not find symbol for coin ID: " . $coinId);
+            log_message("[executeBuy] Could not find symbol for coin ID: " . $coinId, 'error');
             return false;
         }
     }
@@ -1263,7 +1261,7 @@ function executeBuy($coinId, $amount, $price) {
 
         if ($portfolioStmt) {
             $portfolioStmt->execute([$cryptoCoinId, $amount, $price, $price]);
-            error_log("[executeBuy] Updated portfolio for coin: $cryptoCoinId, amount: $amount, price: $price");
+            log_message("[executeBuy] Updated portfolio for coin: $cryptoCoinId, amount: $amount, price: $price");
 
             
 
@@ -1276,13 +1274,13 @@ function executeBuy($coinId, $amount, $price) {
                 if (!$existsNewCoin) {
                     $insertNewCoinStmt = $db->prepare("INSERT INTO newcoins (symbol) VALUES (?)");
                     $insertNewCoinStmt->execute([$symbol]);
-                    error_log("[executeBuy] Inserted new coin symbol into newcoins table: $symbol");
+                    log_message("[executeBuy] Inserted new coin symbol into newcoins table: $symbol");
                 }
             } catch (Exception $e) {
-                error_log("[executeBuy] Error checking/inserting new coin symbol in newcoins table: " . $e->getMessage());
+                log_message("[executeBuy] Error checking/inserting new coin symbol in newcoins table: " . $e->getMessage(), 'error');
             }
         } else {
-            error_log("[executeBuy] Failed to update portfolio: " . $db->errorInfo()[2]);
+            log_message("[executeBuy] Failed to update portfolio: " . $db->errorInfo()[2], 'error');
         }
 
         // Log the trade using TradingLogger
@@ -1310,7 +1308,7 @@ function executeBuy($coinId, $amount, $price) {
 
         return $tradeId;
     } else {
-        error_log("[executeBuy] Failed to insert trade: " . $stmt->errorInfo()[2]);
+        log_message("[executeBuy] Failed to insert trade: " . $stmt->errorInfo()[2], 'error');
         return false;
     }
 }
@@ -1386,7 +1384,7 @@ function executeSell($coinId, $amount, $price, $buyTradeId = null) {
     $portfolioId = $portfolioData['coin_id'] ?? $cleanCoinId;
     
     // Log for debugging
-    error_log("Sell - Original ID: $coinId, Clean ID: $cleanCoinId, Portfolio ID: $portfolioId");
+    log_message("Sell - Original ID: $coinId, Clean ID: $cleanCoinId, Portfolio ID: $portfolioId");
     
     // Special case for 'all' amount
     if ($amount === 'all') {
@@ -1494,13 +1492,13 @@ function getCoinData($coinId) {
     $data = [];
     
     // Log what we're looking for
-    error_log("getCoinData looking for coin: $coinId");
+    log_message("getCoinData looking for coin: $coinId");
     
     // Suppress any errors to ensure we don't break JSON output
     try {
         // First try direct ID match in coins table if numeric
         if (is_numeric($coinId)) {
-            error_log("Looking for numeric ID $coinId in coins table");
+            log_message("Looking for numeric ID $coinId in coins table");
             $stmt = $db->prepare("SELECT id, symbol, name, current_price as price, price_change_24h, 
                                     volume_24h as volume, market_cap, date_added, is_trending as trending 
                                     FROM coins WHERE id = ? LIMIT 1");
@@ -1511,7 +1509,7 @@ function getCoinData($coinId) {
                 
                 if ($result && $result->num_rows > 0) {
                     $data = $result->fetch_assoc();
-                    error_log("Found coin in coins table: " . json_encode($data));
+                    log_message("Found coin in coins table: " . json_encode($data));
                     $stmt->close();
                     return $data;
                 }
@@ -1520,7 +1518,7 @@ function getCoinData($coinId) {
         }
         
         // Try direct match in cryptocurrencies table by ID
-        error_log("Looking for ID $coinId in cryptocurrencies table");
+        log_message("Looking for ID $coinId in cryptocurrencies table");
         $cryptoIdStmt = $db->prepare("SELECT id, symbol, name, price, price_change_24h, 
                                     volume, market_cap, created_at, is_trending as trending 
                                     FROM cryptocurrencies WHERE id = ? LIMIT 1");
@@ -1531,7 +1529,7 @@ function getCoinData($coinId) {
             
             if ($cryptoIdResult && $cryptoIdResult->num_rows > 0) {
                 $data = $cryptoIdResult->fetch_assoc();
-                error_log("Found coin in cryptocurrencies table by ID: " . json_encode($data));
+                log_message("Found coin in cryptocurrencies table by ID: " . json_encode($data));
                 $cryptoIdStmt->close();
                 return $data;
             }
@@ -1543,7 +1541,7 @@ function getCoinData($coinId) {
         
         // If we have a numeric ID but no direct match, try to get its symbol
         if (is_numeric($coinId) && $symbol === null) {
-            error_log("Getting symbol for numeric ID $coinId");
+            log_message("Getting symbol for numeric ID $coinId");
             $symbolStmt = $db->prepare("SELECT symbol FROM coins WHERE id = ? LIMIT 1");
             if ($symbolStmt) {
                 $symbolStmt->bind_param('i', $coinId);
@@ -1553,7 +1551,7 @@ function getCoinData($coinId) {
                 if ($symbolResult && $symbolResult->num_rows > 0) {
                     $row = $symbolResult->fetch_assoc();
                     $symbol = $row['symbol'];
-                    error_log("Found symbol $symbol for ID $coinId");
+                    log_message("Found symbol $symbol for ID $coinId");
                 }
                 $symbolStmt->close();
             }
@@ -1561,7 +1559,7 @@ function getCoinData($coinId) {
         
         // Try by symbol in cryptocurrencies table
         if ($symbol !== null) {
-            error_log("Looking for symbol $symbol in cryptocurrencies table");
+            log_message("Looking for symbol $symbol in cryptocurrencies table");
             $cryptoStmt = $db->prepare("SELECT id, symbol, name, price, price_change_24h, 
                                         volume, market_cap, created_at, is_trending as trending 
                                         FROM cryptocurrencies WHERE symbol = ? LIMIT 1");
@@ -1572,7 +1570,7 @@ function getCoinData($coinId) {
                 
                 if ($cryptoResult && $cryptoResult->num_rows > 0) {
                     $data = $cryptoResult->fetch_assoc();
-                    error_log("Found coin in cryptocurrencies table by symbol: " . json_encode($data));
+                    log_message("Found coin in cryptocurrencies table by symbol: " . json_encode($data));
                     $cryptoStmt->close();
                     return $data;
                 }
@@ -1580,7 +1578,7 @@ function getCoinData($coinId) {
             }
             
             // Try by symbol in coins table as last resort
-            error_log("Looking for symbol $symbol in coins table");
+            log_message("Looking for symbol $symbol in coins table");
             $coinSymbolStmt = $db->prepare("SELECT id, symbol, name, current_price as price, price_change_24h, 
                                            volume_24h as volume, market_cap, date_added, is_trending as trending 
                                            FROM coins WHERE symbol = ? LIMIT 1");
@@ -1591,7 +1589,7 @@ function getCoinData($coinId) {
                 
                 if ($coinSymbolResult && $coinSymbolResult->num_rows > 0) {
                     $data = $coinSymbolResult->fetch_assoc();
-                    error_log("Found coin in coins table by symbol: " . json_encode($data));
+                    log_message("Found coin in coins table by symbol: " . json_encode($data));
                     $coinSymbolStmt->close();
                     return $data;
                 }
@@ -1600,10 +1598,10 @@ function getCoinData($coinId) {
         }
         
         // If we got here, we didn't find anything
-        error_log("Could not find coin data for: $coinId");
+        log_message("Could not find coin data for: $coinId", 'error');
         
     } catch (Exception $e) {
-        error_log("Error in getCoinData: " . $e->getMessage());
+        log_message("Error in getCoinData: " . $e->getMessage(), 'error');
     }
     
     return $data;

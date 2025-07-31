@@ -245,6 +245,7 @@ try {
                     </div>
                     <div class="chart-container">
                         <canvas id="priceChart"></canvas>
+                        <div id="countdown-timer-container"></div>
                     </div>
                 </div>
             </div>

@@ -29,6 +29,7 @@ start_uvicorn() {
     fi
     source backend/venv/bin/activate
     # Start uvicorn with specified log level and handle output based on mode
+    # Always run app.py directly to ensure its logging configuration is respected
     if [ "$DETAIL_MODE" = "minimal" ]; then
         # Redirect stderr to filter out TensorFlow and other warnings
         uvicorn backend.app:app --host 0.0.0.0 --port $PORT --reload --log-level $log_level 2> >(grep -v -E "tensorflow|cuda|WARNING: All log messages|computation_placer") &

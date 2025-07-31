@@ -1,26 +1,32 @@
+import sys
+sys.path.append('/opt/lampp/htdocs/NS/backend')
 import pandas as pd
+from pandas import DataFrame as df
 import numpy as np
 from sqlalchemy.orm import Session
-from database import get_db, Trade, TradeMetrics, ModelPerformance, ModelPrediction
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, ExtraTreesRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.model_selection import GridSearchCV
-import yfinance as yf
 import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout, GRU, Attention
-import torch
-import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from fastai.tabular.all import *
-import optuna
+import keras as keras
+from keras.models import Sequential
+from keras.layers import LSTM, Dense, Dropout, GRU, Attention
 import logging
 from datetime import datetime, timedelta
-import math
-from typing import Dict, List, Tuple
+from math import *
+import torch.nn as nn
+import optuna
+import yfinance as yf
+from typing import Dict, Tuple
+from torch.utils.data import Dataset, DataLoader
+from sklearn.model_selection import GridSearchCV
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from backend.models.unified_models import Trade
+from backend.models.unified_models import TradeMetrics, ModelPerformance, ModelPrediction
+from backend.database import get_db
+from backend.app import LearningMetric, TradingPerformance
+
 
 class RiskManager:
     def __init__(self, config):
