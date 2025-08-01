@@ -35,7 +35,7 @@ start_uvicorn() {
         uvicorn backend.app:app --host 0.0.0.0 --port $PORT --reload --log-level $log_level 2> >(grep -v -E "tensorflow|cuda|WARNING: All log messages|computation_placer") &
     else
         # Show all output in detailed mode
-        python backend/app.py --host 0.0.0.0 --port $PORT --reload --log-level $log_level &
+        python -m backend.app --host 0.0.0.0 --port $PORT --reload --log-level $log_level &
     fi
     UVICORN_PID=$!
 }

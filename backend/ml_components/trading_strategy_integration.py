@@ -29,7 +29,7 @@ from fetchall import (
 try:
     from model_trainer import AdvancedModelTrainer
     from performance_tracker import ModelPerformanceTracker
-    from backend.ml_components.advanced_dl_models import (
+    from advanced_dl_models import (
         build_transformer_model, 
         build_inception_time_model,
         build_temporal_fusion_transformer
@@ -395,18 +395,6 @@ class IntegratedTradingStrategy:
                     # In backtesting, we can sell immediately
                     balance = position * current_price
                     pnl = position * (current_price - entry_price)
-
-                    from backend.models.unified_models import TradingPerformance, Session
-                    session = Session()
-                    trade_performance = TradingPerformance(
-                        trade_id=f"{timestamp}-{self.active_model_id}",
-                        profit_loss=pnl,
-                        entry_price=entry_price,
-                        exit_price=current_price,
-                    )
-                    session.add(trade_performance)
-                    session.commit()
-                    session.close()
                     
                     trades.append({
                         'timestamp': timestamp,

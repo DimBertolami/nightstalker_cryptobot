@@ -9,11 +9,11 @@ import mysql.connector
 from mysql.connector import Error
 
 # Configuration
-COINMARKETCAP_API_KEY = 'e2e746c1-169a-4778-90f7-a66458a6af00'
+COINMARKETCAP_API_KEY = 'a36ab379-15a0-409b-99ec-85ab7f2836ea'
 DB_CONFIG = {
     'unix_socket': '/opt/lampp/var/mysql/mysql.sock',
     'host': 'localhost',
-    'database': 'night_stalker',
+    'database': 'NS',
     'user': 'root',
     'password': '1304',
     'raise_on_warnings': True
@@ -85,12 +85,24 @@ def get_active_trades():
             conn.close()
 
 def get_cmc_id(symbol):
-    """Map our coin symbols to CMC IDs (you'll need to fill this with actual mappings)"""
-    cmc_map = {
-        'PFVS': 20,  # Replace with actual CMC ID
-        'ASRR': 24   # Replace with actual CMC ID
-    }
-    return cmc_map.get(symbol.replace('COIN_', ''))
+    conn = None
+    cursor = None
+    try:
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id FROM cryptocurrencies WHERE symbol = %s", (symbol,))
+        result = cursor.fetchone()
+        if result:
+            return result['id']
+        return None
+    except Error as e:
+        print(f"Database error in get_cmc_id: {e}")
+        return None
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
 
 def fetch_coinmarketcap_prices(coin_symbols):
     """Fetch latest prices from CoinMarketCap for multiple symbols"""
@@ -175,7 +187,7 @@ def test():
 def main():
     print("Backend price update script started.")
     # Ensure price_history table exists
-    # create_price_history_table()
+    create_price_history_table()
     
     print("Starting price monitor... (Press Ctrl+C to stop)")
     

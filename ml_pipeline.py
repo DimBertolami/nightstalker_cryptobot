@@ -26,6 +26,8 @@ from backend.models.unified_models import Trade
 from backend.models.unified_models import TradeMetrics, ModelPerformance, ModelPrediction
 from backend.database import get_db
 from backend.app import LearningMetric, TradingPerformance
+from backend.ml_components.advanced_indicators import AdvancedIndicators
+from backend.ml_components.deep_learning_models import DeepLearningTrader
 
 
 class RiskManager:

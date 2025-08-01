@@ -242,6 +242,7 @@ try {
                             <!-- Options will be populated by JavaScript -->
                         </select>
                         <button id="loadChartButton" class="btn btn-primary">Load Chart</button>
+                        <button id="toggleIndicatorsButton" class="btn btn-info">Toggle Indicators & Auto-Refresh</button>
                     </div>
                     <div class="chart-container">
                         <canvas id="priceChart"></canvas>

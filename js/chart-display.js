@@ -1,9 +1,60 @@
 document.addEventListener('DOMContentLoaded', () => {
     const coinSelect = document.getElementById('coinSelect');
     const loadChartButton = document.getElementById('loadChartButton');
+    const toggleIndicatorsButton = document.getElementById('toggleIndicatorsButton');
     const ctx = document.getElementById('priceChart').getContext('2d');
     let priceChart = null;
-    let countdownInterval = null;
+    let countdownInterval = null; // To store the countdown interval ID
+    let autoRefreshInterval = null; // To store the auto-refresh interval ID
+
+    // Function to create and style the countdown timer
+    function createCountdownTimer() {
+        const countdownContainer = document.getElementById('countdown-timer-container');
+        if (!document.getElementById('countdown-timer')) {
+            const timerElement = document.createElement('div');
+            timerElement.id = 'countdown-timer';
+            timerElement.style.position = 'absolute';
+            timerElement.style.top = '50%';
+            timerElement.style.left = '50%';
+            timerElement.style.transform = 'translate(-50%, -50%)';
+            timerElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            timerElement.style.color = '#ff0000';
+            timerElement.style.padding = '20px';
+            timerElement.style.borderRadius = '10px';
+            timerElement.style.fontSize = '48px';
+            timerElement.style.fontWeight = 'bold';
+            timerElement.style.zIndex = '10';
+            timerElement.innerHTML = '<span id="countdown-time">30</span>s';
+            countdownContainer.appendChild(timerElement);
+        }
+    }
+
+    // Function to update the countdown timer
+    function updateCountdown(endTime) {
+        const now = new Date().getTime();
+        const distance = endTime - now;
+        const countdownTimer = document.getElementById('countdown-timer');
+
+        if (distance <= 0) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+            if (countdownTimer) {
+                countdownTimer.style.display = 'none';
+            }
+            return;
+        }
+
+        const seconds = Math.ceil(distance / 1000);
+        if (countdownTimer) {
+            const timeSpan = countdownTimer.querySelector('#countdown-time');
+            if(timeSpan) {
+                timeSpan.textContent = seconds;
+            }
+            if (countdownTimer.style.display !== 'block') {
+                countdownTimer.style.display = 'block';
+            }
+        }
+    }
 
     // Function to create and style the countdown timer
     function createCountdownTimer() {
@@ -103,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!coinId) return;
 
         try {
-            const response = await fetch(`api/get-chart-data.php?coin_id=${coinId}`);
+            const response = await fetch(`api/get-chart-data-dev.php?coin_id=${coinId}`);
             const data = await response.json();
 
             if (data.error) {
@@ -135,20 +186,93 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
+            const datasets = [
+                {
+                    label: 'Price',
+                    data: history.map(point => ({ x: new Date(point.time), y: point.price })),
+                    borderColor: 'rgb(255, 255, 0)', // Bright yellow
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 0,
+                },
+                {
+                    label: 'SMA',
+                    data: history.map(point => ({ x: new Date(point.time), y: point.sma })),
+                    borderColor: 'rgb(0, 128, 255)', // Blue
+                    borderDash: [5, 5],
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 0,
+                },
+                {
+                    label: 'EMA',
+                    data: history.map(point => ({ x: new Date(point.time), y: point.ema })),
+                    borderColor: 'rgb(255, 0, 0)', // Red
+                    borderDash: [10, 5],
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 0,
+                },
+                {
+                    label: 'RSI',
+                    data: history.map(point => ({ x: new Date(point.time), y: point.rsi })),
+                    borderColor: 'rgb(0, 255, 0)', // Green
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 0,
+                    yAxisID: 'rsi-axis', // Use a separate y-axis for RSI
+                },
+                {
+                    label: 'BB Upper',
+                    data: history.map(point => ({ x: new Date(point.time), y: point.bb_upper })),
+                    borderColor: 'rgb(255, 165, 0)', // Orange
+                    borderDash: [2, 2],
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 0,
+                },
+                {
+                    label: 'BB Middle',
+                    data: history.map(point => ({ x: new Date(point.time), y: point.bb_middle })),
+                    borderColor: 'rgb(128, 0, 128)', // Purple
+                    borderDash: [2, 2],
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 0,
+                },
+                {
+                    label: 'BB Lower',
+                    data: history.map(point => ({ x: new Date(point.time), y: point.bb_lower })),
+                    borderColor: 'rgb(255, 165, 0)', // Orange
+                    borderDash: [2, 2],
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 0,
+                },
+                {
+                    label: 'MACD Line',
+                    data: history.map(point => ({ x: new Date(point.time), y: point.macd_line })),
+                    borderColor: 'rgb(0, 0, 255)', // Blue
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 0,
+                    yAxisID: 'macd-axis', // Use a separate y-axis for MACD
+                },
+                {
+                    label: 'Signal Line',
+                    data: history.map(point => ({ x: new Date(point.time), y: point.macd_signal })),
+                    borderColor: 'rgb(255, 99, 132)', // Red
+                    borderDash: [5, 5],
+                    tension: 0.1,
+                    fill: false,
+                    pointRadius: 0,
+                    yAxisID: 'macd-axis', // Use a separate y-axis for MACD
+                }
+            ];
+
             const chartData = {
                 labels: history.map(point => new Date(point.time)),
-                datasets: [
-                    {
-                        label: 'Price',
-                        data: history.map(point => point.price),
-                        borderColor: 'rgb(255, 255, 0)', // Bright yellow
-                        tension: 0.1,
-                        fill: false,
-                        pointRadius: 0, // Hide points for line segments
-                        hoverBorderColor: 'rgb(255, 255, 255)', // White for highlight
-                        hoverBorderWidth: 3 // Thicker line on hover
-                    }
-                ]
+                datasets: datasets
             };
 
             const annotations = {};
@@ -199,10 +323,9 @@ document.addEventListener('DOMContentLoaded', () => {
             let xMin = purchaseTime;
             let xMax = latestRecordedTime;
 
-            // If coin is sold, extend xMax slightly beyond drop_start_timestamp
+            // If coin is sold, set xMax to drop_start_timestamp
             if (coinStatus === 'sold' && dropStartTimestamp) {
-                // Add a buffer (e.g., 60 seconds) after the drop_start_timestamp
-                xMax = dropStartTimestamp + (60 * 1000); // 60 seconds buffer
+                xMax = dropStartTimestamp;
             } else if (latestRecordedTime) {
                 // If not sold, extend xMax slightly beyond the last recorded price
                 xMax = latestRecordedTime + (60 * 1000); // 60 seconds buffer
@@ -276,6 +399,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     },
                     y: {
+                        type: 'linear',
+                        position: 'left',
                         title: {
                             display: true,
                             text: 'Price (USD)',
@@ -293,6 +418,42 @@ document.addEventListener('DOMContentLoaded', () => {
                                     maximumFractionDigits: 8 // Adjust as needed for coin prices
                                 }).format(value);
                             }
+                        }
+                    },
+                    'rsi-axis': {
+                        type: 'linear',
+                        position: 'right',
+                        min: 0,
+                        max: 100,
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        title: {
+                            display: true,
+                            text: 'RSI',
+                            color: '#FFFFFF', // White color for title
+                            font: { size: 14 }
+                        },
+                        ticks: {
+                            color: '#E0E0E0', // Light gray for tick labels
+                            font: { size: 10 },
+                        }
+                    },
+                    'macd-axis': {
+                        type: 'linear',
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        title: {
+                            display: true,
+                            text: 'MACD',
+                            color: '#FFFFFF', // White color for title
+                            font: { size: 14 }
+                        },
+                        ticks: {
+                            color: '#E0E0E0', // Light gray for tick labels
+                            font: { size: 10 },
                         }
                     }
                 },
@@ -324,7 +485,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (priceChart) {
                 priceChart.data.labels = chartData.labels;
-                priceChart.data.datasets[0].data = chartData.datasets[0].data;
+                priceChart.data.datasets = chartData.datasets;
                 priceChart.options.scales.x.min = xMin;
                 priceChart.options.scales.x.max = xMax;
                 priceChart.options.scales.x.time.unit = timeUnit;
@@ -362,10 +523,51 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Auto-refresh chart
-    setInterval(() => {
-        const selectedCoinId = coinSelect.value;
-        if (selectedCoinId) {
-            loadChart(selectedCoinId);
+    function startAutoRefresh() {
+        if (autoRefreshInterval === null) {
+            autoRefreshInterval = setInterval(() => {
+                const selectedCoinId = coinSelect.value;
+                if (selectedCoinId) {
+                    loadChart(selectedCoinId);
+                }
+            }, 1500);
         }
-    }, 1500);
+    }
+
+    function stopAutoRefresh() {
+        if (autoRefreshInterval !== null) {
+            clearInterval(autoRefreshInterval);
+            autoRefreshInterval = null;
+        }
+    }
+
+    // Initial start of auto-refresh
+    startAutoRefresh();
+
+    // Toggle Indicators and Auto-Refresh
+    toggleIndicatorsButton.addEventListener('click', () => {
+        if (priceChart) {
+            // Check if auto-refresh is currently running (indicators are hidden)
+            if (autoRefreshInterval !== null) {
+                // If running, stop auto-refresh and show indicators
+                stopAutoRefresh();
+                priceChart.data.datasets.forEach((dataset, index) => {
+                    if (index !== 0) { // Show all indicators (except price)
+                        dataset.hidden = false;
+                    }
+                });
+                toggleIndicatorsButton.textContent = 'Resume Auto-Refresh & Hide Indicators';
+            } else {
+                // If paused, start auto-refresh and hide indicators
+                startAutoRefresh();
+                priceChart.data.datasets.forEach((dataset, index) => {
+                    if (index !== 0) { // Hide all indicators (except price)
+                        dataset.hidden = true;
+                    }
+                });
+                toggleIndicatorsButton.textContent = 'Pause Auto-Refresh & Show Indicators';
+            }
+            priceChart.update();
+        }
+    });
 });

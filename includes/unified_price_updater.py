@@ -304,29 +304,35 @@ def unified_price_update_loop():
                     apex_price = float(apex_data['apex_price'])
                     drop_start_timestamp = apex_data['drop_start_timestamp']
                     status = apex_data['status']
-
-                    
+                    script_logger.info(f"Apex data for {base_coin_id}: price={price}, apex_price={apex_price}, drop_start_timestamp={drop_start_timestamp}, status={status}")
 
                     if price > apex_price:
                         script_logger.info(f"New apex for {base_coin_id}: {price} (old: {apex_price})")
                         update_apex_data(base_coin_id, price, current_time, None, 'monitoring')
                     elif price < apex_price:
                         if status == 'monitoring':
-                            script_logger.info(f"Price for {base_coin_id} dropped below apex. Starting drop timer.")
+                            script_logger.info(f"Price for {base_coin_id} dropped below apex. Starting drop timer. Current time: {current_time}")
                             update_apex_data(base_coin_id, apex_price, apex_data['apex_timestamp'], current_time, 'dropping')
                         elif status == 'dropping':
-                            if drop_start_timestamp and (current_time - drop_start_timestamp).total_seconds() >= 30:
-                                script_logger.info(f"Price for {base_coin_id} has been below apex for >= 30 seconds. Initiating sell.")
-                                amount_to_sell = get_coin_amount_in_portfolio(base_coin_id)
-                                if amount_to_sell > 0:
-                                    if execute_sell_api(base_coin_id, amount_to_sell, price):
-                                        script_logger.info(f"Successfully sold {amount_to_sell} of {base_coin_id}.")
-                                        update_apex_data(base_coin_id, apex_price, apex_data['apex_timestamp'], drop_start_timestamp, 'sold')
+                            if drop_start_timestamp:
+                                time_since_drop = (current_time - drop_start_timestamp).total_seconds()
+                                script_logger.info(f"Coin {base_coin_id} is dropping. Time since drop started: {time_since_drop} seconds.")
+                                if time_since_drop >= 30:
+                                    script_logger.info(f"Price for {base_coin_id} has been below apex for >= 30 seconds. Initiating sell.")
+                                    amount_to_sell = get_coin_amount_in_portfolio(base_coin_id)
+                                    if amount_to_sell > 0:
+                                        script_logger.info(f"Attempting to sell {amount_to_sell} of {base_coin_id} at {price}.")
+                                        if execute_sell_api(base_coin_id, amount_to_sell, price):
+                                            script_logger.info(f"Successfully sold {amount_to_sell} of {base_coin_id}. Updating status to 'sold'.")
+                                            update_apex_data(base_coin_id, apex_price, apex_data['apex_timestamp'], drop_start_timestamp, 'sold')
+                                        else:
+                                            script_logger.error(f"Failed to sell {base_coin_id}. Will continue monitoring.")
                                     else:
-                                        script_logger.error(f"Failed to sell {base_coin_id}. Will continue monitoring.")
-                                else:
-                                    script_logger.warning(f"No {base_coin_id} found in portfolio to sell. Marking as sold to stop monitoring.")
-                                    update_apex_data(base_coin_id, apex_price, apex_data['apex_timestamp'], drop_start_timestamp, 'sold')
+                                        script_logger.warning(f"No {base_coin_id} found in portfolio to sell. Marking as sold to stop monitoring.")
+                                        update_apex_data(base_coin_id, apex_price, apex_data['apex_timestamp'], drop_start_timestamp, 'sold')
+                            else:
+                                script_logger.warning(f"Coin {base_coin_id} status is 'dropping' but drop_start_timestamp is None. Resetting to 'monitoring'.")
+                                update_apex_data(base_coin_id, apex_price, apex_data['apex_timestamp'], None, 'monitoring')
                     elif price >= apex_price and status == 'dropping':
                         script_logger.info(f"Price for {base_coin_id} recovered to or above apex. Resetting drop timer.")
                         update_apex_data(base_coin_id, apex_price, apex_data['apex_timestamp'], None, 'monitoring')

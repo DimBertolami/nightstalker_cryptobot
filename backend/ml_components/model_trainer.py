@@ -18,14 +18,14 @@ import json
 import logging
 
 # Import our custom modules
-from backend.ml_components.advanced_dl_models import (
+from advanced_dl_models import (
     build_transformer_model,
     build_inception_time_model, 
     build_temporal_fusion_transformer,
     build_ensemble_model
 )
 from performance_tracker import ModelPerformanceTracker, TradingStrategyOptimizer
-from backend.ml_components.deep_learning_models import DeepLearningTrader, prepare_sequences
+from deep_learning_models import DeepLearningTrader, prepare_sequences
 
 # Configure logging
 logging.basicConfig(
@@ -39,50 +39,15 @@ logging.basicConfig(
 logger = logging.getLogger("model_trainer")
 
 
-from backend.ml_components.ml_component_base import MLComponentBase
-import os
-import pandas as pd
-import numpy as np
-import tensorflow as tf
-import matplotlib.pyplot as plt
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
-import datetime
-import joblib
-import json
-import logging
-
-# Import our custom modules
-from backend.ml_components.advanced_dl_models import (
-    build_transformer_model,
-    build_inception_time_model, 
-    build_temporal_fusion_transformer,
-    build_ensemble_model
-)
-from performance_tracker import ModelPerformanceTracker, TradingStrategyOptimizer
-from backend.ml_components.deep_learning_models import DeepLearningTrader, prepare_sequences
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("model_training.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("model_trainer")
-
-class AdvancedModelTrainer(MLComponentBase):
+class AdvancedModelTrainer:
     """
     Trains, evaluates, and optimizes advanced deep learning models for trading.
     Implements a self-improvement loop based on performance metrics.
     """
-
+    
     def __init__(self, base_dir='training_data', 
                 performance_db_path='performance_db',
                 model_save_dir='advanced_models'):
-        super().__init__()
         """
         Initialize the advanced model trainer.
         
@@ -127,10 +92,6 @@ class AdvancedModelTrainer(MLComponentBase):
         # Current parameters (will be updated during self-improvement)
         self.current_params = self.default_model_params.copy()
         logger.info("Advanced Model Trainer initialized")
-    
-    def initialize(self, *args, **kwargs):
-        # Initialization logic if needed
-        pass
     
     def prepare_training_data(self, data, features, target_col='target', 
                              test_size=0.2, val_size=0.2):
@@ -191,7 +152,7 @@ class AdvancedModelTrainer(MLComponentBase):
         
         return X_train, X_val, X_test, y_train, y_val, y_test, scalers
     
-    def train(self, X_train, y_train, X_val, y_val, model_types=None):
+    def train_models(self, X_train, y_train, X_val, y_val, model_types=None):
         """
         Train multiple advanced deep learning models.
         
@@ -301,7 +262,7 @@ class AdvancedModelTrainer(MLComponentBase):
         logger.info(f"Model training complete: {list(models.keys())}")
         return models, histories
     
-    def evaluate(self, models, X_test, y_test, data_test=None):
+    def evaluate_models(self, models, X_test, y_test, data_test=None):
         """
         Evaluate trained models on test data.
         
@@ -427,18 +388,16 @@ class AdvancedModelTrainer(MLComponentBase):
                 best_performance = performance
             
             # Record performance in tracker
-            from backend.models.unified_models import LearningMetric, Session
-            session = Session()
-            metric = LearningMetric(
-                model_name=f"{model_type}_iter{self.current_iteration}",
-                accuracy=accuracy,
-                precision=precision,
-                recall=recall,
-                f1_score=f1,
+            model_id = f"{model_type}_iter{self.current_iteration}"
+            self.performance_tracker.record_model_performance(
+                model_id=model_id,
+                model_type=model_type,
+                trading_pair="BTC-USD",  # Default
+                timeframe="1h",  # Default
+                metrics=model_results,
+                trades=trades,
+                parameters=self.current_params
             )
-            session.add(metric)
-            session.commit()
-            session.close()
             
             logger.info(f"Model {model_type} evaluation: {model_results}")
         
@@ -584,10 +543,10 @@ class AdvancedModelTrainer(MLComponentBase):
         )
         
         # Train models
-        models, histories = self.train(X_train, y_train, X_val, y_val)
+        models, histories = self.train_models(X_train, y_train, X_val, y_val)
         
         # Evaluate models
-        evaluation_results, best_model_type = self.evaluate(
+        evaluation_results, best_model_type = self.evaluate_models(
             models, X_test, y_test, data_test=data
         )
         

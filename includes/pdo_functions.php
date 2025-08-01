@@ -1081,7 +1081,7 @@ function getPortfolioCoinsPDO(): array {
         // Join with cryptocurrencies table to get symbol and name
         $stmt = $db->prepare("SELECT p.coin_id AS id, c.symbol, c.name
                              FROM portfolio p
-                             JOIN cryptocurrencies c ON p.coin_id = c.id
+                             JOIN cryptocurrencies c ON p.coin_id = c.symbol
                              WHERE p.amount > 0
                              ORDER BY c.name ASC"); // Order by name for better display
 

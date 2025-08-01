@@ -9,15 +9,37 @@
    * Decision: We will use your existing NS database as the single source of truth. This means we need to
      integrate the LearningMetric and TradingPerformance schemas into it.
    * Action:
-       1. Identify `NS` Database Connection: I need to find the database connection details for your NS
-          database. Based on the file structure, it's likely defined in a PHP file like includes/config.php
-          or database/. I will search for this.
+DONE   1. configure `NS` Database Connection: connection details for NS database in includes/config.php
        2. Consolidate Python Models:
            * Create a new Python file: backend/models/unified_models.py.
            * Move the definitions of LearningMetric and TradingPerformance (from backend/app.py) into
              unified_models.py.
            * Move the definitions of Trade, TradingSignal, and Position (from backend/trading_db.py) into
              unified_models.py.
+           * Change the ML Models and deep neural network code to classes that inherrit from a base class. 
+           /opt/lampp/htdocs/NS/backend/ml_components
+		   621 	advanced_dl_models.py
+		 17109 	advanced_indicators.py
+		   233 	advanced_model_trainer.py
+		  4121 	ai_strategy.py
+		  3278 	database.py
+		  9845 	decision_engine.py
+		   295 	deep_learning_models.py
+		   882 	lstm.py
+		  1026 	ml_component_base.py
+		 10289 	ml_strategy.py
+		  2480 	model.py
+		   644 	model.py.save
+		   235 	moving_average_crossover.py
+		 19863 	performance_tracker.py
+		  1086 	randomForest.py
+		  9407 	risk_management.py
+		  1050 	rnn_lstm.py
+		 25045 	trading_strategy_integration.py
+		  1044 	xgboost.py
+           * Move Indicators from /opt/lampp/htdocs/NS/bot/indicators to the same directory as above.
+
+
            * Crucially, ensure all these models inherit from a single `Base` object defined in 
              `unified_models.py`.
        3. Update Database Engine in Python:

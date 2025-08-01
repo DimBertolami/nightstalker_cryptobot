@@ -11,17 +11,23 @@ load_dotenv()
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, jsonify, request
-from flask_cors import CORS, cross_origin
-from flask_socketio import SocketIO # type: ignore
-from sqlalchemy import create_engine
+from flask_cors import CORS
+from flask_socketio import SocketIO
 from sqlalchemy.orm import sessionmaker
-from backend.models.unified_models import Base, LearningMetric, TradingPerformance, BotThought, TradingSignal, Trade, Position
+from backend.models.unified_models import Base, LearningMetric, TradingPerformance, engine
 import os
 from datetime import datetime, timedelta
-import pandas as pd
-import numpy as np
-import requests
 from cachetools import TTLCache
+import logging
+from logging.handlers import RotatingFileHandler
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Add the current directory to Python path
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
@@ -52,34 +58,9 @@ app.logger.setLevel(logging.INFO)
 # Cache configuration (100 items, 1 hour TTL)
 CACHE = TTLCache(maxsize=100, ttl=3600)
 
-# Binance API configuration
-BINANCE_API_BASE = "https://api.binance.com/api/v3"
-
-# Interval mapping
-INTERVAL_MAP = {
-    '1m': '1m',
-    '5m': '5m',
-    '10m': '10m',
-    '15m': '15m',
-    '30m': '30m',
-    '1h': '1h',
-    '4h': '4h',
-    '1d': '1d',
-    '1w': '1w'
-}
-
-# Database configuration
-# DB_USER= 'dimi'
-# DB_PASS= 1304
-# DB_HOST= '127.0.0.1'
-# DB_NAME= 'NS'
-DATABASE_URL = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@{os.getenv('DB_HOST')}/{os.getenv('DB_NAME')}"
-engine = create_engine(DATABASE_URL)
-
 # Create a configured "Session" class
 SessionLocal = sessionmaker(bind=engine)
 
-# Define SQLAlchemy models
 # Initialize database
 app.logger.info(f"Current working directory: {os.getcwd()}")
 try:
@@ -171,8 +152,8 @@ def get_chart_data():
             'significant_trades': [] # Placeholder, needs to be identified from TradingPerformance
         })
     except Exception as e:
-        app.logger.error(f"Error fetching chart data: {str(e)}")
-        return jsonify({'error': 'Failed to fetch chart data'}), 500
+        app.logger.error(f"Error fetching chart data: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch chart data', 'details': str(e)}), 500
     finally:
         session.close()
 
