@@ -123,3 +123,128 @@ function fetch_coin_price_from_cmc($symbol) {
         return ['success' => false, 'message' => 'Price data not found for symbol.'];
     }
 }
+
+/**
+ * Fetches historical price data for a given cryptocurrency symbol from CoinMarketCap API.
+ * @param string $symbol The cryptocurrency symbol (e.g., 'BTC').
+ * @param int $start_timestamp Unix timestamp for the start date.
+ * @param int $end_timestamp Unix timestamp for the end date.
+ * @return array Historical price data or empty array on failure.
+ */
+function getCMCHistoricalData($symbol, $start_timestamp, $end_timestamp) {
+    $apiKey = CMC_API_KEY; // Use the defined constant
+    $url = CMC_API_URL . '/v1/cryptocurrency/quotes/historical';
+    
+    // CoinMarketCap API requires ID, so we need to get it first
+    $coinId = getCoinIdFromSymbol($symbol);
+    if (!$coinId) {
+        error_log("CMC API Error: Could not get ID for symbol: " . $symbol);
+        return [];
+    }
+
+    $params = [
+        'id' => $coinId,
+        'time_start' => $start_timestamp,
+        'time_end' => $end_timestamp,
+        'interval' => 'daily' // You can change this to 'hourly', 'weekly', etc.
+    ];
+
+    $qs = http_build_query($params);
+    $request = "{$url}?{$qs}";
+
+    $headers = [
+        'Accepts: application/json',
+        'X-CMC_PRO_API_KEY: ' . $apiKey
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $request);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+    $response = curl_exec($ch);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($error) {
+        error_log("CMC Historical API Error: " . $error);
+        return [];
+    }
+
+    $decoded = json_decode($response, true);
+
+    if (isset($decoded['status']) && $decoded['status']['error_code'] != 0) {
+        error_log("CMC Historical API Error: " . $decoded['status']['error_message']);
+        return [];
+    }
+
+    // Extract and format historical data
+    $historicalData = [];
+    if (isset($decoded['data']) && isset($decoded['data']['quotes'])) {
+        foreach ($decoded['data']['quotes'] as $quote) {
+            $historicalData[] = [
+                'timestamp' => $quote['timestamp'],
+                'price' => $quote['quote']['USD']['price'],
+                'volume' => $quote['quote']['USD']['volume']
+            ];
+        }
+    }
+
+    return $historicalData;
+}
+
+/**
+ * Helper function to get CoinMarketCap ID from symbol.
+ * Fetches from CMC /v1/cryptocurrency/map endpoint and caches results.
+ */
+function getCoinIdFromSymbol($symbol) {
+    static $coinIdMap = []; // Cache for coin IDs
+
+    $symbol = strtoupper($symbol);
+
+    if (isset($coinIdMap[$symbol])) {
+        return $coinIdMap[$symbol];
+    }
+
+    $apiKey = CMC_API_KEY;
+    $url = CMC_API_URL . '/v1/cryptocurrency/map';
+    $params = ['symbol' => $symbol];
+
+    $qs = http_build_query($params);
+    $request = "{$url}?{$qs}";
+
+    $headers = [
+        'Accepts: application/json',
+        'X-CMC_PRO_API_KEY: ' . $apiKey
+    ];
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $request);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+    $response = curl_exec($ch);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($error) {
+        error_log("CMC Map API Error: " . $error);
+        return null;
+    }
+
+    $decoded = json_decode($response, true);
+
+    if (isset($decoded['status']) && $decoded['status']['error_code'] != 0) {
+        error_log("CMC Map API Error: " . $decoded['status']['error_message']);
+        return null;
+    }
+
+    if (isset($decoded['data']) && !empty($decoded['data'])) {
+        // Assuming the first result is the most relevant
+        $coinId = $decoded['data'][0]['id'];
+        $coinIdMap[$symbol] = $coinId; // Cache the result
+        return $coinId;
+    }
+
+    return null;
+}

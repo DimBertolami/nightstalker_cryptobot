@@ -561,7 +561,7 @@ def backtest_ensemble(models, X_test, y_test, actual_prices, ensemble_method='ma
     print(f"Ensemble Accuracy: {acc:.4f}")
     print(f"Ensemble Precision: {prec:.4f}")
     print(f"Ensemble Recall: {rec:.4f}")
-    print(f"Ensemble F1 Score: {f1:.4f}")
+    
     
     # Evaluate trading performance
     trading_performance = evaluate_trading_performance(final_predictions, actual_prices)

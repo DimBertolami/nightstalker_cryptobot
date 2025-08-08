@@ -234,17 +234,7 @@ def unified_price_update_loop():
         portfolio_coins = cursor.fetchall()
 
         if not portfolio_coins:
-            script_logger.info("No active portfolio coins found. Clearing price_history table.")
-            try:
-                connection2 = get_db_connection()
-                cursor2 = connection2.cursor()
-                cursor2.execute("DELETE FROM price_history")
-                connection2.commit()
-                cursor2.close()
-                connection2.close()
-                script_logger.info("price_history table cleared successfully.")
-            except Exception as e:
-                script_logger.error(f"Failed to clear price_history table: {e}")
+            script_logger.info("No active portfolio coins found. Skipping price history clearing.")
             return False # Return False to indicate no coins were processed
 
         binance_symbols_to_track = []

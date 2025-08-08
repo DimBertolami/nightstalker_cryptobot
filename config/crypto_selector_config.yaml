@@ -1,0 +1,152 @@
+# Configuration for the Intelligent Crypto Selection System
+
+# Model Configuration
+models:
+  enabled_models:
+    - random_forest
+    - gradient_boosting
+    - extra_trees
+    - neural_network
+    - lstm
+    - transformer
+  
+  model_dir: "models/"
+  
+  hyperparameters:
+    random_forest:
+      n_estimators: 100
+      max_depth: 10
+      min_samples_split: 2
+      min_samples_leaf: 1
+    
+    gradient_boosting:
+      n_estimators: 100
+      learning_rate: 0.1
+      max_depth: 5
+    
+    lstm:
+      units: 128
+      dropout: 0.2
+      epochs: 50
+      batch_size: 32
+    
+    transformer:
+      num_heads: 4
+      ff_dim: 256
+      num_transformer_blocks: 4
+
+# Feature Engineering
+features:
+  window_sizes: [7, 14, 30, 90]
+  technical_indicators:
+    - rsi
+    - macd
+    - bollinger_bands
+    - momentum
+  
+  advanced_features:
+    - age_adjusted_marketcap
+    - volume_efficiency
+    - market_activity_ratio
+    - combined_momentum
+
+# Risk Management
+risk:
+  max_position_size: 0.1  # 10% of portfolio
+  max_daily_trades: 10
+  max_drawdown_pct: 0.15  # 15%
+  stop_loss_pct: 0.02
+  take_profit_pct: 0.03
+  
+  risk_tolerance: 0.01
+  position_adjustment_factor: 1.0
+  
+  market_regime:
+    volatility_window: 20
+    market_regime_threshold: 0.1
+  
+  correlation:
+    correlation_threshold: 0.8
+    diversification_factor: 1.5
+
+# Decision Making
+decision:
+  threshold: 0.001  # 0.1% price change
+  min_confidence: 0.7
+  max_risk: 0.8
+  
+  ensemble_weights:
+    random_forest: 0.2
+    gradient_boosting: 0.2
+    extra_trees: 0.2
+    neural_network: 0.2
+    lstm: 0.2
+
+# Data Configuration
+data:
+  lookback_days: 365
+  update_frequency: "daily"
+  data_sources:
+    - coingecko
+    - coinmarketcap
+  
+  required_columns:
+    - age
+    - marketcap
+    - volume
+    - price
+
+# Performance Tracking
+performance:
+  metrics_update_frequency: "daily"
+  backtest_period_days: 90
+  performance_report_days: 30
+  
+  alerts:
+    performance_degradation_threshold: 0.1
+    model_drift_threshold: 0.05
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/crypto_selector.log"
+
+# Database
+database:
+  connection_string: "sqlite:///crypto_selector.db"
+  table_prefix: "cs_"
+  
+  tables:
+    trades: "trades"
+    predictions: "predictions"
+    performance: "performance"
+    risk_metrics: "risk_metrics"
+
+# API Configuration
+api:
+  port: 8000
+  host: "0.0.0.0"
+  endpoints:
+    predict: "/predict"
+    performance: "/performance"
+    decisions: "/decisions"
+  
+  rate_limiting:
+    requests_per_minute: 60
+    burst_limit: 10
+
+# Monitoring
+monitoring:
+  enabled: true
+  metrics:
+    - accuracy
+    - precision
+    - recall
+    - f1_score
+    - sharpe_ratio
+    - max_drawdown
+  
+  alerting:
+    email: "admin@example.com"
+    slack_webhook: "https://hooks.slack.com/services/..."

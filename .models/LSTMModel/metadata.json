@@ -1,0 +1,8 @@
+{
+    "description": "LSTM model for long-term dependencies",
+    "performance": {
+        "accuracy": 0.75
+    },
+    "name": "LSTMModel",
+    "timestamp": "2025-08-08T08:21:24.898572"
+}

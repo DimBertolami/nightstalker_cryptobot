@@ -62,7 +62,7 @@ try {
         $stmt = $db->prepare("
         SELECT price, recorded_at
         FROM price_history 
-        WHERE coin_id = ? 
+        WHERE coin_id = ? AND recorded_at >= NOW() - INTERVAL 1 DAY
         ORDER BY recorded_at DESC 
         LIMIT 1
         ");
@@ -82,7 +82,7 @@ try {
         $stmt = $db->prepare("
             SELECT price, recorded_at 
             FROM price_history 
-            WHERE coin_id = ? 
+            WHERE coin_id = ? AND recorded_at >= NOW() - INTERVAL 1 DAY
             ORDER BY recorded_at ASC
         ");
         $stmt->execute([$coinSymbol]);

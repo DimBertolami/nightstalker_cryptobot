@@ -3,9 +3,9 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from fastapi import Depends
 
-DATABASE_URL = "sqlite:///./new_test.db"  # Update this with your actual database URL
+DATABASE_URL = "mysql+mysqlconnector://root:1304@localhost/NS"
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

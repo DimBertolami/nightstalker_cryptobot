@@ -285,5 +285,5 @@ if __name__ == "__main__":
     
     # Create a TFT model
     tft_model = build_temporal_fusion_transformer(sample_input_shape)
-    print("\nTemporal Fusion Transformer model summary:")
+    
     tft_model.summary()

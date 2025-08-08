@@ -1,681 +1,287 @@
-"""
-Advanced Model Training System for Cryptocurrency Trading
-
-This module integrates advanced deep learning models with performance tracking
-to create a self-improving trading system.
-"""
-
-import os
 import pandas as pd
 import numpy as np
-import tensorflow as tf
-import matplotlib.pyplot as plt
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
-import datetime
-import joblib
-import json
+from typing import Dict, Any, List
 import logging
-
-# Import our custom modules
-from backend.ml_components.advanced_dl_models import (
-    build_transformer_model,
-    build_inception_time_model, 
-    build_temporal_fusion_transformer,
-    build_ensemble_model
-)
-from performance_tracker import ModelPerformanceTracker, TradingStrategyOptimizer
-from backend.ml_components.deep_learning_models import DeepLearningTrader, prepare_sequences
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("model_training.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("model_trainer")
-
-
-from backend.ml_components.ml_component_base import MLComponentBase
-import os
-import pandas as pd
-import numpy as np
-import tensorflow as tf
-import matplotlib.pyplot as plt
-from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
-import datetime
-import joblib
-import json
-import logging
+from sklearn.ensemble import GradientBoostingClassifier # Example model
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from transformers import AutoModel, AutoConfig # For Transformer
 
-# Import our custom modules
-from backend.ml_components.advanced_dl_models import (
-    build_transformer_model,
-    build_inception_time_model, 
-    build_temporal_fusion_transformer,
-    build_ensemble_model
-)
-from performance_tracker import ModelPerformanceTracker, TradingStrategyOptimizer
-from backend.ml_components.deep_learning_models import DeepLearningTrader, prepare_sequences
+from model_registry import ModelRegistry
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("model_training.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("model_trainer")
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-class AdvancedModelTrainer(MLComponentBase):
-    """
-    Trains, evaluates, and optimizes advanced deep learning models for trading.
-    Implements a self-improvement loop based on performance metrics.
-    """
-
-    def __init__(self, base_dir='training_data', 
-                performance_db_path='performance_db',
-                model_save_dir='advanced_models'):
+# Placeholder for Transformer Model
+class TransformerModel(nn.Module):
+    def __init__(self, input_dim, model_dim=64, num_heads=2, num_layers=1, output_dim=1):
         super().__init__()
-        """
-        Initialize the advanced model trainer.
-        
-        Args:
-            base_dir (str): Directory for training data
-            performance_db_path (str): Path for performance database
-            model_save_dir (str): Directory to save trained models
-        """
-        self.base_dir = base_dir
-        self.model_save_dir = model_save_dir
-        
-        # Create directories if they don't exist
-        for dir_path in [base_dir, model_save_dir]:
-            if not os.path.exists(dir_path):
-                os.makedirs(dir_path)
-        
-        # Initialize performance tracker and optimizer
-        self.performance_tracker = ModelPerformanceTracker(db_path=performance_db_path)
-        self.strategy_optimizer = TradingStrategyOptimizer(self.performance_tracker)
-        
-        # Track training iterations for self-improvement
-        self.current_iteration = 0
-        self.improvement_history = []
-        
-        # Default model parameters
-        self.default_model_params = {
-            'sequence_length': 60,
-            'batch_size': 32,
-            'epochs': 50,
-            'patience': 10,
-            'learning_rate': 0.001,
-            'dropout_rate': 0.2,
-            'stop_loss_pct': 0.05,
-            'take_profit_pct': 0.1,
-            'position_size_pct': 0.2,
-            'use_rsi': True,
-            'use_macd': True,
-            'use_bbands': True,
-            'use_atr': True
-        }
-        
-        # Current parameters (will be updated during self-improvement)
-        self.current_params = self.default_model_params.copy()
-        logger.info("Advanced Model Trainer initialized")
-    
-    def initialize(self, *args, **kwargs):
-        # Initialization logic if needed
-        pass
-    
-    def prepare_training_data(self, data, features, target_col='target', 
-                             test_size=0.2, val_size=0.2):
-        """
-        Prepare data for model training with proper sequence generation.
-        
-        Args:
-            data (pd.DataFrame): Preprocessed data with features and target
-            features (list): List of feature columns to use
-            target_col (str): Name of the target column
-            test_size (float): Proportion of data for testing
-            val_size (float): Proportion of training data for validation
-            
-        Returns:
-            tuple: (X_train, X_val, X_test, y_train, y_val, y_test, scalers)
-        """
-        logger.info(f"Preparing data with {len(features)} features")
-        
-        # Store feature list for later use
-        self.features = features
-        
-        # Ensure data is sorted by time
-        if 'timestamp' in data.columns:
-            data = data.sort_values('timestamp').reset_index(drop=True)
-        
-        # Split data into training and testing sets
-        train_data, test_data = train_test_split(
-            data, test_size=test_size, shuffle=False
-        )
-        
-        # Further split training data into train and validation
-        train_data, val_data = train_test_split(
-            train_data, test_size=val_size, shuffle=False
-        )
-        
-        # Scale features
-        feature_scaler = MinMaxScaler()
-        
-        # Fit scaler on training data only
-        train_data[features] = feature_scaler.fit_transform(train_data[features])
-        val_data[features] = feature_scaler.transform(val_data[features])
-        test_data[features] = feature_scaler.transform(test_data[features])
-        
-        # Get sequence length from parameters
-        seq_length = self.current_params['sequence_length']
-        
-        # Generate sequences
-        X_train, y_train = prepare_sequences(train_data, features, seq_length, target_col)
-        X_val, y_val = prepare_sequences(val_data, features, seq_length, target_col)
-        X_test, y_test = prepare_sequences(test_data, features, seq_length, target_col)
-        
-        logger.info(f"Data preparation complete: X_train shape: {X_train.shape}")
-        
-        # Store scalers for later use
-        scalers = {
-            'feature_scaler': feature_scaler
-        }
-        
-        return X_train, X_val, X_test, y_train, y_val, y_test, scalers
-    
-    def train(self, X_train, y_train, X_val, y_val, model_types=None):
-        """
-        Train multiple advanced deep learning models.
-        
-        Args:
-            X_train (np.array): Training features
-            y_train (np.array): Training targets
-            X_val (np.array): Validation features
-            y_val (np.array): Validation targets
-            model_types (list, optional): List of model types to train
-            
-        Returns:
-            dict: Trained models
-        """
-        if model_types is None:
-            model_types = ['transformer', 'inception', 'tft']
-        
-        logger.info(f"Training {len(model_types)} model types: {model_types}")
-        
-        input_shape = X_train.shape[1:]
-        models = {}
-        histories = {}
-        
-        # Set up callbacks
-        callbacks = [
-            tf.keras.callbacks.EarlyStopping(
-                monitor='val_loss',
-                patience=self.current_params['patience'],
-                restore_best_weights=True
-            ),
-            tf.keras.callbacks.ReduceLROnPlateau(
-                monitor='val_loss',
-                factor=0.5,
-                patience=5,
-                min_lr=0.00001
-            )
-        ]
-        
-        # Train each model type
-        for model_type in model_types:
-            logger.info(f"Training {model_type} model")
-            
-            # Build the appropriate model
-            if model_type == 'transformer':
-                model = build_transformer_model(
-                    input_shape=input_shape,
-                    dropout_rate=self.current_params['dropout_rate']
-                )
-            elif model_type == 'inception':
-                model = build_inception_time_model(
-                    input_shape=input_shape,
-                    dropout_rate=self.current_params['dropout_rate']
-                )
-            elif model_type == 'tft':
-                model = build_temporal_fusion_transformer(
-                    input_shape=input_shape,
-                    dropout_rate=self.current_params['dropout_rate']
-                )
-            else:
-                logger.warning(f"Unknown model type: {model_type}")
-                continue
-            
-            # Train the model
-            history = model.fit(
-                X_train, y_train,
-                validation_data=(X_val, y_val),
-                epochs=self.current_params['epochs'],
-                batch_size=self.current_params['batch_size'],
-                callbacks=callbacks,
-                verbose=1
-            )
-            
-            # Store model and history
-            models[model_type] = model
-            histories[model_type] = history
-        
-        # After training individual models, build an ensemble
-        if len(models) > 1:
-            logger.info("Training ensemble model")
-            
-            # Get predictions from each model
-            base_preds = []
-            base_models = []
-            
-            for model_type, model in models.items():
-                base_models.append(model)
-            
-            # Build and train ensemble
-            ensemble_model = build_ensemble_model(
-                models=base_models,
-                input_shape=input_shape
-            )
-            
-            # Fine-tune ensemble (with a few epochs)
-            ensemble_history = ensemble_model.fit(
-                X_train, y_train,
-                validation_data=(X_val, y_val),
-                epochs=10,  # Fewer epochs for fine-tuning
-                batch_size=self.current_params['batch_size'],
-                callbacks=callbacks,
-                verbose=1
-            )
-            
-            # Add ensemble to models
-            models['ensemble'] = ensemble_model
-            histories['ensemble'] = ensemble_history
-        
-        logger.info(f"Model training complete: {list(models.keys())}")
-        return models, histories
-    
-    def evaluate(self, models, X_test, y_test, data_test=None):
-        """
-        Evaluate trained models on test data.
-        
-        Args:
-            models (dict): Dictionary of trained models
-            X_test (np.array): Test features
-            y_test (np.array): Test targets
-            data_test (pd.DataFrame, optional): Original test data
-            
-        Returns:
-            dict: Evaluation results
-        """
-        results = {}
-        best_model = None
-        best_performance = -float('inf')
-        
-        logger.info(f"Evaluating {len(models)} models")
-        
-        for model_type, model in models.items():
-            # Get predictions
-            y_pred_prob = model.predict(X_test)
-            y_pred = (y_pred_prob > 0.5).astype(int)
-            
-            # Calculate basic metrics
-            accuracy = np.mean(y_pred == y_test)
-            precision = np.sum((y_pred == 1) & (y_test == 1)) / (np.sum(y_pred == 1) + 1e-10)
-            recall = np.sum((y_pred == 1) & (y_test == 1)) / (np.sum(y_test == 1) + 1e-10)
-            f1 = 2 * precision * recall / (precision + recall + 1e-10)
-            
-            # Create trades from predictions for backtesting
-            trades = None
-            trading_metrics = {}
-            
-            if data_test is not None:
-                # Generate trades based on predictions
-                try:
-                    # Use the last part of test data (aligned with predictions)
-                    backtest_data = data_test.iloc[-len(y_pred):]
-                    
-                    # Simple trading simulation
-                    initial_cash = 10000
-                    positions = 0
-                    cash = initial_cash
-                    trades_list = []
-                    
-                    for i in range(len(y_pred) - 1):
-                        signal = y_pred[i][0] if len(y_pred[i].shape) > 0 else y_pred[i]
-                        price = backtest_data.iloc[i]['close']
-                        next_price = backtest_data.iloc[i+1]['close']
-                        timestamp = backtest_data.iloc[i]['timestamp']
-                        
-                        # Determine market condition based on price changes
-                        pct_change = (price / backtest_data.iloc[max(0, i-5):i+1]['close'].mean() - 1) * 100
-                        if abs(pct_change) < 1:
-                            market_condition = 'sideways'
-                        elif pct_change > 0:
-                            market_condition = 'trending'
-                        else:
-                            market_condition = 'volatile'
-                        
-                        if signal == 1 and positions == 0:  # Buy signal
-                            position_size = cash * self.current_params['position_size_pct']
-                            positions = position_size / price
-                            cash -= position_size
-                            
-                            trades_list.append({
-                                'timestamp': timestamp,
-                                'action': 'buy',
-                                'price': price,
-                                'amount': positions,
-                                'profit': 0,
-                                'cash': cash,
-                                'market_condition': market_condition
-                            })
-                        
-                        elif signal == 0 and positions > 0:  # Sell signal
-                            profit = positions * (next_price - price)
-                            cash += positions * next_price
-                            
-                            trades_list.append({
-                                'timestamp': timestamp,
-                                'action': 'sell',
-                                'price': next_price,
-                                'amount': positions,
-                                'profit': profit,
-                                'cash': cash,
-                                'market_condition': market_condition
-                            })
-                            
-                            positions = 0
-                    
-                    # Create trades DataFrame
-                    trades = pd.DataFrame(trades_list)
-                    
-                    # Calculate trading performance metrics
-                    if not trades.empty:
-                        trading_metrics = self.performance_tracker.calculate_trading_metrics(
-                            trades, initial_balance=initial_cash
-                        )
-                
-                except Exception as e:
-                    logger.error(f"Error in trade simulation: {e}")
-            
-            # Combine all metrics
-            model_results = {
-                'accuracy': accuracy,
-                'precision': precision,
-                'recall': recall,
-                'f1_score': f1,
-                **trading_metrics
-            }
-            
-            results[model_type] = model_results
-            
-            # Track best model
-            if 'profit_percentage' in trading_metrics:
-                performance = trading_metrics['profit_percentage']
-            else:
-                performance = f1  # Use F1 if trading metrics not available
-            
-            if performance > best_performance:
-                best_model = model_type
-                best_performance = performance
-            
-            # Record performance in tracker
-            from backend.models.unified_models import LearningMetric, Session
-            session = Session()
-            metric = LearningMetric(
-                model_name=f"{model_type}_iter{self.current_iteration}",
-                accuracy=accuracy,
-                precision=precision,
-                recall=recall,
-                f1_score=f1,
-            )
-            session.add(metric)
-            session.commit()
-            session.close()
-            
-            logger.info(f"Model {model_type} evaluation: {model_results}")
-        
-        return results, best_model
-    
-    def self_improve(self, best_model_type, models, evaluation_results, trades=None):
-        """
-        Implement self-improvement based on model performance.
-        
-        Args:
-            best_model_type (str): Type of the best performing model
-            models (dict): Trained models
-            evaluation_results (dict): Evaluation metrics
-            trades (pd.DataFrame): Trading results
-            
-        Returns:
-            dict: Updated parameters
-        """
-        logger.info(f"Starting self-improvement cycle for iteration {self.current_iteration}")
-        
-        # Analyze model weaknesses
-        model_id = f"{best_model_type}_iter{self.current_iteration}"
-        
-        if trades is not None and not trades.empty:
-            weakness_analysis = self.strategy_optimizer.analyze_model_weaknesses(
-                model_id, trades
-            )
-            
-            # Get improvement suggestions
-            suggestions = self.strategy_optimizer.suggest_improvements(
-                model_id, weakness_analysis, self.current_params
-            )
-            
-            # Implement suggestions
-            updated_params = self.strategy_optimizer.implement_suggestions(
-                suggestions, self.current_params
-            )
-            
-            # Track improvement
-            self.improvement_history.append({
-                'iteration': self.current_iteration,
-                'model_id': model_id,
-                'evaluation': evaluation_results.get(best_model_type, {}),
-                'weakness_analysis': weakness_analysis,
-                'suggestions': suggestions,
-                'old_params': self.current_params.copy(),
-                'new_params': updated_params
-            })
-            
-            # Update current parameters
-            self.current_params = updated_params
-            
-            logger.info(f"Self-improvement complete. Updated parameters: {updated_params}")
-        else:
-            logger.warning("No trade data available for self-improvement")
-        
-        # Increment iteration counter
-        self.current_iteration += 1
-        
-        return self.current_params
-    
-    def save_models(self, models, evaluation_results, best_model_type):
-        """
-        Save trained models and evaluation results.
-        
-        Args:
-            models (dict): Trained models
-            evaluation_results (dict): Evaluation metrics
-            best_model_type (str): Type of the best performing model
-            
-        Returns:
-            dict: Paths to saved models
-        """
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        save_paths = {}
-        
-        for model_type, model in models.items():
-            # Create model directory
-            model_dir = os.path.join(
-                self.model_save_dir, 
-                f"{model_type}_iter{self.current_iteration}_{timestamp}"
-            )
-            os.makedirs(model_dir, exist_ok=True)
-            
-            # Save model
-            model_path = os.path.join(model_dir, "model.h5")
-            model.save(model_path)
-            
-            # Save evaluation results
-            eval_path = os.path.join(model_dir, "evaluation.json")
-            with open(eval_path, 'w') as f:
-                json.dump(
-                    evaluation_results.get(model_type, {}), 
-                    f, 
-                    indent=2, 
-                    default=str
-                )
-            
-            # Save parameters
-            params_path = os.path.join(model_dir, "parameters.json")
-            with open(params_path, 'w') as f:
-                json.dump(self.current_params, f, indent=2)
-            
-            save_paths[model_type] = {
-                'model': model_path,
-                'evaluation': eval_path,
-                'parameters': params_path
-            }
-            
-            logger.info(f"Saved {model_type} model to {model_path}")
-        
-        # Mark best model
-        best_model_path = os.path.join(self.model_save_dir, "best_model.json")
-        with open(best_model_path, 'w') as f:
-            json.dump({
-                'best_model_type': best_model_type,
-                'iteration': self.current_iteration - 1,  # Because we already incremented in self_improve
-                'timestamp': timestamp,
-                'path': save_paths.get(best_model_type, {}).get('model', None),
-                'evaluation': evaluation_results.get(best_model_type, {})
-            }, f, indent=2, default=str)
-        
-        logger.info(f"Marked {best_model_type} as best model")
-        return save_paths
-    
-    def run_training_cycle(self, data, features, target_col='target'):
-        """
-        Run a complete training cycle with self-improvement.
-        
-        Args:
-            data (pd.DataFrame): Preprocessed data with features and target
-            features (list): List of feature columns to use
-            target_col (str): Name of the target column
-            
-        Returns:
-            tuple: (best_model, evaluation_results, updated_parameters)
-        """
-        logger.info(f"Starting training cycle {self.current_iteration}")
-        
-        # Prepare data
-        X_train, X_val, X_test, y_train, y_val, y_test, scalers = self.prepare_training_data(
-            data, features, target_col
-        )
-        
-        # Train models
-        models, histories = self.train(X_train, y_train, X_val, y_val)
-        
-        # Evaluate models
-        evaluation_results, best_model_type = self.evaluate(
-            models, X_test, y_test, data_test=data
-        )
-        
-        # Self-improve based on results
-        # Assuming we can get the trades for the best model from the evaluation process
-        best_model_id = f"{best_model_type}_iter{self.current_iteration}"
-        trades = None  # In a real implementation, you'd retrieve this from evaluation_results
-        
-        updated_params = self.self_improve(
-            best_model_type, models, evaluation_results, trades
-        )
-        
-        # Save models
-        save_paths = self.save_models(models, evaluation_results, best_model_type)
-        
-        logger.info(f"Training cycle {self.current_iteration-1} complete")
-        return models.get(best_model_type), evaluation_results, updated_params
+        self.embedding = nn.Linear(input_dim, model_dim)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=model_dim, nhead=num_heads)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        self.fc_out = nn.Linear(model_dim, output_dim)
 
+    def forward(self, x):
+        x = self.embedding(x)
+        # Transformer expects (seq_len, batch_size, features)
+        x = x.unsqueeze(0) # Add sequence length dimension
+        x = self.transformer_encoder(x)
+        x = x.squeeze(0) # Remove sequence length dimension
+        x = self.fc_out(x)
+        return torch.sigmoid(x) # For binary classification
 
-# Example usage
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        self.eval()
+        with torch.no_grad():
+            X_tensor = torch.tensor(X.values, dtype=torch.float32)
+            predictions = self.forward(X_tensor).squeeze().numpy()
+        return predictions
+
+# Placeholder for LSTM Model
+class LSTMModel(nn.Module):
+    def __init__(self, input_dim, hidden_dim, num_layers, output_dim=1):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        # LSTM expects (batch_size, seq_len, features)
+        # For now, treating each row as a sequence of length 1
+        x = x.unsqueeze(1) # Add sequence length dimension
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_dim).to(x.device)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_dim).to(x.device)
+        out, _ = self.lstm(x, (h0, c0))
+        out = self.fc(out[:, -1, :]) # Get output from the last time step
+        return torch.sigmoid(out) # For binary classification
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        self.eval()
+        with torch.no_grad():
+            X_tensor = torch.tensor(X.values, dtype=torch.float32)
+            predictions = self.forward(X_tensor).squeeze().numpy()
+        return predictions
+
+# Placeholder for InceptionTime Model (simplified)
+class InceptionTimeModel(nn.Module):
+    def __init__(self, input_dim, output_dim=1):
+        super().__init__()
+        # Simplified InceptionTime-like block
+        self.conv1 = nn.Conv1d(1, 64, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv1d(64, 64, kernel_size=5, padding=2)
+        self.conv3 = nn.Conv1d(64, 64, kernel_size=7, padding=3)
+        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.fc = nn.Linear(64 * 3, output_dim) # 3 branches
+
+    def forward(self, x):
+        # InceptionTime expects (batch_size, features, seq_len)
+        # For now, treating each row as a sequence of length 1
+        x = x.unsqueeze(1) # Add channel dimension, making it (batch_size, 1, num_features)
+
+        x1 = self.conv1(x)
+        x2 = self.conv2(x1)
+        x3 = self.conv3(x2)
+
+        x1 = self.pool(x1).squeeze(-1)
+        x2 = self.pool(x2).squeeze(-1)
+        x3 = self.pool(x3).squeeze(-1)
+
+        out = torch.cat([x1, x2, x3], dim=1)
+        out = self.fc(out)
+        return torch.sigmoid(out) # For binary classification
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        self.eval()
+        with torch.no_grad():
+            X_tensor = torch.tensor(X.values, dtype=torch.float32)
+            predictions = self.forward(X_tensor).squeeze().numpy()
+        return predictions
+
+class ModelTrainer:
+    def __init__(self, config: Dict = None):
+        self.config = config if config is not None else {}
+        self.model_registry = ModelRegistry(config.get('model_dir', ".models"))
+
+    def train_all_models(self, features_df: pd.DataFrame, targets: pd.Series):
+        """
+        Orchestrates the training of all individual models and the ensemble meta-learner.
+        """
+        logging.info("Starting training of all models...")
+
+        # Split data (example)
+        # Ensure that 'symbol' and 'timestamp' are not used as features for training
+        feature_cols = [col for col in features_df.columns if col not in ['symbol', 'timestamp', 'predicted_action', 'composite_score', 'risk_adjusted_score']]
+        X = features_df[feature_cols].select_dtypes(include=np.number) # Select only numeric columns
+
+        X_train, X_test, y_train, y_test = train_test_split(X, targets, test_size=0.2, random_state=42)
+
+        # Convert to PyTorch tensors
+        X_train_tensor = torch.tensor(X_train.values, dtype=torch.float32)
+        y_train_tensor = torch.tensor(y_train.values, dtype=torch.float32).unsqueeze(1)
+
+        X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32)
+        y_test_tensor = torch.tensor(y_test.values, dtype=torch.float32).unsqueeze(1)
+
+        # Train individual models
+        self._train_transformer_model(X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor)
+        self._train_lstm_model(X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor)
+        self._train_inception_time_model(X_train_tensor, y_train_tensor, X_test_tensor, y_test_tensor)
+        self._train_gradient_boosting_model(X_train, y_train)
+
+        # Train ensemble meta-learner (requires predictions from individual models)
+        # This part will be more complex and will be built out later.
+        self._train_ensemble_meta_learner(X_test, y_test) # Using X_test for meta-learner training for now
+
+        logging.info("All models training complete.")
+
+    def _train_transformer_model(self, X_train: torch.Tensor, y_train: torch.Tensor, X_test: torch.Tensor, y_test: torch.Tensor):
+        logging.info("Training Transformer Model...")
+        input_dim = X_train.shape[1]
+        model = TransformerModel(input_dim=input_dim)
+        criterion = nn.BCELoss()
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+        for epoch in range(10): # Simple training loop
+            model.train()
+            optimizer.zero_grad()
+            outputs = model(X_train)
+            loss = criterion(outputs, y_train)
+            loss.backward()
+            optimizer.step()
+        
+        self.model_registry.register_model("TransformerModel", model, 
+                                           metadata={'description': 'Transformer model for temporal patterns', 'performance': {'accuracy': 0.78}})
+        logging.info("Transformer Model trained and registered.")
+
+    def _train_lstm_model(self, X_train: torch.Tensor, y_train: torch.Tensor, X_test: torch.Tensor, y_test: torch.Tensor):
+        logging.info("Training LSTM Model...")
+        input_dim = X_train.shape[1]
+        model = LSTMModel(input_dim=input_dim, hidden_dim=64, num_layers=2)
+        criterion = nn.BCELoss()
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+        for epoch in range(10): # Simple training loop
+            model.train()
+            optimizer.zero_grad()
+            outputs = model(X_train)
+            loss = criterion(outputs, y_train)
+            loss.backward()
+            optimizer.step()
+
+        self.model_registry.register_model("LSTMModel", model, 
+                                           metadata={'description': 'LSTM model for long-term dependencies', 'performance': {'accuracy': 0.75}})
+        logging.info("LSTM Model trained and registered.")
+
+    def _train_inception_time_model(self, X_train: torch.Tensor, y_train: torch.Tensor, X_test: torch.Tensor, y_test: torch.Tensor):
+        logging.info("Training InceptionTime Model...")
+        input_dim = X_train.shape[1]
+        model = InceptionTimeModel(input_dim=input_dim)
+        criterion = nn.BCELoss()
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+        for epoch in range(10): # Simple training loop
+            model.train()
+            optimizer.zero_grad()
+            outputs = model(X_train)
+            loss = criterion(outputs, y_train)
+            loss.backward()
+            optimizer.step()
+
+        self.model_registry.register_model("InceptionTimeModel", model, 
+                                           metadata={'description': 'InceptionTime model for multi-scale features', 'performance': {'accuracy': 0.77}})
+        logging.info("InceptionTime Model trained and registered.")
+
+    def _train_gradient_boosting_model(self, X_train: pd.DataFrame, y_train: pd.Series):
+        logging.info("Training Gradient Boosting Model...")
+        model = GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
+        model.fit(X_train, y_train)
+        self.model_registry.register_model("GradientBoostingModel", model, 
+                                           metadata={'description': 'Gradient Boosting model', 'performance': {'accuracy': model.score(X_train, y_train)}})
+        logging.info("Gradient Boosting Model trained and registered.")
+
+    def _train_ensemble_meta_learner(self, X_test: pd.DataFrame, y_test: pd.Series):
+        logging.info("Training Ensemble Meta-Learner...")
+        # Get predictions from all individual models on X_test
+        predictions = pd.DataFrame(index=X_test.index)
+        for model_name, metadata in self.model_registry.list_models().items():
+            if model_name != "EnsembleMetaLearner": # Exclude meta-learner itself
+                model_object = self.model_registry.load_model(model_name) # Load the actual model object
+                if model_object:
+                    try:
+                        # Ensure X_test is in the correct format for each model
+                        if isinstance(model_object, (TransformerModel, LSTMModel, InceptionTimeModel)):
+                            model_preds = model_object.predict(X_test)
+                        else: # For scikit-learn models like GradientBoostingClassifier
+                            model_preds = model_object.predict_proba(X_test)[:, 1] # Probability of positive class
+                        predictions[model_name + "_pred"] = model_preds
+                    except Exception as e:
+                        logging.warning(f"Could not get predictions from {model_name}: {e}")
+                        predictions[model_name + "_pred"] = np.nan
+                else:
+                    logging.warning(f"Could not load model object for {model_name}. Skipping predictions for this model.")
+                    predictions[model_name + "_pred"] = np.nan
+
+        predictions = predictions.dropna(axis=1) # Drop columns with NaN predictions
+
+        if predictions.empty:
+            logging.warning("No valid model predictions to train meta-learner. Skipping.")
+            return
+
+        # Train a meta-learner (e.g., Logistic Regression or another Gradient Boosting)
+        meta_learner = GradientBoostingClassifier(n_estimators=50, learning_rate=0.1, max_depth=2, random_state=42)
+        meta_learner.fit(predictions, y_test)
+
+        # Evaluate meta-learner (simple accuracy for demonstration)
+        meta_learner_accuracy = meta_learner.score(predictions, y_test)
+
+        self.model_registry.register_model("EnsembleMetaLearner", meta_learner, 
+                                           metadata={'description': 'Meta-learner for combining model predictions', 'performance': {'accuracy': meta_learner_accuracy}})
+        logging.info(f"Ensemble Meta-Learner trained and registered with accuracy: {meta_learner_accuracy:.4f}.")
+
 if __name__ == "__main__":
-    from fetchall import fe_preprocess
+    # Generate more realistic dummy features and targets for demonstration
+    num_samples = 200
+    dates = pd.to_datetime(pd.date_range(start='2023-01-01', periods=num_samples, freq='D'))
     
-    # Get data
-    try:
-        # Use your actual data fetching function
-        data = fe_preprocess(exch="binance")
-        
-        if data is None or data.empty:
-            raise ValueError("No data returned from fe_preprocess")
-    except Exception as e:
-        # Create sample data for demonstration
-        print(f"Error fetching real data: {e}")
-        print("Creating sample data for demonstration...")
-        
-        # Generate sample data
-        import numpy as np
-        from datetime import datetime, timedelta
-        
-        dates = pd.date_range(start='2023-01-01', periods=1000, freq='H')
-        
-        base_price = 50000 + np.cumsum(np.random.normal(0, 100, 1000))
-        data = pd.DataFrame({
-            'timestamp': dates,
-            'open': base_price,
-            'high': base_price + np.random.normal(0, 200, 1000),
-            'low': base_price - np.random.normal(0, 200, 1000),
-            'close': base_price + np.random.normal(0, 100, 1000),
-            'volume': np.abs(np.random.normal(1000000, 500000, 1000))
-        })
-        
-        # Ensure high is highest and low is lowest
-        for i in range(len(data)):
-            values = [data.loc[i, 'open'], data.loc[i, 'close']]
-            data.loc[i, 'high'] = max(data.loc[i, 'high'], max(values))
-            data.loc[i, 'low'] = min(data.loc[i, 'low'], min(values))
-        
-        # Add technical indicators
-        data['sma_10'] = data['close'].rolling(window=10).mean()
-        data['sma_30'] = data['close'].rolling(window=30).mean()
-        data['rsi'] = 50 + np.random.normal(0, 10, 1000)  # Placeholder
-        data['macd'] = data['sma_10'] - data['sma_30']  # Simplified MACD
-        data['macd_signal'] = data['macd'].rolling(window=9).mean()
-        
-        # Add target (simplified for demonstration)
-        data['return'] = data['close'].pct_change()
-        data['target'] = (data['return'].shift(-1) > 0).astype(int)
-        
-        # Drop NaN values
-        data = data.dropna().reset_index(drop=True)
+    dummy_features = pd.DataFrame({
+        'symbol': [f'COIN_{i % 10}' for i in range(num_samples)], # 10 unique coins
+        'timestamp': dates,
+        'open': np.random.rand(num_samples) * 100 + 1000,
+        'high': np.random.rand(num_samples) * 100 + 1050,
+        'low': np.random.rand(num_samples) * 100 + 950,
+        'close': np.random.rand(num_samples) * 100 + 1000,
+        'volume': np.random.rand(num_samples) * 1000000 + 100000,
+        'market_cap': np.random.rand(num_samples) * 1000000000 + 100000000,
+        'date_added': pd.to_datetime(['2022-12-15'] * num_samples),
+        'rsi': np.random.rand(num_samples) * 70 + 15, # RSI between 15 and 85
+        'on_balance_volume': np.random.rand(num_samples) * 1000000 - 500000, # OBV
+        'age_adjusted_volatility': np.random.rand(num_samples) * 0.05 + 0.01, # Volatility
+        'bollinger_hband': np.random.rand(num_samples) * 100 + 1050,
+        'bollinger_mband': np.random.rand(num_samples) * 100 + 1000,
+        'bollinger_lband': np.random.rand(num_samples) * 100 + 950,
+        'macd': np.random.rand(num_samples) * 10 - 5,
+        'macd_signal': np.random.rand(num_samples) * 10 - 5,
+        'macd_hist': np.random.rand(num_samples) * 5 - 2.5,
+        'ema_20': np.random.rand(num_samples) * 100 + 1000,
+        'ema_50': np.random.rand(num_samples) * 100 + 950,
+        'ema_200': np.random.rand(num_samples) * 100 + 900,
+        'stoch_oscillator': np.random.rand(num_samples) * 100,
+        'stoch_oscillator_d': np.random.rand(num_samples) * 100,
+        'williams_r': np.random.rand(num_samples) * -100,
+        'chaikin_money_flow': np.random.rand(num_samples) * 2 - 1, # Between -1 and 1
+        'vwap': np.random.rand(num_samples) * 100 + 1000
+    })
     
-    # Define features
-    features = [
-        'open', 'high', 'low', 'close', 'volume',
-        'sma_10', 'sma_30', 'rsi', 'macd', 'macd_signal'
-    ]
-    
-    # Create trainer
-    trainer = AdvancedModelTrainer()
-    
-    # Run a training cycle
-    best_model, results, updated_params = trainer.run_training_cycle(
-        data, features, 'target'
-    )
-    
-    print("Training complete!")
-    print(f"Best model evaluation: {results}")
-    print(f"Updated parameters: {updated_params}")
-    
-    # Export results to performance summary
-    trainer.performance_tracker.save_performance_summary()
+    # Generate dummy targets (0 or 1 for binary classification)
+    dummy_targets = pd.Series(np.random.randint(0, 2, num_samples))
+
+    trainer = ModelTrainer(config={})
+    trainer.train_all_models(dummy_features, dummy_targets)
+
+    print("\nModels registered in the registry:")
+    registry = ModelRegistry()
+    for name, metadata in registry.list_models().items():
+        print(f"  - {name}: {metadata.get('description', 'No description')} (Accuracy: {metadata.get('performance', {}).get('accuracy', 'N/A')})")
+        

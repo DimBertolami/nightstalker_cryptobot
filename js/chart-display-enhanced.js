@@ -257,5 +257,5 @@ document.addEventListener('DOMContentLoaded', () => {
         if (selectedCoinId) {
             loadChart(selectedCoinId);
         }
-    }, 1500);
+    }, 2000);
 });

@@ -1,0 +1,8 @@
+{
+    "description": "Meta-learner for combining model predictions",
+    "performance": {
+        "accuracy": 0.975
+    },
+    "name": "EnsembleMetaLearner",
+    "timestamp": "2025-08-08T08:21:25.267528"
+}

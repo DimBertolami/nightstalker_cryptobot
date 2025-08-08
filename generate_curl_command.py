@@ -24,4 +24,4 @@ signature = hmac.new(SECRET_KEY.encode('utf-8'), query_string.encode('utf-8'), h
 
 curl_command = f"curl -H \"X-MBX-APIKEY: {API_KEY}\" -X POST 'https://testnet.binance.vision/api/v3/order' -d '{query_string}&signature={signature}'"
 
-print(curl_command)
+

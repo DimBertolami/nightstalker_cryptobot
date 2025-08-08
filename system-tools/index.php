@@ -74,13 +74,22 @@ $tools = [
         'category' => 'Data',
         'last_run' => getLastRunTime('bitvavoFromCMC4NS')
     ],
+        'cmc_fetch_bitvavo_coins' => [
+        'name' => 'CMC list of bitvavo coins',
+        'description' => 'Updates the database with latest bitvavo coins from CoinMarketCap API',
+        'script' => '/opt/lampp/htdocs/NS/crons/update_prices_bitvavo_native.py',
+        'icon' => 'fa-coins',
+        'category' => 'Data',
+        'last_run' => getLastRunTime('bitvavoFromCMC4NS')
+    ],
+    #/opt/lampp/htdocs/NS/crons/update_prices_bitvavo_native.py
     'cmc_fetch_binance_coins' => [
-        'name' => 'CMC list of binance coins',
+        'name' => 'native bitvavo price fetcher',
         'description' => 'Updates the database with latest binance coins from CoinMarketCap API',
         'script' => '/opt/lampp/htdocs/NS/crons/binanceFromCMC4NS.py',
         'icon' => 'fa-coins',
         'category' => 'Data',
-        'last_run' => getLastRunTime('binanceFromCMC4NS')
+        'last_run' => getLastRunTime('update_prices_bitvavo_native.py')
     ],
     'cron_manager' => [
         'name' => 'Cron Manager',

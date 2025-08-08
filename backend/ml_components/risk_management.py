@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple
 import threading
 import numpy as np
 from .ml_component_base import MLComponentBase
-from .utils import logger, ValidationError
+from .utils import ValidationError, setup_logger
 
 @dataclass
 class RiskLimits:
@@ -95,7 +95,7 @@ class RiskManager(MLComponentBase):
                 }
                 
             except Exception as e:
-                logger.error(f"Error updating position: {str(e)}")
+                setup_logger(__name__).error(f"Error updating position: {str(e)}")
                 return {
                     'success': False,
                     'error': str(e)
@@ -131,7 +131,7 @@ class RiskManager(MLComponentBase):
             self._check_risk_limits()
             
         except Exception as e:
-            logger.error(f"Error updating risk metrics: {str(e)}")
+            setup_logger(__name__).error(f"Error updating risk metrics: {str(e)}")
     
     def _check_risk_limits(self) -> None:
         """Check if any risk limits are breached"""
@@ -147,7 +147,7 @@ class RiskManager(MLComponentBase):
             violations.append("Volatility threshold exceeded")
         
         if violations:
-            logger.warning("Risk limit violations: " + ", ".join(violations))
+            setup_logger(__name__).warning("Risk limit violations: " + ", ".join(violations))
     
     def adjust_position_size(self, intended_size: float, 
                            volatility: float) -> float:
@@ -168,7 +168,7 @@ class RiskManager(MLComponentBase):
             return min(adjusted_size, max_size)
             
         except Exception as e:
-            logger.error(f"Error adjusting position size: {str(e)}")
+            setup_logger(__name__).error(f"Error adjusting position size: {str(e)}")
             return 0.0
     
     def update_market_volatility(self, returns: np.ndarray) -> None:
@@ -183,7 +183,7 @@ class RiskManager(MLComponentBase):
             )
             
         except Exception as e:
-            logger.error(f"Error updating volatility: {str(e)}")
+            setup_logger(__name__).error(f"Error updating volatility: {str(e)}")
     
     def get_current_risk_metrics(self) -> Dict[str, float]:
         """Get current risk metrics"""
@@ -230,5 +230,5 @@ class RiskManager(MLComponentBase):
                 self._check_risk_limits()
                 
         except Exception as e:
-            logger.error(f"Error updating risk limits: {str(e)}")
+            setup_logger(__name__).error(f"Error updating risk limits: {str(e)}")
             raise

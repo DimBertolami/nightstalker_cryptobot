@@ -130,21 +130,37 @@ function calculateMACD($prices, $fastPeriod = 12, $slowPeriod = 26, $signalPerio
 }
 
 try {
+    error_log("API: Attempting to get DB connection.");
     $db = getDbConnection();
+    error_log("API: DB connection established.");
 
     // Fetch historical price data
-    error_log("Fetching price history for coin ID: " . $coinId);
+    error_log("API: Fetching price history for coin ID: " . $coinId);
     try {
         $stmt = $db->prepare("SELECT recorded_at, price FROM price_history WHERE coin_id = ? ORDER BY recorded_at ASC");
         $stmt->execute([$coinId]);
         $history = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        error_log("Fetched price history: " . json_encode($history));
+        error_log("API: Fetched price history count: " . count($history));
     } catch (PDOException $e) {
-        error_log("PDO Error fetching price history for $coinId: " . $e->getMessage());
+        error_log("API: PDO Error fetching price history for $coinId: " . $e->getMessage());
         throw $e; // Re-throw to be caught by the outer catch block
     }
 
     $formattedHistory = [];
+    $prices = [];
+    if (empty($history)) {
+        error_log("API: No history data for $coinId. Returning empty response.");
+        echo json_encode([
+            'history' => [],
+            'apex' => null,
+            'purchase_time' => null,
+            'latest_recorded_time' => null,
+            'coin_status' => 'no_data',
+            'drop_start_timestamp' => null
+        ]);
+        exit();
+    }
+
     foreach ($history as $row) {
         $formattedHistory[] = [
             'time' => strtotime($row['recorded_at']) * 1000, // Convert to milliseconds for JavaScript
@@ -152,35 +168,21 @@ try {
         ];
         $prices[] = (float)$row['price'];
     }
-
-    // Calculate indicators
-    $sma = calculateSMA($prices, 20); // 20-period SMA
-    $ema = calculateEMA($prices, 14); // 14-period EMA
-    $rsi = calculateRSI($prices, 14); // 14-period RSI
-    $bollingerBands = calculateBollingerBands($prices); // Default 20-period, 2 std dev
-    $macd = calculateMACD($prices);
-
-    // Add indicators to formatted history
-    foreach ($formattedHistory as $key => $value) {
-        $formattedHistory[$key]['sma'] = $sma[$key] ?? null;
-        $formattedHistory[$key]['ema'] = $ema[$key] ?? null;
-        $formattedHistory[$key]['rsi'] = $rsi[$key] ?? null;
-        $formattedHistory[$key]['bb_upper'] = $bollingerBands[$key]['upper'] ?? null;
-        $formattedHistory[$key]['bb_middle'] = $bollingerBands[$key]['middle'] ?? null;
-        $formattedHistory[$key]['bb_lower'] = $bollingerBands[$key]['lower'] ?? null;
-        $formattedHistory[$key]['macd_line'] = $macd['macdLine'][$key] ?? null;
-        $formattedHistory[$key]['macd_signal'] = $macd['signalLine'][$key] ?? null;
-        $formattedHistory[$key]['macd_histogram'] = $macd['histogram'][$key] ?? null;
-    }
+    error_log("API: Formatted history and prices prepared.");
 
     // Fetch apex data from coin_apex_prices table
     $apexData = null;
+    $coinStatus = 'monitoring'; // Default status
+    $dropStartTimestamp = null;
+
+    error_log("API: Fetching apex data for coin ID: " . $coinId);
     try {
         $stmtApex = $db->prepare("SELECT apex_price, apex_timestamp, drop_start_timestamp, status FROM coin_apex_prices WHERE coin_id = ?");
         $stmtApex->execute([$coinId]);
         $apexResult = $stmtApex->fetch(PDO::FETCH_ASSOC);
+        error_log("API: Apex data fetch result: " . json_encode($apexResult));
     } catch (PDOException $e) {
-        error_log("PDO Error fetching apex data for $coinId: " . $e->getMessage());
+        error_log("API: PDO Error fetching apex data for $coinId: " . $e->getMessage());
         throw $e; // Re-throw
     }
 
@@ -191,25 +193,31 @@ try {
         ];
         $coinStatus = $apexResult['status'];
         $dropStartTimestamp = $apexResult['drop_start_timestamp'] ? strtotime($apexResult['drop_start_timestamp']) * 1000 : null;
+
+        error_log("API: Before status check - coinStatus: " . $coinStatus . ", dropStartTimestamp: " . ($dropStartTimestamp ? date('Y-m-d H:i:s', $dropStartTimestamp / 1000) : 'null'));
+
+        // If coin is dropping and drop_start_timestamp is in the past, adjust status
+        if ($coinStatus === 'dropping' && $dropStartTimestamp !== null && $dropStartTimestamp < (time() * 1000)) {
+            error_log("API: Coin $coinId was dropping, but drop_start_timestamp is in the past. Setting status to dropped.");
+            $coinStatus = 'dropped'; // Or 'stable' depending on desired behavior after drop
+            $dropStartTimestamp = null; // No longer relevant for countdown
+        }
     } else {
         $coinStatus = 'not_monitored';
     }
+    error_log("API: Apex data and coin status processed.");
 
     $purchaseTime = null;
     $latestRecordedTime = null;
 
     if (!empty($formattedHistory)) {
-        // Assuming the first entry in history is close to purchase time for simplicity
         $purchaseTime = $formattedHistory[0]['time'];
         $latestRecordedTime = end($formattedHistory)['time'];
     }
+    error_log("API: Purchase and latest recorded time determined.");
 
-    error_log("Chart Data - History: " . json_encode($formattedHistory));
-    error_log("Chart Data - Apex: " . json_encode($apexData));
-    error_log("Chart Data - Purchase Time: " . $purchaseTime);
-    error_log("Chart Data - Latest Recorded Time: " . $latestRecordedTime);
-    error_log("Chart Data - Coin Status: " . $coinStatus);
-    error_log("Chart Data - Drop Start Timestamp: " . $dropStartTimestamp);
+    error_log("API: Final Chart Data - Coin Status: " . $coinStatus);
+    error_log("API: Final Chart Data - Drop Start Timestamp: " . $dropStartTimestamp);
 
     echo json_encode([
         'history' => $formattedHistory,
@@ -221,10 +229,10 @@ try {
     ]);
 
 } catch (PDOException $e) {
-    error_log("Error fetching chart data: " . $e->getMessage());
+    error_log("API: Caught PDO Error: " . $e->getMessage());
     echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
 } catch (Exception $e) {
-    error_log("General error fetching chart data: " . $e->getMessage());
+    error_log("API: Caught General Error: " . $e->getMessage());
     echo json_encode(['error' => 'An unexpected error occurred: ' . $e->getMessage()]);
 }
 ?>

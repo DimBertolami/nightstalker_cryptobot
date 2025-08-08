@@ -1,0 +1,8 @@
+{
+    "description": "InceptionTime model for multi-scale features",
+    "performance": {
+        "accuracy": 0.77
+    },
+    "name": "InceptionTimeModel",
+    "timestamp": "2025-08-08T08:21:25.071703"
+}

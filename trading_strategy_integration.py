@@ -639,4 +639,4 @@ if __name__ == "__main__":
             print("Failed to load data for backtesting")
     
     except Exception as e:
-        print(f"Error running backtesting: {e}")
+        

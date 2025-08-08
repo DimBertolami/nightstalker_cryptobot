@@ -236,13 +236,20 @@ try {
                     </h3>
                 </div>
                 <div class="card-body">
+                    <?php if (empty($trendingCoins) && empty($newCoins)): ?>
+                        <div class="alert alert-info text-center" id="no-data-alert">
+                            <p>No trading data available to display the chart.</p>
+                            <p>Please go to the <a href="coins.php">Coins page</a>, buy a coin from the list, and then refresh the Coins page using its refresh button to see the chart in action.</p>
+                        </div>
+                    <?php endif; ?>
                     <div class="controls mb-3">
                         <label for="coinSelect" class="form-label">Select Coin:</label>
                         <select id="coinSelect" class="form-select d-inline-block w-auto me-2">
                             <!-- Options will be populated by JavaScript -->
                         </select>
                         <button id="loadChartButton" class="btn btn-primary">Load Chart</button>
-                        <button id="toggleIndicatorsButton" class="btn btn-info">Toggle Indicators & Auto-Refresh</button>
+                        
+                        
                     </div>
                     <div class="chart-container">
                         <canvas id="priceChart"></canvas>

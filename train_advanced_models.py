@@ -35,8 +35,8 @@ try:
     from crypto_data_processing import fetch_historical_data
     from model_evaluation import evaluate_trading_performance
 except ImportError as e:
-    print(f"Warning: Could not import some modules: {e}")
-    print("Some functionality may be limited.")
+    
+    
 
 # Configure logging
 logging.basicConfig(
@@ -530,22 +530,22 @@ def main():
         export_for_react_frontend(trainer, best_model_id)
         
         logger.info("Advanced training pipeline completed successfully")
-        print("\n========== TRAINING COMPLETE ==========")
-        print(f"Best model: {best_model_id}")
+        
+        
         
         if best_metrics:
             best_model_metrics = best_metrics[list(best_metrics.keys())[0]]
-            print("\nPerformance Metrics:")
+            
             for key, value in best_model_metrics.items():
-                print(f"  {key}: {value}")
+                
         
-        print("\nCheck the 'advanced_models' directory for saved models")
-        print("Check the 'frontend_data' directory for React-compatible results")
-        print("========================================\n")
+        
+        
+        
         
     except Exception as e:
         logger.error(f"Error in training pipeline: {e}", exc_info=True)
-        print(f"Error: {e}")
+        
         return 1
     
     return 0

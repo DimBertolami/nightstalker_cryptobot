@@ -40,7 +40,7 @@ def check_data():
                 print("\nConclusion: There is data in the database. The issue is likely in the API endpoint logic or the frontend JavaScript.")
 
     except Exception as e:
-        print(f"An error occurred: {e}")
+        
 
 if __name__ == "__main__":
     check_data()

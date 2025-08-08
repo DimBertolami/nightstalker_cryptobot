@@ -1,0 +1,10 @@
+mysql-connector-python
+SQLAlchemy
+optuna
+scikit-optimize
+bayesian-optimization
+ta-lib
+shap
+lime
+transformers
+torch

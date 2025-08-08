@@ -110,6 +110,7 @@ try {
                     'market_cap' => $coin['marketcap'],
                     'date_added' => $coin['date_added'] ?? date('Y-m-d H:i:s'),
                     'age_hours' => isset($coin['date_added']) ? round((time() - strtotime($coin['date_added'])) / 3600, 1) : 0,
+                    'timestamp' => date('c'), // Add current timestamp
                     'is_trending' => isset($coin['volume_spike']) && $coin['volume_spike'] > 0,
                     'volume_spike' => $coin['volume_spike'] ?? 0,
                     'source' => 'Local',
@@ -337,6 +338,9 @@ $coins = array_filter($coins, function($coin) {
                             <button id="refresh-data" class="btn btn-sm btn-primary me-2">
                                 <i class="fas fa-sync-alt"></i> Refresh Data
                             </button>
+                            <button id="recommend-coins" class="btn btn-sm btn-info me-2">
+                                <i class="fas fa-robot"></i> Recommend Coins
+                            </button>
                             <div class="input-group input-group-sm ms-2" style="width: 200px;">
                                 <span class="input-group-text">Age < 24h</span>
                                 <div class="input-group-text">
@@ -468,7 +472,7 @@ $coins = array_filter($coins, function($coin) {
                                     <th class="sortable" data-sort="volume">Volume (24h) <i class="fas fa-sort"></i></th>
                                     <th class="sortable" data-sort="market-cap">Market Cap <i class="fas fa-sort"></i></th>
                                     <th class="sortable" data-sort="age">Age <i class="fas fa-sort"></i></th>
-                                    <th>Status</th>
+                                    <th>Status / Predicted Action</th>
                                     <th>Source</th>
                                     <th>Apex Status</th>
                                     <th>Trade</th>
@@ -487,6 +491,7 @@ $coins = array_filter($coins, function($coin) {
                                         $canSell = $userBalance > 0;
                                     }
                                     $priceChangeClass = $coin['price_change_24h'] >= 0 ? 'price-up' : 'price-down';
+                                    $priceClass = $priceChangeClass; // Use the same class for the price
                                     
                                     // Determine if coin is new based on age
                                     $isNew = $coin['age_hours'] < 24;
@@ -511,7 +516,7 @@ $coins = array_filter($coins, function($coin) {
                                             </div>
                                         </div>
                                     </td>
-                                    <td>$<?= $coin['current_price'] !== null ? number_format((float)$coin['current_price'], $coin['current_price'] >= 1 ? 2 : 8) : 'N/A' ?></td>
+                                    <td class="<?= $priceClass ?>">$<?= $coin['current_price'] !== null ? number_format((float)$coin['current_price'], $coin['current_price'] >= 1 ? 2 : 8) : 'N/A' ?></td>
                                     <td class="<?= $priceChangeClass ?>">
                                         <?php if ($coin['price_change_24h'] >= 0): ?>
                                             <i class="fas fa-caret-up"></i>
@@ -610,6 +615,7 @@ $coins = array_filter($coins, function($coin) {
 <!-- Pass PHP variables to JavaScript -->
 <script>
     const BASE_URL = '<?= BASE_URL ?>';
+    const ALL_COINS_DATA = <?= json_encode($coins); ?>;
 </script>
 
 
@@ -897,6 +903,73 @@ $(document).ready(function() {
     // Refresh button handler
     $('#refresh-data').on('click', function() {
         window.location.reload();
+    });
+
+    // Recommend Coins button handler
+    $('#recommend-coins').on('click', function() {
+        showToast('Info', 'Requesting coin recommendations...', 'info');
+        
+        // Prepare data for Python script
+        const coinsData = ALL_COINS_DATA.map(coin => ({
+            symbol: coin.symbol,
+            name: coin.name,
+            current_price: parseFloat(coin.current_price),
+            price_change_24h: parseFloat(coin.price_change_24h),
+            volume_24h: parseFloat(coin.volume_24h),
+            market_cap: parseFloat(coin.market_cap),
+            date_added: coin.date_added,
+            age_hours: parseFloat(coin.age_hours),
+            is_trending: coin.is_trending,
+            volume_spike: coin.volume_spike,
+            source: coin.source,
+            source_exchange: coin.source_exchange,
+            timestamp: coin.timestamp,
+            high: parseFloat(coin.high || coin.current_price), // Add high price, fallback to current_price
+            low: parseFloat(coin.low || coin.current_price) // Add low price, fallback to current_price
+        }));
+
+        console.log("Sending coinsData to Python:", coinsData); // Debugging line
+
+        $.ajax({
+            url: BASE_URL + '/api/select-coins.php',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(coinsData),
+            success: function(response) {
+                if (response.status === 'success') {
+                    showToast('Success', 'Coin recommendations received!', 'success');
+                    const recommendedCoins = response.data;
+                    
+                    // Hide all rows first
+                    $('#coins-table tbody tr').hide();
+
+                    // Show only recommended coins
+                    recommendedCoins.forEach(recCoin => {
+                        $('#coins-table tbody tr').each(function() {
+                            const $row = $(this);
+                            const symbol = $row.find('td:first-child div:last-child').text().trim();
+                            if (symbol === recCoin.symbol) {
+                                $row.show();
+                                // Optionally, add a class to highlight recommended coins
+                                $row.addClass('recommended-coin');
+                                // Update the predicted action column
+                                $row.find('td:nth-child(7)').text(recCoin.predicted_action);
+                                return false; // Break from inner loop
+                            }
+                        });
+                    });
+                    updateEntriesInfo(); // Update info after filtering
+
+                } else {
+                    showToast('Error', response.message || 'Failed to get recommendations', 'danger');
+                    console.error('Python script error:', response.python_error);
+                }
+            },
+            error: function(xhr, status, error) {
+                showToast('Error', 'Failed to connect to recommendation service', 'danger');
+                console.error('AJAX error:', status, error);
+            }
+        });
     });
     
     // Buy button handler

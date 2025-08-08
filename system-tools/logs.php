@@ -22,6 +22,7 @@ $allowedTools = [
     'delete_all_price_history' => '/opt/lampp/htdocs/NS/system-tools/truncate_price_history_table.sh',
     'delete_coin_apex_prices' => '/opt/lampp/htdocs/NS/system-tools/empty_coin_apex_prices.php',
     'cmc_fetch_bitvavo_coins' => '/opt/lampp/htdocs/NS/crons/bitvavoFromCMC4NS.py',
+    'update_prices_bitvavo_native' => '/opt/lampp/htdocs/NS/crons/update_prices_bitvavo_native.py',
     'cmc_fetch_binance_coins' => '/opt/lampp/htdocs/NS/crons/binanceFromCMC4NS.py',
     'trending_fetcher' => '/opt/lampp/htdocs/NS/crypto_sources/crypto_trending_fetcher.py',
     'cron_manager' => '/opt/lampp/htdocs/NS/tools/cron_manager_tool.php',

@@ -47,10 +47,10 @@ class TradingPerformance(Base):
 
 def populate_data():
     """Connects to the database and inserts sample data."""
-    db_user = os.getenv('DB_USER')
-    db_pass = os.getenv('DB_PASS')
-    db_host = os.getenv('DB_HOST')
-    db_name = os.getenv('DB_NAME')
+    db_user = 'dimi'
+    db_pass = '1304'
+    db_host = 'localhost'
+    db_name = 'NS'
 
     if not all([db_user, db_pass, db_host, db_name]):
         print("Database environment variables are not set.")
@@ -61,8 +61,14 @@ def populate_data():
     try:
         engine = create_engine(database_url)
         Session = sessionmaker(bind=engine)
+        Session = sessionmaker(bind=engine)
+        Session = sessionmaker(bind=engine)
         session = Session()
-        print("Successfully connected to the database.")
+
+        # Drop tables if they exist to ensure a clean slate
+        Base.metadata.drop_all(engine, tables=[LearningMetric.__table__, TradingPerformance.__table__])
+        Base.metadata.create_all(engine) # Create tables
+        print("Successfully connected to the database, dropped and ensured tables exist.")
 
         # --- Populate learning_metrics ---
         print("Populating learning_metrics...")
@@ -104,7 +110,7 @@ def populate_data():
         print("Successfully added sample data to the database.")
 
     except Exception as e:
-        print(f"An error occurred: {e}")
+        
     finally:
         session.close()
 

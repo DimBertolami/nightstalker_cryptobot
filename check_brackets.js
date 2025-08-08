@@ -1,11 +1,8 @@
 const fs = require('fs');
-
-// Read the file
-const filePath = '/opt/lampp/htdocs/NS/assets/js/coins.js';
-const content = fs.readFileSync(filePath, 'utf8');
+const readline = require('readline');
 
 // Function to check bracket matching
-function checkBrackets(code) {
+async function checkBrackets(filePath) {
     const stack = [];
     const brackets = {
         '{': '}',
@@ -13,11 +10,15 @@ function checkBrackets(code) {
         '[': ']'
     };
     
-    const lines = code.split('\n');
+    const fileStream = fs.createReadStream(filePath);
+    const rl = readline.createInterface({
+        input: fileStream,
+        crlfDelay: Infinity
+    });
     
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        
+    let lineNumber = 0;
+    for await (const line of rl) {
+        lineNumber++;
         for (let j = 0; j < line.length; j++) {
             const char = line[j];
             
@@ -25,19 +26,19 @@ function checkBrackets(code) {
                 // Opening bracket
                 stack.push({
                     char: char,
-                    line: i + 1,
+                    line: lineNumber,
                     col: j + 1
                 });
             } else if (Object.values(brackets).includes(char)) {
                 // Closing bracket
                 if (stack.length === 0) {
-                    console.log(`Error: Unexpected closing bracket '${char}' at line ${i + 1}, column ${j + 1}`);
+                    console.log(`Error: Unexpected closing bracket '${char}' at line ${lineNumber}, column ${j + 1}`);
                     return false;
                 }
                 
                 const last = stack.pop();
                 if (brackets[last.char] !== char) {
-                    console.log(`Error: Mismatched bracket at line ${i + 1}, column ${j + 1}. Expected '${brackets[last.char]}', but found '${char}'`);
+                    console.log(`Error: Mismatched bracket at line ${lineNumber}, column ${j + 1}. Expected '${brackets[last.char]}', but found '${char}'`);
                     return false;
                 }
             }
@@ -55,4 +56,5 @@ function checkBrackets(code) {
 }
 
 // Check the file
-checkBrackets(content);
+const filePath = '/opt/lampp/htdocs/NS/assets/js/coins.js';
+checkBrackets(filePath);
